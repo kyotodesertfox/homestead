@@ -70,7 +70,7 @@ contract Router {
         uint256 ethOut = amounts[amounts.length - 1];
         IWETH(WETH).withdraw(ethOut);
 
-        uint256 platformFee = (ethOut * ITreasury(treasury).exitFeeBps()) / 10000;
+        uint256 platformFee = (ethOut * ITreasury(treasury).dexExitFeeBps()) / 10000;
         uint256 userProceeds = ethOut - platformFee;
 
         if (platformFee > 0) {

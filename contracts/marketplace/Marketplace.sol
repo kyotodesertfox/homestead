@@ -149,7 +149,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         uint256 tokenId = listing.inventory[listing.inventory.length - 1];
         listing.inventory.pop();
 
-        uint256 fee      = (listing.price * ITreasury(feeCollector).platformFeeBps()) / 10000;
+        uint256 fee      = (listing.price * ITreasury(feeCollector).marketplaceFeeBps()) / 10000;
         uint256 proceeds = listing.price - fee;
 
         // Collect full payment from buyer

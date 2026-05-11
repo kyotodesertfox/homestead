@@ -53,8 +53,9 @@ interface IWETH {
 }
 
 interface ITreasury {
-    function entryFeeBps() external view returns (uint256);
-    function exitFeeBps() external view returns (uint256);
+    function dexEntryFeeBps() external view returns (uint256);
+    function dexExitFeeBps() external view returns (uint256);
+    function marketplaceFeeBps() external view returns (uint256);
 }
 
 // =========================================================================
