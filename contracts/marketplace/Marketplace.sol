@@ -137,11 +137,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         _listings[listingId].price = newPrice;
     }
 
-    function updateProceeds(uint256 listingId, address newProceeds) external onlyOwner {
-        require(newProceeds != address(0), 'Marketplace: ZERO_PROCEEDS');
-        _listings[listingId].proceeds = newProceeds;
-    }
-
     // =========================================================================
     // PURCHASE
     // Buyer spends paymentToken, receives the next available NFT from inventory.
