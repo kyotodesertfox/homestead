@@ -32,11 +32,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         address nftContract;
         address paymentToken;
         uint256 price;           // in paymentToken's smallest unit (e.g. 1e18 = 1 token)
+        address proceeds;        // producer wallet — receives sale revenue after platform fee
         uint256[] inventory;     // token IDs held in custody, popped on purchase
         bool active;
     }
 
-    event SKUCreated(uint256 indexed skuId, address indexed nftContract, address indexed paymentToken, uint256 price);
+    event SKUCreated(uint256 indexed skuId, address indexed nftContract, address indexed paymentToken, address proceeds, uint256 price);
     event InventoryDeposited(uint256 indexed skuId, uint256 count, uint256 totalInventory);
     event InventoryWithdrawn(uint256 indexed skuId, uint256 count);
     event Purchased(uint256 indexed skuId, address indexed buyer, uint256 indexed tokenId, uint256 price);
@@ -74,7 +75,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     function createSKU(
         address nftContract,
         address paymentToken,
-        uint256 price
+        uint256 price,
+        address proceeds
     ) external onlyOwner returns (uint256 skuId) {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
@@ -84,15 +86,17 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             ITokenDeployer(tokenDeployer).isRegistered(paymentToken),
             'Marketplace: UNREGISTERED_TOKEN'
         );
-        require(price > 0, 'Marketplace: ZERO_PRICE');
+        require(price > 0,            'Marketplace: ZERO_PRICE');
+        require(proceeds != address(0), 'Marketplace: ZERO_PROCEEDS');
 
         skuId = nextSkuId++;
-        _skus[skuId].nftContract   = nftContract;
-        _skus[skuId].paymentToken  = paymentToken;
-        _skus[skuId].price         = price;
-        _skus[skuId].active        = true;
+        _skus[skuId].nftContract  = nftContract;
+        _skus[skuId].paymentToken = paymentToken;
+        _skus[skuId].price        = price;
+        _skus[skuId].proceeds     = proceeds;
+        _skus[skuId].active       = true;
 
-        emit SKUCreated(skuId, nftContract, paymentToken, price);
+        emit SKUCreated(skuId, nftContract, paymentToken, proceeds, price);
     }
 
     // Transfer pre-minted NFTs into marketplace custody.
@@ -157,7 +161,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             'Marketplace: PAYMENT_FAILED'
         );
 
-        // Route fee to Treasury
+        // Platform fee → Treasury
         if (fee > 0) {
             require(
                 IERC20(sku.paymentToken).transfer(feeCollector, fee),
@@ -165,10 +169,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             );
         }
 
-        // Route proceeds to Treasury (single-operator: same address for now)
+        // Sale proceeds → producer
         if (proceeds > 0) {
             require(
-                IERC20(sku.paymentToken).transfer(feeCollector, proceeds),
+                IERC20(sku.paymentToken).transfer(sku.proceeds, proceeds),
                 'Marketplace: PROCEEDS_FAILED'
             );
         }
@@ -215,11 +219,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         address nftContract,
         address paymentToken,
         uint256 price,
+        address proceeds,
         uint256 inventoryCount,
         bool active
     ) {
         SKU storage sku = _skus[skuId];
-        return (sku.nftContract, sku.paymentToken, sku.price, sku.inventory.length, sku.active);
+        return (sku.nftContract, sku.paymentToken, sku.price, sku.proceeds, sku.inventory.length, sku.active);
     }
 
     function getInventory(uint256 skuId) external view returns (uint256[] memory) {
