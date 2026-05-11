@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.deps/
+
+# Build outputs
+artifacts/
+cache/
+out/
+dist/
+.next/
+build/
+
+# Compiler artifacts (generated — do not commit)
+contracts/**/*.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Deploy artifacts (generated on each deploy)
+.deploys/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Flattened contracts (generated — not source of truth)
+*_flattened.sol
