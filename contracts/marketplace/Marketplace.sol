@@ -21,26 +21,26 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     address public feeCollector;
     uint256 public platformFeeBps;
 
-    mapping(uint256 => SKU) private _skus;
-    uint256 public nextSkuId;
+    mapping(uint256 => Listing) private _listings;
+    uint256 public nextListingId;
 
     uint256[44] private __gap;
 
     // =========================================================================
 
-    struct SKU {
+    struct Listing {
         address nftContract;
         address paymentToken;
-        uint256 price;           // in paymentToken's smallest unit (e.g. 1e18 = 1 token)
-        address proceeds;        // producer wallet — receives sale revenue after platform fee
-        uint256[] inventory;     // token IDs held in custody, popped on purchase
+        uint256 price;       // in paymentToken's smallest unit (e.g. 1e18 = 1 token)
+        address proceeds;    // producer wallet — receives sale revenue after platform fee
+        uint256[] inventory; // token IDs held in custody, popped on purchase
         bool active;
     }
 
-    event SKUCreated(uint256 indexed skuId, address indexed nftContract, address indexed paymentToken, address proceeds, uint256 price);
-    event InventoryDeposited(uint256 indexed skuId, uint256 count, uint256 totalInventory);
-    event InventoryWithdrawn(uint256 indexed skuId, uint256 count);
-    event Purchased(uint256 indexed skuId, address indexed buyer, uint256 indexed tokenId, uint256 price);
+    event ListingCreated(uint256 indexed listingId, address indexed nftContract, address indexed paymentToken, address proceeds, uint256 price);
+    event InventoryDeposited(uint256 indexed listingId, uint256 count, uint256 totalInventory);
+    event InventoryWithdrawn(uint256 indexed listingId, uint256 count);
+    event Purchased(uint256 indexed listingId, address indexed buyer, uint256 indexed tokenId, uint256 price);
     event Redeemed(address indexed nftContract, uint256 indexed tokenId, address indexed redeemer);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -68,16 +68,16 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // =========================================================================
-    // SKU MANAGEMENT — owner only
+    // LISTING MANAGEMENT — owner only
     // Both the NFT contract and payment token must be from the trust hierarchy.
     // =========================================================================
 
-    function createSKU(
+    function createListing(
         address nftContract,
         address paymentToken,
         uint256 price,
         address proceeds
-    ) external onlyOwner returns (uint256 skuId) {
+    ) external onlyOwner returns (uint256 listingId) {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
             'Marketplace: UNREGISTERED_NFT'
@@ -86,85 +86,90 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             ITokenDeployer(tokenDeployer).isRegistered(paymentToken),
             'Marketplace: UNREGISTERED_TOKEN'
         );
-        require(price > 0,            'Marketplace: ZERO_PRICE');
+        require(price > 0,              'Marketplace: ZERO_PRICE');
         require(proceeds != address(0), 'Marketplace: ZERO_PROCEEDS');
 
-        skuId = nextSkuId++;
-        _skus[skuId].nftContract  = nftContract;
-        _skus[skuId].paymentToken = paymentToken;
-        _skus[skuId].price        = price;
-        _skus[skuId].proceeds     = proceeds;
-        _skus[skuId].active       = true;
+        listingId = nextListingId++;
+        _listings[listingId].nftContract  = nftContract;
+        _listings[listingId].paymentToken = paymentToken;
+        _listings[listingId].price        = price;
+        _listings[listingId].proceeds     = proceeds;
+        _listings[listingId].active       = true;
 
-        emit SKUCreated(skuId, nftContract, paymentToken, proceeds, price);
+        emit ListingCreated(listingId, nftContract, paymentToken, proceeds, price);
     }
 
-    // Transfer pre-minted NFTs into marketplace custody.
+    // Transfer producer NFTs into marketplace custody.
     // Caller must approve this contract on the NFT contract first.
-    function depositInventory(uint256 skuId, uint256[] calldata tokenIds) external onlyOwner {
-        SKU storage sku = _skus[skuId];
-        require(sku.nftContract != address(0), 'Marketplace: SKU_NOT_FOUND');
+    function depositInventory(uint256 listingId, uint256[] calldata tokenIds) external onlyOwner {
+        Listing storage listing = _listings[listingId];
+        require(listing.nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            IERC721(sku.nftContract).transferFrom(msg.sender, address(this), tokenIds[i]);
-            sku.inventory.push(tokenIds[i]);
+            IERC721(listing.nftContract).transferFrom(msg.sender, address(this), tokenIds[i]);
+            listing.inventory.push(tokenIds[i]);
         }
 
-        emit InventoryDeposited(skuId, tokenIds.length, sku.inventory.length);
+        emit InventoryDeposited(listingId, tokenIds.length, listing.inventory.length);
     }
 
     // Pull unsold NFTs back from custody.
-    function withdrawInventory(uint256 skuId, uint256 count) external onlyOwner {
-        SKU storage sku = _skus[skuId];
-        require(sku.inventory.length >= count, 'Marketplace: INSUFFICIENT_INVENTORY');
+    function withdrawInventory(uint256 listingId, uint256 count) external onlyOwner {
+        Listing storage listing = _listings[listingId];
+        require(listing.inventory.length >= count, 'Marketplace: INSUFFICIENT_INVENTORY');
 
         for (uint256 i = 0; i < count; i++) {
-            uint256 tokenId = sku.inventory[sku.inventory.length - 1];
-            sku.inventory.pop();
-            IERC721(sku.nftContract).transferFrom(address(this), msg.sender, tokenId);
+            uint256 tokenId = listing.inventory[listing.inventory.length - 1];
+            listing.inventory.pop();
+            IERC721(listing.nftContract).transferFrom(address(this), msg.sender, tokenId);
         }
 
-        emit InventoryWithdrawn(skuId, count);
+        emit InventoryWithdrawn(listingId, count);
     }
 
-    function setActive(uint256 skuId, bool active) external onlyOwner {
-        require(_skus[skuId].nftContract != address(0), 'Marketplace: SKU_NOT_FOUND');
-        _skus[skuId].active = active;
+    function setActive(uint256 listingId, bool active) external onlyOwner {
+        require(_listings[listingId].nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
+        _listings[listingId].active = active;
     }
 
-    function updatePrice(uint256 skuId, uint256 newPrice) external onlyOwner {
+    function updatePrice(uint256 listingId, uint256 newPrice) external onlyOwner {
         require(newPrice > 0, 'Marketplace: ZERO_PRICE');
-        _skus[skuId].price = newPrice;
+        _listings[listingId].price = newPrice;
+    }
+
+    function updateProceeds(uint256 listingId, address newProceeds) external onlyOwner {
+        require(newProceeds != address(0), 'Marketplace: ZERO_PROCEEDS');
+        _listings[listingId].proceeds = newProceeds;
     }
 
     // =========================================================================
     // PURCHASE
     // Buyer spends paymentToken, receives the next available NFT from inventory.
-    // 2% platform fee routes to feeCollector (Treasury).
+    // Platform fee routes to feeCollector (Treasury); remainder to producer.
     // Caller must approve this contract on the payment token first.
     // =========================================================================
 
-    function buy(uint256 skuId) external nonReentrant whenNotPaused {
-        SKU storage sku = _skus[skuId];
-        require(sku.active, 'Marketplace: SKU_NOT_ACTIVE');
-        require(sku.inventory.length > 0, 'Marketplace: OUT_OF_STOCK');
+    function buy(uint256 listingId) external nonReentrant whenNotPaused {
+        Listing storage listing = _listings[listingId];
+        require(listing.active,              'Marketplace: LISTING_NOT_ACTIVE');
+        require(listing.inventory.length > 0, 'Marketplace: OUT_OF_STOCK');
 
-        uint256 tokenId = sku.inventory[sku.inventory.length - 1];
-        sku.inventory.pop();
+        uint256 tokenId = listing.inventory[listing.inventory.length - 1];
+        listing.inventory.pop();
 
-        uint256 fee      = (sku.price * platformFeeBps) / 10000;
-        uint256 proceeds = sku.price - fee;
+        uint256 fee      = (listing.price * platformFeeBps) / 10000;
+        uint256 proceeds = listing.price - fee;
 
         // Collect full payment from buyer
         require(
-            IERC20(sku.paymentToken).transferFrom(msg.sender, address(this), sku.price),
+            IERC20(listing.paymentToken).transferFrom(msg.sender, address(this), listing.price),
             'Marketplace: PAYMENT_FAILED'
         );
 
         // Platform fee → Treasury
         if (fee > 0) {
             require(
-                IERC20(sku.paymentToken).transfer(feeCollector, fee),
+                IERC20(listing.paymentToken).transfer(feeCollector, fee),
                 'Marketplace: FEE_FAILED'
             );
         }
@@ -172,21 +177,20 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         // Sale proceeds → producer
         if (proceeds > 0) {
             require(
-                IERC20(sku.paymentToken).transfer(sku.proceeds, proceeds),
+                IERC20(listing.paymentToken).transfer(listing.proceeds, proceeds),
                 'Marketplace: PROCEEDS_FAILED'
             );
         }
 
         // Deliver NFT from custody to buyer
-        IERC721(sku.nftContract).transferFrom(address(this), msg.sender, tokenId);
+        IERC721(listing.nftContract).transferFrom(address(this), msg.sender, tokenId);
 
-        emit Purchased(skuId, msg.sender, tokenId, sku.price);
+        emit Purchased(listingId, msg.sender, tokenId, listing.price);
     }
 
     // =========================================================================
     // REDEMPTION
-    // Burns the NFT on physical pickup. The corresponding payment token balance
-    // in the Treasury is burned separately by the owner to maintain 1:1 parity.
+    // Burns the NFT on physical pickup.
     // Emits an event the POS system can listen for.
     // =========================================================================
 
@@ -200,9 +204,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             'Marketplace: NOT_OWNER'
         );
 
-        // Approve and burn via nftTemplate's burn function
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-        // Call burn on the nftTemplate (ERC721Burnable)
         (bool success, ) = nftContract.call(
             abi.encodeWithSignature("burn(uint256)", tokenId)
         );
@@ -215,7 +217,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // READ
     // =========================================================================
 
-    function getSKU(uint256 skuId) external view returns (
+    function getListing(uint256 listingId) external view returns (
         address nftContract,
         address paymentToken,
         uint256 price,
@@ -223,12 +225,19 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         uint256 inventoryCount,
         bool active
     ) {
-        SKU storage sku = _skus[skuId];
-        return (sku.nftContract, sku.paymentToken, sku.price, sku.proceeds, sku.inventory.length, sku.active);
+        Listing storage listing = _listings[listingId];
+        return (
+            listing.nftContract,
+            listing.paymentToken,
+            listing.price,
+            listing.proceeds,
+            listing.inventory.length,
+            listing.active
+        );
     }
 
-    function getInventory(uint256 skuId) external view returns (uint256[] memory) {
-        return _skus[skuId].inventory;
+    function getInventory(uint256 listingId) external view returns (uint256[] memory) {
+        return _listings[listingId].inventory;
     }
 
     // =========================================================================
@@ -244,6 +253,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         platformFeeBps = _platformFeeBps;
     }
 
-    function pause() external onlyOwner { _pause(); }
+    function pause()   external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
 }
