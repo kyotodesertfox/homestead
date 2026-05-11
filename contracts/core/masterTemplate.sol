@@ -21,7 +21,7 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
     string private _nameOverride;
     string private _symbolOverride;
 
-    uint256[50] private __gap;
+    uint256[47] private __gap;
 
     // =========================================================================
 
