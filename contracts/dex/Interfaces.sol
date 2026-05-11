@@ -52,6 +52,11 @@ interface IWETH {
     function withdraw(uint256 value) external;
 }
 
+interface ITreasury {
+    function entryFeeBps() external view returns (uint256);
+    function exitFeeBps() external view returns (uint256);
+}
+
 // =========================================================================
 // HOMESTEAD LIBRARY
 // Pair addresses are looked up from the Factory (not computed via CREATE2)

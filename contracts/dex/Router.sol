@@ -9,10 +9,6 @@ contract Router {
     address public immutable WETH;
     address public immutable treasury;
 
-    // Platform fees — all route to Treasury
-    uint256 public entryFeeBps = 0;    // ETH → token: free (upgradeable via new Router deployment)
-    uint256 public exitFeeBps  = 500;  // token → ETH: 5%
-
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, 'Router: EXPIRED');
         _;
@@ -74,7 +70,7 @@ contract Router {
         uint256 ethOut = amounts[amounts.length - 1];
         IWETH(WETH).withdraw(ethOut);
 
-        uint256 platformFee = (ethOut * exitFeeBps) / 10000;
+        uint256 platformFee = (ethOut * ITreasury(treasury).exitFeeBps()) / 10000;
         uint256 userProceeds = ethOut - platformFee;
 
         if (platformFee > 0) {
