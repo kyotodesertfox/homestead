@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  /* High-Contrast Homestead Palette */
+  --color-homestead-bg: #f9f7f5;      /* Ultra-light Cream */
+  --color-homestead-header: #1c1917;  /* Deep Stone/Brown (Offset) */
+  --color-homestead-card: #ffffff;    /* Pure White for the main action */
+  --color-egg-yolk: #f59e0b;          /* The $EGG Highlight */
+  --color-farm-earth: #451a03;        /* Warm Dark Brown for text */
+}
+
+body {
+  background-color: var(--color-homestead-bg);
+  color: var(--color-farm-earth);
+  margin: 0;
+}

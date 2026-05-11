@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-beer-gold: #FBB117;
+  --color-beer-amber: #D48900;
+  --color-beer-foam: #F5F5F1;
+  --color-beer-dark: #2D1B09;
+}
+
+@keyframes intense-sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+    filter: blur(1px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(180deg);
+    filter: blur(0px);
+    text-shadow: 0 0 8px #FBB117, 0 0 12px #FFFFFF;
+  }
+}
+
+.animate-intense {
+  animation: intense-sparkle var(--speed, 3s) infinite ease-in-out;
+}
