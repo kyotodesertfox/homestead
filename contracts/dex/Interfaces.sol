@@ -1,13 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/**
- * @dev The "Dictionary" of your ecosystem.
- * These interfaces allow the Router and Factory to communicate.
- */
+// =========================================================================
+// DEPLOYER INTERFACES — Trust hierarchy verification
+// =========================================================================
+
+interface ITokenDeployer {
+    function isRegistered(address token) external view returns (bool);
+    function getAllTokens() external view returns (address[] memory);
+}
+
+interface INFTDeployer {
+    function isRegistered(address nftContract) external view returns (bool);
+    function getAllContracts() external view returns (address[] memory);
+}
+
+// =========================================================================
+// DEX INTERFACES
+// =========================================================================
 
 interface IFactory {
     function feeTo() external view returns (address);
+    function tokenDeployer() external view returns (address);
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
@@ -15,8 +29,11 @@ interface IPair {
     function token0() external view returns (address);
     function token1() external view returns (address);
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1);
-    function swap(uint amount0Out, uint amount1Out, address to) external;
-    function burn(address to) external returns (uint amount0, uint amount1);
+    function totalSupply() external view returns (uint256);
+    function mint(address to) external returns (uint256 liquidity);
+    function burn(address to) external returns (uint256 amount0, uint256 amount1);
+    function swap(uint256 amount0Out, uint256 amount1Out, address to) external;
+    function sync() external;
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
@@ -31,39 +48,82 @@ interface IERC20 {
 
 interface IWETH {
     function deposit() external payable;
-    function transfer(address to, uint value) external returns (bool);
-    function withdraw(uint) external;
+    function transfer(address to, uint256 value) external returns (bool);
+    function withdraw(uint256 value) external;
 }
 
-/**
- * @dev ArtLibrary: Handles the math for sorting tokens and finding pair addresses.
- * Note: The init code hash must match your DEXPair deployment for safety.
- */
-library ArtLibrary {
-    function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
-        require(tokenA != tokenB, 'ArtLibrary: IDENTICAL_ADDRESSES');
+// =========================================================================
+// HOMESTEAD LIBRARY
+// Pair addresses are looked up from the Factory (not computed via CREATE2)
+// because pairs are deployed as BeaconProxy contracts using regular CREATE.
+// =========================================================================
+
+library HomesteadLibrary {
+
+    function sortTokens(address tokenA, address tokenB)
+        internal pure returns (address token0, address token1)
+    {
+        require(tokenA != tokenB, 'Library: IDENTICAL_ADDRESSES');
         (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), 'ArtLibrary: ZERO_ADDRESS');
+        require(token0 != address(0), 'Library: ZERO_ADDRESS');
     }
 
-    // Calculates the CREATE2 address for a pair without making any external calls
-    function pairFor(address factory, address tokenA, address tokenB) internal pure returns (address pair) {
-        (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = address(uint160(uint256(keccak256(abi.encodePacked(
-            hex'ff',
-            factory,
-            keccak256(abi.encodePacked(token0, token1)),
-                                                                  hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' // Standard Uniswap V2 Init Code Hash
-        )))));
+    function getReserves(address factory, address tokenA, address tokenB)
+        internal view returns (uint256 reserveA, uint256 reserveB)
+    {
+        (address token0,) = sortTokens(tokenA, tokenB);
+        address pair = IFactory(factory).getPair(tokenA, tokenB);
+        require(pair != address(0), 'Library: PAIR_NOT_FOUND');
+        (uint112 reserve0, uint112 reserve1) = IPair(pair).getReserves();
+        (reserveA, reserveB) = tokenA == token0
+            ? (uint256(reserve0), uint256(reserve1))
+            : (uint256(reserve1), uint256(reserve0));
     }
 
-    function getAmountsIn(address factory, uint amountOut, address[] memory path) internal view returns (uint[] memory amounts) {
-        require(path.length >= 2, 'ArtLibrary: INVALID_PATH');
-        amounts = new uint[](path.length);
+    // Given an exact input, calculate maximum output (0.3% swap fee)
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
+        internal pure returns (uint256 amountOut)
+    {
+        require(amountIn > 0, 'Library: INSUFFICIENT_INPUT_AMOUNT');
+        require(reserveIn > 0 && reserveOut > 0, 'Library: INSUFFICIENT_LIQUIDITY');
+        uint256 amountInWithFee = amountIn * 9970;
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = (reserveIn * 10000) + amountInWithFee;
+        amountOut = numerator / denominator;
+    }
+
+    // Given an exact output, calculate minimum input required (0.3% swap fee)
+    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+        internal pure returns (uint256 amountIn)
+    {
+        require(amountOut > 0, 'Library: INSUFFICIENT_OUTPUT_AMOUNT');
+        require(reserveIn > 0 && reserveOut > 0, 'Library: INSUFFICIENT_LIQUIDITY');
+        uint256 numerator = reserveIn * amountOut * 10000;
+        uint256 denominator = (reserveOut - amountOut) * 9970;
+        amountIn = (numerator / denominator) + 1;
+    }
+
+    function getAmountsOut(address factory, uint256 amountIn, address[] memory path)
+        internal view returns (uint256[] memory amounts)
+    {
+        require(path.length >= 2, 'Library: INVALID_PATH');
+        amounts = new uint256[](path.length);
+        amounts[0] = amountIn;
+        for (uint256 i; i < path.length - 1; i++) {
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[i + 1]);
+            amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
+        }
+    }
+
+    function getAmountsIn(address factory, uint256 amountOut, address[] memory path)
+        internal view returns (uint256[] memory amounts)
+    {
+        require(path.length >= 2, 'Library: INVALID_PATH');
+        amounts = new uint256[](path.length);
         amounts[amounts.length - 1] = amountOut;
-        for (uint i = path.length - 1; i > 0; i--) {
-            // Simplified Math for testing; real V2 math would be applied in the final DEX version
-            amounts[i - 1] = amountOut + (amountOut / 100);
+        for (uint256 i = path.length - 1; i > 0; i--) {
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i - 1], path[i]);
+            amounts[i - 1] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
 }
