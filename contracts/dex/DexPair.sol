@@ -16,6 +16,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     address public factory;
     address public token0;
     address public token1;
+    address public weth;
 
     uint112 private reserve0;
     uint112 private reserve1;
@@ -25,11 +26,13 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     uint256 public price1CumulativeLast;
     uint256 public kLast;
 
-    uint256[43] private __gap;
+    uint256[42] private __gap;
 
     // =========================================================================
 
-    uint256 private constant MINIMUM_LIQUIDITY = 1000;
+    uint256 private constant MINIMUM_LIQUIDITY   = 1000;
+    uint256 private constant GAS_GUARD_MULTIPLE  = 3;
+    uint256 private constant GAS_GUARD_UNITS     = 150000;
 
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
@@ -41,12 +44,13 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         _disableInitializers();
     }
 
-    function initialize(address _token0, address _token1) external initializer {
+    function initialize(address _token0, address _token1, address _weth) external initializer {
         __ReentrancyGuard_init();
         __ERC20_init("Homestead LP", "HLP");
         factory = msg.sender;
         token0  = _token0;
         token1  = _token1;
+        weth    = _weth;
     }
 
     // =========================================================================
@@ -159,6 +163,22 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         uint256 amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint256 amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, 'DEXPair: INSUFFICIENT_INPUT_AMOUNT');
+
+        // Gas guard: when WETH is one side of the pair, the 0.3% fee is measurable in ETH.
+        // If fee < 3x gas cost the trade is economically net-negative for the protocol;
+        // force it to fail rather than drain the Treasury on micro trades during congestion.
+        // TOKEN/TOKEN pairs skip this check as their fee is not denominated in ETH.
+        if (token0 == weth && amount0In > 0) {
+            require(
+                (amount0In * 30) / 10000 >= tx.gasprice * GAS_GUARD_UNITS * GAS_GUARD_MULTIPLE,
+                'DEXPair: TRADE_TOO_SMALL'
+            );
+        } else if (token1 == weth && amount1In > 0) {
+            require(
+                (amount1In * 30) / 10000 >= tx.gasprice * GAS_GUARD_UNITS * GAS_GUARD_MULTIPLE,
+                'DEXPair: TRADE_TOO_SMALL'
+            );
+        }
 
         // Constant product invariant check (0.3% swap fee)
         uint256 balance0Adjusted = (balance0 * 10000) - (amount0In * 30);

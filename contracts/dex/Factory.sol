@@ -72,7 +72,7 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
         require(token0 != address(0), 'DEX: ZERO_ADDRESS');
         require(getPair[token0][token1] == address(0), 'DEX: PAIR_EXISTS');
 
-        bytes memory data = abi.encodeWithSignature("initialize(address,address)", token0, token1);
+        bytes memory data = abi.encodeWithSignature("initialize(address,address,address)", token0, token1, weth);
         BeaconProxy proxy = new BeaconProxy(beacon, data);
         pair = address(proxy);
 
