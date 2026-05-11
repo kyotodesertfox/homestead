@@ -2,53 +2,68 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract TokenDeployer is Ownable {
+contract TokenDeployer is UUPSUpgradeable, OwnableUpgradeable {
 
-    // This is your "Gold Image" Blueprint
+    // =========================================================================
+    // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
+    // Add new variables above __gap, reducing gap size accordingly.
+    // =========================================================================
+
     address public templateAddress;
+    mapping(address => bool) public isRegistered;
+    address[] public allTokens;
 
-    // Log for your "Server" history
-    event tokenDeployed(address indexed proxyAddress, string name, string symbol);
+    uint256[47] private __gap;
 
-    constructor(address _initialTemplate) Ownable(msg.sender) {
+    // =========================================================================
+
+    event TokenDeployed(address indexed proxyAddress, string name, string symbol);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _initialTemplate, address _initialOwner) initializer public {
+        __Ownable_init(_initialOwner);
+        __UUPSUpgradeable_init();
         templateAddress = _initialTemplate;
     }
 
-    /**
-     * @dev Sets a new "Gold Image" if you ever upgrade the masterTemplate logic.
-     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
     function updateTemplate(address _newTemplate) external onlyOwner {
         templateAddress = _newTemplate;
     }
 
-    /**
-     * @dev The main "Provisioning" command.
-     * This creates the proxy (writable / public) and initializes it in one atomic step.
-     */
     function deployNewToken(
         string memory _name,
         string memory _symbol,
         address _initialOwner
     ) external onlyOwner returns (address) {
-
-        // 1. Prepare the "Setup Script" (Initialization Data)
-        // This encodes the call to the 'initialize' function in the blueprint
         bytes memory _initData = abi.encodeWithSignature(
             "initialize(string,string,address)",
-                                                         _name,
-                                                         _symbol,
-                                                         _initialOwner
+            _name,
+            _symbol,
+            _initialOwner
         );
 
-        // 2. Deploy the proxy (writable / public)
-        // This links the new address to your implementation (read-only / internal)
         ERC1967Proxy _proxy = new ERC1967Proxy(templateAddress, _initData);
+        isRegistered[address(_proxy)] = true;
+        allTokens.push(address(_proxy));
 
-        // 3. Log the event
-        emit tokenDeployed(address(_proxy), _name, _symbol);
-
+        emit TokenDeployed(address(_proxy), _name, _symbol);
         return address(_proxy);
+    }
+
+    function getAllTokens() external view returns (address[] memory) {
+        return allTokens;
+    }
+
+    function totalTokens() external view returns (uint256) {
+        return allTokens.length;
     }
 }
