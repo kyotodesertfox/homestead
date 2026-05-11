@@ -24,8 +24,9 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     address public nftDeployer;
     address public dexFactory;
 
-    uint256 public entryFeeBps;  // fee on ETH→token (default 0)
-    uint256 public exitFeeBps;   // fee on token→ETH (default 500 = 5%)
+    uint256 public entryFeeBps;    // DEX: fee on ETH→token (default 0)
+    uint256 public exitFeeBps;     // DEX: fee on token→ETH (default 500 = 5%)
+    uint256 public platformFeeBps; // Marketplace: fee on NFT purchases (default 200 = 2%)
 
     uint256 public accumulatedFees;
 
@@ -33,14 +34,14 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // ETH paid is permanently locked — it is never returned. This is the floor.
     mapping(address => uint256) public nftPrices;
 
-    uint256[43] private __gap;
+    uint256[42] private __gap;
 
     // =========================================================================
 
     event NFTPriceSet(address indexed nftContract, uint256 priceWei);
     event InventoryNFTPurchased(address indexed producer, address indexed nftContract, uint256 indexed tokenId, uint256 ethPaid);
     event LaborMinted(address indexed to, address indexed token, uint256 amount);
-    event FeeParametersUpdated(uint256 entryFeeBps, uint256 exitFeeBps);
+    event FeeParametersUpdated(uint256 entryFeeBps, uint256 exitFeeBps, uint256 platformFeeBps);
     event FeesWithdrawn(address indexed to, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -53,18 +54,20 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         address _nftDeployer,
         address _dexFactory,
         uint256 _entryFeeBps,
-        uint256 _exitFeeBps
+        uint256 _exitFeeBps,
+        uint256 _platformFeeBps
     ) initializer public {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        tokenDeployer = _tokenDeployer;
-        nftDeployer   = _nftDeployer;
-        dexFactory    = _dexFactory;
-        entryFeeBps   = _entryFeeBps;
-        exitFeeBps    = _exitFeeBps;
+        tokenDeployer   = _tokenDeployer;
+        nftDeployer     = _nftDeployer;
+        dexFactory      = _dexFactory;
+        entryFeeBps     = _entryFeeBps;
+        exitFeeBps      = _exitFeeBps;
+        platformFeeBps  = _platformFeeBps;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -131,12 +134,18 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // FEE MANAGEMENT
     // =========================================================================
 
-    function setFeeParameters(uint256 _entryFeeBps, uint256 _exitFeeBps) external onlyOwner {
-        require(_entryFeeBps <= 500,  'Treasury: ENTRY_FEE_TOO_HIGH');
-        require(_exitFeeBps  <= 1000, 'Treasury: EXIT_FEE_TOO_HIGH');
-        entryFeeBps = _entryFeeBps;
-        exitFeeBps  = _exitFeeBps;
-        emit FeeParametersUpdated(_entryFeeBps, _exitFeeBps);
+    function setFeeParameters(
+        uint256 _entryFeeBps,
+        uint256 _exitFeeBps,
+        uint256 _platformFeeBps
+    ) external onlyOwner {
+        require(_entryFeeBps   <= 500,  'Treasury: ENTRY_FEE_TOO_HIGH');
+        require(_exitFeeBps    <= 1000, 'Treasury: EXIT_FEE_TOO_HIGH');
+        require(_platformFeeBps <= 1000, 'Treasury: PLATFORM_FEE_TOO_HIGH');
+        entryFeeBps    = _entryFeeBps;
+        exitFeeBps     = _exitFeeBps;
+        platformFeeBps = _platformFeeBps;
+        emit FeeParametersUpdated(_entryFeeBps, _exitFeeBps, _platformFeeBps);
     }
 
     function withdrawFees(address to, uint256 amount) external onlyOwner nonReentrant {

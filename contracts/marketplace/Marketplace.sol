@@ -19,12 +19,11 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     address public tokenDeployer;
     address public nftDeployer;
     address public feeCollector;
-    uint256 public platformFeeBps;
 
     mapping(uint256 => Listing) private _listings;
     uint256 public nextListingId;
 
-    uint256[44] private __gap;
+    uint256[45] private __gap;
 
     // =========================================================================
 
@@ -51,18 +50,16 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     function initialize(
         address _tokenDeployer,
         address _nftDeployer,
-        address _feeCollector,
-        uint256 _platformFeeBps
+        address _feeCollector
     ) initializer public {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        tokenDeployer  = _tokenDeployer;
-        nftDeployer    = _nftDeployer;
-        feeCollector   = _feeCollector;
-        platformFeeBps = _platformFeeBps;
+        tokenDeployer = _tokenDeployer;
+        nftDeployer   = _nftDeployer;
+        feeCollector  = _feeCollector;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -152,7 +149,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         uint256 tokenId = listing.inventory[listing.inventory.length - 1];
         listing.inventory.pop();
 
-        uint256 fee      = (listing.price * platformFeeBps) / 10000;
+        uint256 fee      = (listing.price * ITreasury(feeCollector).platformFeeBps()) / 10000;
         uint256 proceeds = listing.price - fee;
 
         // Collect full payment from buyer
@@ -241,11 +238,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     function setFeeCollector(address _feeCollector) external onlyOwner {
         feeCollector = _feeCollector;
-    }
-
-    function setPlatformFee(uint256 _platformFeeBps) external onlyOwner {
-        require(_platformFeeBps <= 1000, 'Marketplace: FEE_TOO_HIGH'); // 10% max
-        platformFeeBps = _platformFeeBps;
     }
 
     function pause()   external onlyOwner { _pause(); }
