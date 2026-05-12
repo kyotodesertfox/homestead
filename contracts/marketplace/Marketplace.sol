@@ -53,7 +53,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         address _feeCollector
     ) initializer public {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 

@@ -62,7 +62,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         uint256 _marketplaceFeeBps
     ) initializer public {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 

@@ -29,7 +29,6 @@ contract NFTDeployer is UUPSUpgradeable, OwnableUpgradeable {
 
     function initialize(address _initialTemplate, address _initialOwner) initializer public {
         __Ownable_init(_initialOwner);
-        __UUPSUpgradeable_init();
         templateAddress = _initialTemplate;
     }
 

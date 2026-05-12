@@ -52,7 +52,6 @@ contract nftTemplate is
         __ERC721Burnable_init();
         __ERC721Pausable_init();
         __ERC2981_init();
-        __UUPSUpgradeable_init();
         __Ownable_init(_initialOwner);
 
         _contractCID = _initContractCID;

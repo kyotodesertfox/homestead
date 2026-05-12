@@ -43,7 +43,6 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
         __ERC20_init(_name, _symbol);
         __ERC20Pausable_init();
         __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init();
         isMinter[initialOwner] = true;
     }
 

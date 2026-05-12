@@ -39,7 +39,6 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
         address _tokenDeployer
     ) initializer public {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
 
         feeToSetter   = _feeToSetter;
         tokenDeployer = _tokenDeployer;
