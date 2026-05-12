@@ -4,12 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../dex/Interfaces.sol";
 
-contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuard {
 
     // =========================================================================
     // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
@@ -54,7 +54,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     ) initializer public {
         __Ownable_init(msg.sender);
         __Pausable_init();
-        __ReentrancyGuard_init();
 
         tokenDeployer = _tokenDeployer;
         nftDeployer   = _nftDeployer;

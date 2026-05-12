@@ -1,0 +1,6 @@
+artifacts/
+.deps/
+cache/
+node_modules/
+package.json
+package-lock.json
