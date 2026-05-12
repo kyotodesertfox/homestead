@@ -2,11 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract DEXPair is Initializable, ReentrancyGuard, ERC20Upgradeable {
+contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable {
 
     // =========================================================================
     // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
@@ -45,6 +45,7 @@ contract DEXPair is Initializable, ReentrancyGuard, ERC20Upgradeable {
     }
 
     function initialize(address _token0, address _token1, address _weth) external initializer {
+        __ReentrancyGuard_init();
         __ERC20_init("Homestead LP", "HLP");
         factory = msg.sender;
         token0  = _token0;

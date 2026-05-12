@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../dex/Interfaces.sol";
 
@@ -13,7 +13,7 @@ interface IMintableToken {
     function totalSupply() external view returns (uint256);
 }
 
-contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuard {
+contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
     // =========================================================================
     // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
@@ -63,6 +63,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     ) initializer public {
         __Ownable_init(msg.sender);
         __Pausable_init();
+        __ReentrancyGuard_init();
 
         tokenDeployer      = _tokenDeployer;
         nftDeployer        = _nftDeployer;
