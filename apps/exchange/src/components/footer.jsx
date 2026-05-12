@@ -12,7 +12,7 @@ export default function Footer() {
         </p>
       </div>
       <div className="max-w-5xl mx-auto px-4 mt-4 pt-4 border-t border-gray-800 text-center text-gray-500 text-sm font-bold uppercase">
-        © {new Date().getFullYear()} Homestead Exchange • Jacksonville, FL
+        © {new Date().getFullYear()} Homestead Exchange
       </div>
     </footer>
   );
