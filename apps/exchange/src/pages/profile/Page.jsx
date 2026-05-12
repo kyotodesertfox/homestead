@@ -38,11 +38,11 @@ export default function ProfilePage() {
 
   const handleMint = () => {
     if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
-    const wei = BigInt(Math.round(Number(mintAmount))) * 10n ** 18n;
+    const amount = BigInt(Math.round(Number(mintAmount)));
     if (mintDest === 'pool') {
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, wei] });
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, amount] });
     } else {
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [address, wei] });
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [address, amount] });
     }
   };
 
