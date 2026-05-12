@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink } from 'lucide-react';
+import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
@@ -46,13 +46,23 @@ export default function Navbar() {
               Egg <ExternalLink size={12} />
             </a>
 
-            <button
-              onClick={() => open()}
-              className="bg-hub-green hover:bg-hub-light text-white px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
-            >
-              <Wallet size={14} />
-              {isConnected ? formatAddress(address) : 'Connect'}
-            </button>
+            {isConnected ? (
+              <Link
+                to="/profile"
+                className="bg-hub-green hover:bg-hub-light text-white px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+              >
+                <LayoutDashboard size={14} />
+                {formatAddress(address)}
+              </Link>
+            ) : (
+              <button
+                onClick={() => open()}
+                className="bg-hub-green hover:bg-hub-light text-white px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+              >
+                <Wallet size={14} />
+                Connect
+              </button>
+            )}
           </div>
 
           <div className="md:hidden flex items-center">
@@ -69,12 +79,23 @@ export default function Navbar() {
           <MobileNavLink to="/swap"    icon={<Repeat size={20} />}          label="Swap"    onClick={closeMenu} />
           <MobileNavLink to="/bridge"  icon={<ArrowLeftRight size={20} />}  label="Bridge"  onClick={closeMenu} />
           <div className="pt-4 px-3">
-            <button
-              onClick={() => { open(); closeMenu(); }}
-              className="w-full bg-hub-green text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl"
-            >
-              {isConnected ? formatAddress(address) : 'Connect Wallet'}
-            </button>
+            {isConnected ? (
+              <Link
+                to="/profile"
+                onClick={closeMenu}
+                className="w-full bg-hub-green text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl flex items-center justify-center gap-2"
+              >
+                <LayoutDashboard size={16} />
+                {formatAddress(address)}
+              </Link>
+            ) : (
+              <button
+                onClick={() => { open(); closeMenu(); }}
+                className="w-full bg-hub-green text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl"
+              >
+                Connect Wallet
+              </button>
+            )}
           </div>
         </div>
       </div>

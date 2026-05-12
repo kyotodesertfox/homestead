@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
 
@@ -45,8 +45,9 @@ const features = [
 ];
 
 export default function HomePage() {
-  const { open } = useAppKit();
-  const { isConnected, address } = useAccount();
+  const { open }                  = useAppKit();
+  const { isConnected, address }  = useAccount();
+  const navigate                  = useNavigate();
 
   const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -66,13 +67,23 @@ export default function HomePage() {
             The Homestead Exchange is the root of a physical-goods economy built on tokenized trust.
             Connect your wallet once here — it carries across every product portal in the ecosystem.
           </p>
-          <button
-            onClick={() => open()}
-            className="mt-6 inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md active:scale-95"
-          >
-            <Wallet size={16} />
-            {isConnected ? formatAddress(address) : 'Connect Wallet'}
-          </button>
+          {isConnected ? (
+            <button
+              onClick={() => navigate('/profile')}
+              className="mt-6 inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md active:scale-95"
+            >
+              <LayoutDashboard size={16} />
+              {formatAddress(address)}
+            </button>
+          ) : (
+            <button
+              onClick={() => open()}
+              className="mt-6 inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md active:scale-95"
+            >
+              <Wallet size={16} />
+              Connect Wallet
+            </button>
+          )}
           <div className="mt-8 flex flex-wrap gap-4">
             <Link to="/market" className="bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all duration-300 shadow-md rounded">
               Browse Market
