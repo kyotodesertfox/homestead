@@ -9,7 +9,7 @@ export default function Footer() {
             Egg Exchange
           </h3>
           <p className="text-gray-400 font-medium">
-            A private Jacksonville homestead. High standards, real eggs, on-chain.
+            Private homesteads. High standards, real eggs, on-chain.
           </p>
         </div>
       </div>
