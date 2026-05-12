@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hub-green: #16a34a;
+  --color-hub-light: #4ade80;
+  --color-hub-dark: #0f2318;
+  --color-hub-surface: #f0fdf4;
+}
