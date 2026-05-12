@@ -115,6 +115,50 @@ export const BEER_TOKEN_ABI = [
   { name: 'mintToPool',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
 ];
 
+export const MARKETPLACE_ABI = [
+  { name: 'owner',         type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'nextListingId', type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  {
+    name: 'createListing', type: 'function', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'nftContract',   type: 'address' },
+      { name: 'paymentToken',  type: 'address' },
+      { name: 'price',         type: 'uint256' },
+      { name: 'proceeds',      type: 'address' },
+    ],
+    outputs: [{ name: 'listingId', type: 'uint256' }],
+  },
+  {
+    name: 'getListing', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'listingId', type: 'uint256' }],
+    outputs: [
+      { name: 'nftContract',    type: 'address' },
+      { name: 'paymentToken',   type: 'address' },
+      { name: 'price',          type: 'uint256' },
+      { name: 'proceeds',       type: 'address' },
+      { name: 'inventoryCount', type: 'uint256' },
+      { name: 'active',         type: 'bool'    },
+    ],
+  },
+  { name: 'buy',              type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }], outputs: [] },
+  { name: 'setActive',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'active', type: 'bool' }], outputs: [] },
+  { name: 'updatePrice',      type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'newPrice', type: 'uint256' }], outputs: [] },
+  { name: 'getInventory',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'listingId', type: 'uint256' }], outputs: [{ type: 'uint256[]' }] },
+  { name: 'depositInventory', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'tokenIds', type: 'uint256[]' }], outputs: [] },
+];
+
+export const NFT_ABI = [
+  { name: 'tokenURI',         type: 'function', stateMutability: 'view',        inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
+  { name: 'totalSupply',      type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'tokenByIndex',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'index', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'ownerOf',          type: 'function', stateMutability: 'view',        inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'address' }] },
+  { name: 'nextTokenId',      type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'mint',             type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to', type: 'address' }, { name: 'cid', type: 'string' }], outputs: [{ name: 'tokenId', type: 'uint256' }] },
+  { name: 'mintBatch',        type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to', type: 'address' }, { name: 'cids', type: 'string[]' }], outputs: [{ name: 'startTokenId', type: 'uint256' }] },
+  { name: 'isApprovedForAll', type: 'function', stateMutability: 'view',        inputs: [{ name: 'owner', type: 'address' }, { name: 'operator', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'setApprovalForAll', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'operator', type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
+];
+
 export const CONTRACT_URI_ABI = [
   { name: 'contractURI', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
 ];
