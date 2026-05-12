@@ -10,10 +10,11 @@ export const ADDRESSES = {
 };
 
 export const ERC20_ABI = [
-  { name: 'approve',     type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
-  { name: 'allowance',   type: 'function', stateMutability: 'view',       inputs: [{ name: 'owner',   type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { name: 'balanceOf',   type: 'function', stateMutability: 'view',       inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { name: 'decimals',    type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint8' }] },
+  { name: 'approve',      type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'allowance',    type: 'function', stateMutability: 'view',       inputs: [{ name: 'owner',   type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'balanceOf',    type: 'function', stateMutability: 'view',       inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'decimals',     type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint8' }] },
+  { name: 'totalSupply',  type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint256' }] },
 ];
 
 export const ROUTER_ABI = [
@@ -39,6 +40,39 @@ export const ROUTER_ABI = [
       { name: 'deadline',     type: 'uint256' },
     ],
     outputs: [{ name: 'amounts', type: 'uint256[]' }],
+  },
+  {
+    name: 'addLiquidityETH',
+    type: 'function', stateMutability: 'payable',
+    inputs: [
+      { name: 'token',               type: 'address' },
+      { name: 'amountTokenDesired',  type: 'uint256' },
+      { name: 'amountTokenMin',      type: 'uint256' },
+      { name: 'amountETHMin',        type: 'uint256' },
+      { name: 'to',                  type: 'address' },
+      { name: 'deadline',            type: 'uint256' },
+    ],
+    outputs: [
+      { name: 'amountToken', type: 'uint256' },
+      { name: 'amountETH',   type: 'uint256' },
+      { name: 'liquidity',   type: 'uint256' },
+    ],
+  },
+  {
+    name: 'removeLiquidityETH',
+    type: 'function', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'token',          type: 'address' },
+      { name: 'liquidity',      type: 'uint256' },
+      { name: 'amountTokenMin', type: 'uint256' },
+      { name: 'amountETHMin',   type: 'uint256' },
+      { name: 'to',             type: 'address' },
+      { name: 'deadline',       type: 'uint256' },
+    ],
+    outputs: [
+      { name: 'amountToken', type: 'uint256' },
+      { name: 'amountETH',   type: 'uint256' },
+    ],
   },
   {
     name: 'getAmountsOut',

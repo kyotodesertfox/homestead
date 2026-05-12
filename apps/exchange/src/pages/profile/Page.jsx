@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
-import { formatUnits } from 'viem';
-import { ADDRESSES, BEER_TOKEN_ABI } from '../../contracts';
+import { formatUnits, parseUnits } from 'viem';
+import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI } from '../../contracts';
 
 const HUB_CHAIN_ID = 167000;
 
@@ -17,9 +17,16 @@ export default function ProfilePage() {
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
   const [copied, setCopied]             = useState(false);
+  const [showLiquidity, setShowLiquidity] = useState(false);
 
   const { data: ethBalance }  = useBalance({ address, query: { enabled: !!address } });
-  const { data: beerBalance } = useBalance({ address, token: ADDRESSES.BEER_TOKEN, query: { enabled: !!address } });
+  const { data: beerRaw } = useReadContract({
+    address: ADDRESSES.BEER_TOKEN,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'balanceOf',
+    args: [address ?? '0x0000000000000000000000000000000000000000'],
+    query: { enabled: !!address && !!ADDRESSES.BEER_TOKEN },
+  });
 
   // --- Mint ---
   const { data: isMinter } = useReadContract({
@@ -109,11 +116,11 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/10">
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Address</p>
               <div className="flex items-center gap-2">
-                <span className="font-black text-white text-sm">{fmt(address)}</span>
+                <span className="font-black text-white text-base">{fmt(address)}</span>
                 <div className="relative">
                   <button onClick={copyAddress} className="text-stone-500 hover:text-hub-green transition-colors">
                     {copied ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} />}
@@ -129,19 +136,33 @@ export default function ProfilePage() {
                 </a>
               </div>
             </div>
-
-            <div className="flex gap-3">
-              <div className="bg-white/5 rounded-2xl p-4 min-w-[110px] border border-white/10">
-                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
-                <p className="font-black text-white text-xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
-              </div>
-              <div className="bg-amber-500/10 rounded-2xl p-4 min-w-[110px] border border-amber-500/20">
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">$BEER</p>
-                <p className="font-black text-white text-xl">{beerBalance ? fmtBeer(beerBalance.value) : '—'}</p>
-              </div>
+            <div className="bg-white/5 rounded-2xl p-4 min-w-[110px] border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
+              <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
             </div>
           </div>
         </section>
+
+        {/* Token balances */}
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setShowLiquidity(true)}
+            className="bg-hub-dark border-2 border-amber-500/30 hover:border-amber-500 rounded-3xl p-5 shadow-xl text-left transition-all group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">$BEER</p>
+              <Droplets size={14} className="text-amber-500/40 group-hover:text-amber-400 transition-colors" />
+            </div>
+            <p className="font-black text-white text-3xl">{beerRaw != null ? fmtBeer(beerRaw) : '—'}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/40 group-hover:text-amber-400 mt-1 transition-colors">Manage liquidity →</p>
+          </button>
+          <div className="bg-hub-dark border-2 border-yellow-500/20 rounded-3xl p-5 shadow-xl opacity-40">
+            <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400 mb-1">$EGG</p>
+            <p className="font-black text-white/30 text-3xl">—</p>
+          </div>
+        </div>
+
+        {showLiquidity && <LiquidityModal onClose={() => setShowLiquidity(false)} />}
 
         {/* Mint $BEER — only visible to minters */}
         {isMinter === true && (
@@ -249,4 +270,208 @@ function ActionCard({ icon, title, description, href, internal = false, disabled
   if (disabled) return <div className={cls}>{inner}</div>;
   if (internal)  return <a href={href} className={cls}>{inner}</a>;
   return <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>;
+}
+
+const PCT_BTNS = [0, 25, 50, 75, 100];
+
+function PctButtons({ onSelect }) {
+  return (
+    <div className="flex gap-1.5 mt-2">
+      {PCT_BTNS.map(p => (
+        <button key={p} onClick={() => onSelect(p)}
+          className="flex-1 py-1 rounded-lg bg-white/10 hover:bg-hub-green text-white/50 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">
+          {p}%
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const safeFmt = (val, decimals = 18) => {
+  try { return val != null ? formatUnits(val, decimals) : null; } catch { return null; }
+};
+
+function LiquidityModal({ onClose }) {
+  const { address } = useAccount();
+  const [tab, setTab]         = useState('add');
+  const [beerInput, setBeerInput] = useState('');
+  const [ethInput, setEthInput]   = useState('');
+  const [lpInput, setLpInput]     = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const ZERO = '0x0000000000000000000000000000000000000000';
+
+  const { data: ethBal }  = useBalance({ address, query: { enabled: !!address } });
+  const { data: beerBal } = useReadContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'balanceOf', args: [address ?? ZERO], query: { enabled: !!address && !!ADDRESSES.BEER_TOKEN } });
+
+  const { data: reserves }                            = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,       functionName: 'getReserves' });
+  const { data: lpBalance,  refetch: refetchLp }      = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI,      functionName: 'balanceOf',   args: [address ?? ZERO], query: { enabled: !!address } });
+  const { data: lpSupply }                            = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI,      functionName: 'totalSupply' });
+  const { data: beerAllow, refetch: refetchBeerAllow} = useReadContract({ address: ADDRESSES.BEER_TOKEN,     abi: BEER_TOKEN_ABI, functionName: 'allowance',   args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
+  const { data: lpAllow,   refetch: refetchLpAllow }  = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI,      functionName: 'allowance',   args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
+
+  const [r0, r1] = reserves ?? [0n, 0n];
+  const hasLiquidity = (r0 ?? 0n) > 0n && (r1 ?? 0n) > 0n;
+
+  const beerWei = useMemo(() => { try { return beerInput ? parseUnits(beerInput, 18) : 0n; } catch { return 0n; } }, [beerInput]);
+  const ethWei  = useMemo(() => { try { return ethInput  ? parseUnits(ethInput,  18) : 0n; } catch { return 0n; } }, [ethInput]);
+  const lpWei   = useMemo(() => { try { return lpInput   ? parseUnits(lpInput,   18) : 0n; } catch { return 0n; } }, [lpInput]);
+
+  const ethRequired   = hasLiquidity && beerWei > 0n ? (beerWei * r1) / r0 : ethWei;
+  const expectedBeer  = lpSupply > 0n && lpWei > 0n  ? (lpWei * r0) / lpSupply : 0n;
+  const expectedEth   = lpSupply > 0n && lpWei > 0n  ? (lpWei * r1) / lpSupply : 0n;
+
+  const needsBeerApproval = beerWei > 0n && (beerAllow ?? 0n) < beerWei;
+  const needsLpApproval   = lpWei   > 0n && (lpAllow   ?? 0n) < lpWei;
+
+  const { writeContract: writeApprove, data: approveHash } = useWriteContract();
+  const { writeContract: writeAdd,     data: addHash }     = useWriteContract();
+  const { writeContract: writeRemove,  data: removeHash }  = useWriteContract();
+
+  const { isLoading: approving, isSuccess: approved } = useWaitForTransactionReceipt({ hash: approveHash });
+  const { isLoading: adding,   isSuccess: addDone }   = useWaitForTransactionReceipt({ hash: addHash });
+  const { isLoading: removing, isSuccess: removeDone} = useWaitForTransactionReceipt({ hash: removeHash });
+
+  useEffect(() => {
+    if (!approved) return;
+    if (pendingAction === 'add')    refetchBeerAllow();
+    if (pendingAction === 'remove') refetchLpAllow();
+    setPendingAction(null);
+  }, [approved]);
+
+  useEffect(() => { if (addDone || removeDone) refetchLp(); }, [addDone, removeDone]);
+
+  const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 1200);
+  const slip = (n) => n * 9900n / 10000n;
+
+  const handleAdd = () => {
+    if (!beerWei || (!hasLiquidity && !ethWei)) return;
+    if (needsBeerApproval) {
+      setPendingAction('add');
+      writeApprove({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, beerWei] });
+      return;
+    }
+    writeAdd({
+      address: ADDRESSES.ROUTER,
+      abi: ROUTER_ABI,
+      functionName: 'addLiquidityETH',
+      args: [ADDRESSES.BEER_TOKEN, beerWei, slip(beerWei), slip(ethRequired), address, deadline()],
+      value: ethRequired,
+    });
+  };
+
+  const handleRemove = () => {
+    if (!lpWei) return;
+    if (needsLpApproval) {
+      setPendingAction('remove');
+      writeApprove({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, lpWei] });
+      return;
+    }
+    writeRemove({
+      address: ADDRESSES.ROUTER,
+      abi: ROUTER_ABI,
+      functionName: 'removeLiquidityETH',
+      args: [ADDRESSES.BEER_TOKEN, lpWei, slip(expectedBeer), slip(expectedEth), address, deadline()],
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-black uppercase tracking-tight text-white text-lg">$BEER Liquidity</h2>
+          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors"><X size={20} /></button>
+        </div>
+
+        <div className="flex rounded-xl overflow-hidden border border-white/10 mb-6">
+          {['add', 'remove'].map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${tab === t ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'add' ? (
+          <div className="space-y-3">
+            {!hasLiquidity && (
+              <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">
+                Pool is empty — you set the initial price
+              </p>
+            )}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">$BEER Amount</label>
+                <span className="text-[10px] font-black text-amber-400">
+                  Balance: {beerBal != null ? Math.round(Number(safeFmt(beerBal))) : '—'}
+                </span>
+              </div>
+              <input type="number" min="0" placeholder="0" value={beerInput} onChange={e => setBeerInput(e.target.value)}
+                className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
+              <PctButtons onSelect={p => {
+                const n = beerBal != null ? Math.round(Number(safeFmt(beerBal)) * p / 100) : 0;
+                setBeerInput(n > 0 ? n.toString() : '0');
+              }} />
+            </div>
+            {hasLiquidity ? (
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Required (at market rate)</p>
+                <p className="font-black text-white text-lg">{beerWei > 0n ? formatUnits(ethRequired, 18) : '—'}</p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">ETH Amount (sets initial price)</label>
+                  <span className="text-[10px] font-black text-stone-400">
+                    Balance: {ethBal != null ? parseFloat(safeFmt(ethBal.value)).toFixed(4) : '—'}
+                  </span>
+                </div>
+                <input type="number" min="0" placeholder="0" value={ethInput} onChange={e => setEthInput(e.target.value)}
+                  className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
+              </div>
+            )}
+            <button onClick={handleAdd} disabled={approving || adding || !beerWei || (!hasLiquidity && !ethWei)}
+              className="w-full py-4 bg-hub-green hover:bg-hub-light disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95">
+              {approving ? 'Approving...' : adding ? 'Adding Liquidity...' : needsBeerApproval ? 'Approve $BEER' : 'Add Liquidity'}
+            </button>
+            {addDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity added!</p>}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Your LP Balance</p>
+              <p className="font-black text-white">{lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">LP Amount to Remove</label>
+                <span className="text-[10px] font-black text-hub-green">
+                  Balance: {lpBalance != null ? parseFloat(safeFmt(lpBalance)).toFixed(6) : '—'}
+                </span>
+              </div>
+              <input type="number" min="0" placeholder="0" value={lpInput} onChange={e => setLpInput(e.target.value)}
+                className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
+              <PctButtons onSelect={p => {
+                const amount = (lpBalance ?? 0n) * BigInt(p) / 100n;
+                setLpInput(p === 0 ? '0' : formatUnits(amount, 18));
+              }} />
+            </div>
+            {lpWei > 0n && (
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">You'll receive (~)</p>
+                <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">$BEER</span><span className="text-sm font-black text-white">{formatUnits(expectedBeer, 18)}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">ETH</span><span className="text-sm font-black text-white">{formatUnits(expectedEth, 18)}</span></div>
+              </div>
+            )}
+            <button onClick={handleRemove} disabled={approving || removing || !lpWei}
+              className="w-full py-4 border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white disabled:opacity-40 font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95">
+              {approving ? 'Approving...' : removing ? 'Removing...' : needsLpApproval ? 'Approve LP Token' : 'Remove Liquidity'}
+            </button>
+            {removeDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity removed!</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
