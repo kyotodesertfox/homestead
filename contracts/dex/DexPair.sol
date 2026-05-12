@@ -33,6 +33,9 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     uint256 private constant MINIMUM_LIQUIDITY   = 1000;
     uint256 private constant GAS_GUARD_MULTIPLE  = 3;
     uint256 private constant GAS_GUARD_UNITS     = 150000;
+    uint256 private constant SWAP_FEE_BPS        = 30;
+
+    function swapFeeBps() external pure returns (uint256) { return SWAP_FEE_BPS; }
 
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);

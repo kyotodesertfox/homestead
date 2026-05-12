@@ -20,8 +20,9 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
     mapping(address => bool) public isMinter;
     string private _nameOverride;
     string private _symbolOverride;
+    string private _contractURI;
 
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 
     // =========================================================================
 
@@ -65,6 +66,14 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
     function updateMetadata(string memory newName, string memory newSymbol) external onlyMinter {
         _nameOverride = newName;
         _symbolOverride = newSymbol;
+    }
+
+    function setContractURI(string memory uri) external onlyOwner {
+        _contractURI = uri;
+    }
+
+    function contractURI() external view returns (string memory) {
+        return _contractURI;
     }
 
     // --- Access Control ---

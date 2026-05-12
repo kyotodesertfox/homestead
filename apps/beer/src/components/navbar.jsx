@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Beer, Menu, X, FlaskConical, Wallet, Repeat, Store, ExternalLink } from 'lucide-react';
+import { Beer, Menu, X, FlaskConical, Wallet, Repeat, Store, ExternalLink, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
@@ -43,13 +43,23 @@ export default function Navbar() {
           <Repeat size={18} /> Swap <ExternalLink size={12} className="opacity-50" />
         </a>
 
-        <button
-        onClick={() => open()}
-        className="bg-beer-gold hover:bg-white text-beer-dark px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
-        >
-        <Wallet size={14} />
-        {isConnected ? formatAddress(address) : "Connect"}
-        </button>
+        {isConnected ? (
+          <Link
+            to="/profile"
+            className="bg-beer-gold hover:bg-white text-beer-dark px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+          >
+            <LayoutDashboard size={14} />
+            {formatAddress(address)}
+          </Link>
+        ) : (
+          <button
+            onClick={() => open()}
+            className="bg-beer-gold hover:bg-white text-beer-dark px-6 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+          >
+            <Wallet size={14} />
+            Connect
+          </button>
+        )}
         </div>
 
         {/* HAMBURGER (MOBILE ONLY) */}
@@ -76,12 +86,23 @@ export default function Navbar() {
         </a>
 
         <div className="pt-4 px-3">
-        <button
-        onClick={() => { open(); closeMenu(); }}
-        className="w-full bg-beer-gold text-beer-dark py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl"
-        >
-        {isConnected ? formatAddress(address) : "Connect"}
-        </button>
+        {isConnected ? (
+          <Link
+            to="/profile"
+            onClick={closeMenu}
+            className="w-full bg-beer-gold text-beer-dark py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl flex items-center justify-center gap-2"
+          >
+            <LayoutDashboard size={16} />
+            {formatAddress(address)}
+          </Link>
+        ) : (
+          <button
+            onClick={() => { open(); closeMenu(); }}
+            className="w-full bg-beer-gold text-beer-dark py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl"
+          >
+            Connect
+          </button>
+        )}
         </div>
         </div>
         </div>
