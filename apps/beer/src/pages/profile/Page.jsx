@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Beer, Wallet, Copy, CheckCheck, ExternalLink, ShoppingBag, Archive, ArrowDownToLine } from 'lucide-react';
+import { Beer, Wallet, Copy, CheckCheck, ExternalLink, ShoppingBag, Archive, ArrowDownToLine, Flame } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import {
   useAccount, useBalance, useReadContract, useReadContracts,
@@ -7,7 +7,7 @@ import {
 } from 'wagmi';
 import { formatUnits } from 'viem';
 import {
-  ADDRESSES, ERC20_ABI, NFT_ABI, TREASURY_ABI, MARKETPLACE_ABI, CONTRACT_URI_ABI,
+  ADDRESSES, ERC20_ABI, BEER_TOKEN_ABI, NFT_ABI, TREASURY_ABI, MARKETPLACE_ABI, CONTRACT_URI_ABI,
 } from '../../contracts';
 
 const IPFS_GATEWAY = 'https://cloudflare-ipfs.com/ipfs/';
@@ -173,10 +173,36 @@ export default function ProfilePage() {
   const { writeContract: writeApproveAll, data: approveAllTxHash } = useWriteContract();
   const { writeContract: writeRedeem,    data: redeemTxHash }      = useWriteContract();
   const { writeContract: writePurchase,  data: purchaseTxHash }    = useWriteContract();
+  const { writeContract: writeMint,      data: mintTxHash }        = useWriteContract();
 
   const { isLoading: approvingAll, isSuccess: approvedAll } = useWaitForTransactionReceipt({ hash: approveAllTxHash });
   const { isLoading: redeeming }                            = useWaitForTransactionReceipt({ hash: redeemTxHash });
   const { isLoading: purchasing }                           = useWaitForTransactionReceipt({ hash: purchaseTxHash });
+  const { isLoading: minting, isSuccess: mintConfirmed }    = useWaitForTransactionReceipt({ hash: mintTxHash });
+
+  // --- Mint form ---
+  const { data: isMinter } = useReadContract({
+    address: ADDRESSES.BEER_TOKEN,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'isMinter',
+    args: [address ?? '0x0000000000000000000000000000000000000000'],
+    query: { enabled: !!address },
+  });
+
+  const [mintAmount, setMintAmount] = useState('');
+  const [mintDest, setMintDest]     = useState('wallet');
+
+  const handleMint = () => {
+    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
+    const wei = BigInt(Math.round(Number(mintAmount))) * 10n ** 18n;
+    if (mintDest === 'pool') {
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, wei] });
+    } else {
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [address, wei] });
+    }
+  };
+
+  useEffect(() => { if (mintConfirmed) setMintAmount(''); }, [mintConfirmed]);
 
   const [pendingRedeemId, setPendingRedeemId] = useState(null);
 
@@ -289,6 +315,55 @@ export default function ProfilePage() {
             </div>
           </div>
         </section>
+
+        {/* Mint $BEER — only visible to minters */}
+        {isMinter && (
+          <section className="bg-gray-900 rounded-3xl border-2 border-[#FBB117]/40 p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-5">
+              <Flame size={20} className="text-[#FBB117]" />
+              <h2 className="font-black uppercase tracking-tight text-white">Mint $BEER</h2>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Amount"
+                value={mintAmount}
+                onChange={e => setMintAmount(e.target.value)}
+                className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-[#FBB117] transition-colors"
+              />
+
+              <div className="flex rounded-xl overflow-hidden border border-white/10">
+                <button
+                  onClick={() => setMintDest('wallet')}
+                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'wallet' ? 'bg-[#FBB117] text-gray-900' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                >
+                  To Wallet
+                </button>
+                <button
+                  onClick={() => setMintDest('pool')}
+                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'pool' ? 'bg-[#FBB117] text-gray-900' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                >
+                  To Pool
+                </button>
+              </div>
+
+              <button
+                onClick={handleMint}
+                disabled={minting || !mintAmount || Number(mintAmount) <= 0}
+                className="bg-[#FBB117] hover:bg-amber-400 disabled:opacity-40 text-gray-900 font-black px-8 py-3 rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 whitespace-nowrap"
+              >
+                {minting ? 'Minting...' : mintConfirmed ? 'Minted ✓' : 'Mint'}
+              </button>
+            </div>
+
+            <p className="mt-3 text-[10px] font-bold text-white/30 uppercase tracking-widest">
+              {mintDest === 'pool' ? 'Tokens go directly into the BEER/WETH liquidity pool.' : 'Tokens land in your connected wallet.'}
+            </p>
+          </section>
+        )}
 
         {/* Your Beer Stash */}
         <section>
