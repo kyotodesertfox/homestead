@@ -74,6 +74,13 @@ export const TREASURY_ABI = [
   { name: 'dexExitFeeBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
 ];
 
+export const BEER_TOKEN_ABI = [
+  ...ERC20_ABI,
+  { name: 'isMinter',     type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'mintToWallet', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'wallet', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'mintToPool',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+];
+
 export const CONTRACT_URI_ABI = [
   { name: 'contractURI', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
 ];

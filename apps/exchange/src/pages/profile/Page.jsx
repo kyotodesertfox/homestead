@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useBalance, useChainId } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
 import { formatUnits } from 'viem';
-import { ADDRESSES } from '../../contracts';
+import { ADDRESSES, BEER_TOKEN_ABI } from '../../contracts';
 
 const HUB_CHAIN_ID = 167000;
 
@@ -13,6 +13,7 @@ function fmtBeer(wei) { const n = parseFloat(formatUnits(wei, 18)); return n % 1
 
 export default function ProfilePage() {
   const { open }                        = useAppKit();
+  const { disconnect }                  = useDisconnect();
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
   const [copied, setCopied]             = useState(false);
@@ -20,8 +21,49 @@ export default function ProfilePage() {
   const { data: ethBalance }  = useBalance({ address, query: { enabled: !!address } });
   const { data: beerBalance } = useBalance({ address, token: ADDRESSES.BEER_TOKEN, query: { enabled: !!address } });
 
+  // --- Mint ---
+  const { data: isMinter } = useReadContract({
+    address: ADDRESSES.BEER_TOKEN,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'isMinter',
+    args: [address ?? '0x0000000000000000000000000000000000000000'],
+    query: { enabled: !!address },
+  });
+
+  const [mintAmount, setMintAmount] = useState('');
+  const [mintDest, setMintDest]     = useState('wallet');
+
+  const { writeContract: writeMint, data: mintTxHash }        = useWriteContract();
+  const { isLoading: minting, isSuccess: mintConfirmed }       = useWaitForTransactionReceipt({ hash: mintTxHash });
+
+  const handleMint = () => {
+    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
+    const wei = BigInt(Math.round(Number(mintAmount))) * 10n ** 18n;
+    if (mintDest === 'pool') {
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, wei] });
+    } else {
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [address, wei] });
+    }
+  };
+
+  useEffect(() => { if (mintConfirmed) setMintAmount(''); }, [mintConfirmed]);
+
+  // --- Copy ---
   const copyAddress = () => {
-    navigator.clipboard.writeText(address);
+    if (!address) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(address).catch(() => {});
+    } else {
+      try {
+        const el = document.createElement('input');
+        el.value = address;
+        el.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      } catch { }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -72,9 +114,16 @@ export default function ProfilePage() {
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Address</p>
               <div className="flex items-center gap-2">
                 <span className="font-black text-white text-sm">{fmt(address)}</span>
-                <button onClick={copyAddress} className="text-stone-500 hover:text-hub-green transition-colors">
-                  {copied ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                </button>
+                <div className="relative">
+                  <button onClick={copyAddress} className="text-stone-500 hover:text-hub-green transition-colors">
+                    {copied ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  </button>
+                  {copied && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 bg-white text-gray-900 text-[10px] font-black px-2 py-1 rounded whitespace-nowrap pointer-events-none shadow-lg">
+                      Copied!
+                    </div>
+                  )}
+                </div>
                 <a href={`https://taikoscan.io/address/${address}`} target="_blank" rel="noopener noreferrer" className="text-stone-500 hover:text-hub-green transition-colors">
                   <ExternalLink size={14} />
                 </a>
@@ -93,6 +142,55 @@ export default function ProfilePage() {
             </div>
           </div>
         </section>
+
+        {/* Mint $BEER — only visible to minters */}
+        {isMinter === true && (
+          <section className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-5">
+              <Flame size={18} className="text-hub-green" />
+              <h2 className="font-black uppercase tracking-tight text-white text-sm">Mint $BEER</h2>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Amount"
+                value={mintAmount}
+                onChange={e => setMintAmount(e.target.value)}
+                className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors"
+              />
+
+              <div className="flex rounded-xl overflow-hidden border border-white/10">
+                <button
+                  onClick={() => setMintDest('wallet')}
+                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'wallet' ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                >
+                  To Wallet
+                </button>
+                <button
+                  onClick={() => setMintDest('pool')}
+                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'pool' ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                >
+                  To Pool
+                </button>
+              </div>
+
+              <button
+                onClick={handleMint}
+                disabled={minting || !mintAmount || Number(mintAmount) <= 0}
+                className="bg-hub-green hover:bg-hub-light disabled:opacity-40 text-white font-black px-8 py-3 rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 whitespace-nowrap"
+              >
+                {minting ? 'Minting...' : mintConfirmed ? 'Minted ✓' : 'Mint'}
+              </button>
+            </div>
+
+            <p className="mt-3 text-[10px] font-bold text-white/30 uppercase tracking-widest">
+              {mintDest === 'pool' ? 'Tokens go directly into the BEER/WETH liquidity pool.' : 'Tokens land in your connected wallet.'}
+            </p>
+          </section>
+        )}
 
         {/* Quick actions */}
         <section>
@@ -120,6 +218,13 @@ export default function ProfilePage() {
             />
           </div>
         </section>
+
+        <button
+          onClick={() => disconnect()}
+          className="w-full py-4 rounded-2xl border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-sm transition-all active:scale-95"
+        >
+          Disconnect Wallet
+        </button>
 
       </div>
     </div>

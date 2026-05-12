@@ -17,6 +17,7 @@ contracts/**/*.json
 .env
 .env.local
 .env.*.local
+!/.env
 
 # Deploy artifacts (generated on each deploy)
 .deploys/
