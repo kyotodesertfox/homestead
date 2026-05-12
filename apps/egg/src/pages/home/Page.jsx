@@ -8,7 +8,7 @@ export default function HomePage() {
         <div className="relative bg-white border-t-8 border-egg-yolk shadow-2xl rounded-b-lg p-8 md:p-12">
 
           <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-gray-900 mb-6">
-            Jacksonville, FL <span className="text-egg-yolk">Homestead</span>
+            Homestead <span className="text-egg-yolk">Eggs</span>
           </h2>
 
           <div className="prose prose-lg text-gray-700 font-medium leading-relaxed">
