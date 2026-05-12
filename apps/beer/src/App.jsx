@@ -20,7 +20,7 @@ return {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/beer">
     <Routes>
     <Route path="/" element={<MainLayout />}>
     {routes.map(({ path, component: Component }) => (

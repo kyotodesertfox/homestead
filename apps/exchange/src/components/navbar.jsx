@@ -37,13 +37,13 @@ export default function Navbar() {
 
             <div className="w-px h-6 bg-white/10" />
 
-            <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer"
+            <a href="/beer/"
               className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition-colors font-semibold text-xs uppercase tracking-widest">
-              Beer <ExternalLink size={12} />
+              Beer
             </a>
-            <a href="http://localhost:5174" target="_blank" rel="noopener noreferrer"
+            <a href="/egg/"
               className="flex items-center gap-1.5 text-yellow-400 hover:text-yellow-300 transition-colors font-semibold text-xs uppercase tracking-widest">
-              Egg <ExternalLink size={12} />
+              Egg
             </a>
 
             <button

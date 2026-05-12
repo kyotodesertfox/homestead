@@ -18,7 +18,7 @@ const routes = Object.keys(pages).map((path) => {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/egg">
       <Routes>
         <Route path="/" element={<MainLayout />}>
           {routes.map(({ path, component: Component }) => (

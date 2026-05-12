@@ -36,7 +36,7 @@ export default function Navbar() {
             <NavLink to="/our-process"   icon={<Sprout size={18} />}      label="Our Process"  />
             <NavLink to="/how-it-works"  icon={<BookOpen size={18} />}    label="How It Works" />
             <NavLink to="/marketplace"   icon={<ShoppingBag size={18} />} label="Market"       />
-            <a href="http://localhost:5175/swap" target="_blank" rel="noopener noreferrer"
+            <a href="/swap" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 text-gray-300 hover:text-egg-yolk transition-colors font-semibold text-sm">
               <Repeat size={18} /> Swap <ExternalLink size={12} className="opacity-50" />
             </a>
@@ -68,7 +68,7 @@ export default function Navbar() {
           <MobileNavLink to="/our-process"  icon={<Sprout size={20} />}      label="Our Process"  onClick={closeMenu} />
           <MobileNavLink to="/how-it-works" icon={<BookOpen size={20} />}    label="How It Works" onClick={closeMenu} />
           <MobileNavLink to="/marketplace"  icon={<ShoppingBag size={20} />} label="Market"       onClick={closeMenu} />
-          <a href="http://localhost:5175/swap" target="_blank" rel="noopener noreferrer" onClick={closeMenu}
+          <a href="/swap" target="_blank" rel="noopener noreferrer" onClick={closeMenu}
             className="flex items-center gap-4 text-gray-300 hover:text-egg-yolk p-3 rounded-lg font-bold text-lg">
             <div className="text-egg-yolk"><Repeat size={20} /></div>
             Swap <ExternalLink size={14} className="ml-1 opacity-50" />
