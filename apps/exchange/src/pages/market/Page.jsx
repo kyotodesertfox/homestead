@@ -9,10 +9,17 @@ const IPFS_GW    = 'https://ipfs.io/ipfs/';
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
 
-async function fetchStyle(tokenUri) {
+async function fetchMeta(tokenUri) {
   try {
-    const meta = await fetch(resolveIpfs(tokenUri)).then(r => r.json());
-    return meta?.attributes?.find(a => a.trait_type === 'Style')?.value ?? null;
+    const m = await fetch(resolveIpfs(tokenUri)).then(r => r.json());
+    return {
+      name:        m?.name        ?? null,
+      description: m?.description ?? null,
+      image:       m?.image       ? resolveIpfs(m.image) : null,
+      style:       m?.attributes?.find(a => a.trait_type === 'Style')?.value ?? null,
+      abv:         m?.attributes?.find(a => a.trait_type === 'ABV')?.value   ?? null,
+      ibu:         m?.attributes?.find(a => a.trait_type === 'IBU')?.value   ?? null,
+    };
   } catch { return null; }
 }
 
@@ -595,11 +602,213 @@ function StockModal({ listingId, onClose, onStocked }) {
   );
 }
 
+// ─── Listing Detail Modal ─────────────────────────────────────────────────────
+function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocked, onRefetch }) {
+  const { address } = useAccount();
+  const [imgErr,   setImgErr]   = useState(false);
+  const [bought,   setBought]   = useState(false);
+  const [showStock, setShowStock] = useState(false);
+
+  const [, , price, , inventoryCount, active] = listing;
+  const inStock  = inventoryCount != null && inventoryCount > 0n;
+  const priceStr = price != null ? formatUnits(price, 18) : '—';
+
+  const { data: allowance, refetch: refetchAllow } = useReadContract({
+    address: ADDRESSES.BEER_TOKEN,
+    abi:     BEER_TOKEN_ABI,
+    functionName: 'allowance',
+    args:    [address ?? ZERO, ADDRESSES.MARKETPLACE],
+    query:   { enabled: !!address },
+  });
+
+  const { writeContract, data: txHash, isPending, error: writeErr } = useWriteContract();
+  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash, query: { enabled: !!txHash } });
+
+  const approved = allowance != null && price != null && allowance >= price;
+  const needsApprove = !approved && inStock;
+
+  useEffect(() => {
+    if (!isSuccess) return;
+    if (!approved) {
+      refetchAllow();
+    } else {
+      setBought(true);
+      onRefetch?.();
+    }
+  }, [isSuccess]);
+
+  const handleBuy = () => {
+    if (!approved) {
+      writeContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.MARKETPLACE, price] });
+    } else {
+      writeContract({ address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'buy', args: [BigInt(id)] });
+    }
+  };
+
+  // Close on backdrop click
+  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose(); };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        onClick={handleBackdrop}
+      >
+        <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+
+          {/* Left — image */}
+          <div className="relative md:w-1/2 aspect-square md:aspect-auto bg-gray-50 shrink-0">
+            {meta?.image && !imgErr ? (
+              <img
+                src={meta.image}
+                alt={meta?.name ?? 'Beer NFT'}
+                onError={() => setImgErr(true)}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <ShoppingBag size={64} className="text-gray-200" />
+              </div>
+            )}
+            <span className="absolute top-4 left-4 text-[10px] font-black uppercase bg-black/50 text-white px-2.5 py-1 rounded-lg backdrop-blur-sm">
+              Listing #{id}
+            </span>
+          </div>
+
+          {/* Right — details + buy */}
+          <div className="flex flex-col p-8 overflow-y-auto flex-1 gap-5">
+
+            {/* Close */}
+            <button onClick={onClose} className="self-end text-gray-400 hover:text-gray-700 transition-colors -mt-2 -mr-2">
+              <X size={20} />
+            </button>
+
+            {/* Name + style */}
+            <div>
+              <h2 className="text-gray-900 font-black text-2xl leading-tight">
+                {meta?.name ?? 'Beer NFT'}
+              </h2>
+              {meta?.style && (
+                <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-1">
+                  {meta.style}
+                </p>
+              )}
+            </div>
+
+            {/* ABV / IBU */}
+            {(meta?.abv != null || meta?.ibu != null) && (
+              <div className="flex flex-wrap gap-2">
+                {meta.abv != null && (
+                  <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-lg">
+                    {meta.abv}% ABV
+                  </span>
+                )}
+                {meta.ibu != null && (
+                  <span className="bg-sky-50 text-sky-700 border border-sky-200 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-lg">
+                    {meta.ibu} IBU
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Description */}
+            {meta?.description && (
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                {meta.description}
+              </p>
+            )}
+
+            {/* Price + stock */}
+            <div className="flex gap-6 border-t border-b border-gray-100 py-4">
+              <div>
+                <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Price</p>
+                <p className="text-gray-900 font-black text-xl">{priceStr} BEER</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Available</p>
+                <p className={`font-black text-xl ${inStock ? 'text-hub-green' : 'text-gray-300'}`}>
+                  {inventoryCount?.toString() ?? '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Buy flow */}
+            {bought ? (
+              <div className="bg-hub-green/10 border border-hub-green/30 rounded-2xl p-5 text-center">
+                <p className="text-hub-green font-black text-lg uppercase tracking-tight">Cheers! 🍺</p>
+                <p className="text-gray-500 text-sm mt-1 font-medium">NFT is on its way to your wallet.</p>
+                <button onClick={onClose} className="mt-4 px-6 py-2.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm hover:brightness-110 transition-all">
+                  Close
+                </button>
+              </div>
+            ) : isOwner ? (
+              <button
+                onClick={() => setShowStock(true)}
+                className="w-full py-3.5 rounded-xl border-2 border-hub-green text-hub-green font-black uppercase tracking-widest text-sm hover:bg-hub-green hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <PackagePlus size={15} strokeWidth={3} />
+                {inStock ? 'Add Stock' : 'Stock Listing'}
+              </button>
+            ) : address ? (
+              <div className="space-y-3">
+                {needsApprove && (
+                  <p className="text-gray-400 text-xs font-medium">
+                    First approve the Marketplace to spend <span className="text-gray-700 font-black">1 BEER</span>, then confirm the purchase.
+                  </p>
+                )}
+                {writeErr && (
+                  <p className="text-red-400 text-xs font-medium">{writeErr.shortMessage ?? writeErr.message}</p>
+                )}
+                <button
+                  onClick={handleBuy}
+                  disabled={!inStock || isPending}
+                  className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
+                >
+                  {!inStock      ? 'Sold Out'
+                   : isPending   ? 'Pending…'
+                   : needsApprove ? 'Step 1 — Approve BEER'
+                   :               'Buy Now 🍺'}
+                </button>
+                {!needsApprove && inStock && (
+                  <p className="text-gray-400 text-[10px] text-center font-medium">BEER already approved — one click to buy</p>
+                )}
+              </div>
+            ) : (
+              <div className="w-full py-3.5 rounded-xl bg-gray-100 text-gray-400 font-black uppercase tracking-widest text-sm text-center">
+                Connect Wallet to Buy
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      {showStock && (
+        <StockModal
+          listingId={id}
+          onClose={() => setShowStock(false)}
+          onStocked={() => { onStocked?.(); setShowStock(false); onClose(); }}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Listing Card ─────────────────────────────────────────────────────────────
 function ListingCard({ id, onStyleResolved, isOwner }) {
   const { address } = useAccount();
-  const [style,     setStyle]     = useState(null);
+  const [meta,      setMeta]      = useState(null);
+  const [imgErr,    setImgErr]    = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [showStock, setShowStock] = useState(false);
+
+  const { data: listing, refetch: refetchListing } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getListing',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
 
   const { data: inventory } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
@@ -620,95 +829,119 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
 
   useEffect(() => {
     if (!tokenUri) return;
-    fetchStyle(tokenUri).then(s => {
-      if (!s) return;
-      setStyle(s);
-      onStyleResolved?.(s);
+    fetchMeta(tokenUri).then(m => {
+      if (!m) return;
+      setMeta(m);
+      if (m.style) onStyleResolved?.(m.style);
     });
   }, [tokenUri]);
 
-  const { data: allowance, refetch: refetchAllow } = useReadContract({
-    address: ADDRESSES.BEER_TOKEN,
-    abi:     BEER_TOKEN_ABI,
-    functionName: 'allowance',
-    args:    [address ?? ZERO, ADDRESSES.MARKETPLACE],
-    query:   { enabled: !!address },
-  });
-
-  const { writeContract, data: txHash, isPending } = useWriteContract();
-  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash, query: { enabled: !!txHash } });
-  useEffect(() => { if (isSuccess) refetchAllow(); }, [isSuccess]);
-
-  const { data: listing, refetch: refetchListing } = useReadContract({
-    address: ADDRESSES.MARKETPLACE,
-    abi:     MARKETPLACE_ABI,
-    functionName: 'getListing',
-    args:    [BigInt(id)],
-    query:   { enabled: !!ADDRESSES.MARKETPLACE },
-  });
-
   if (!listing) return null;
-  const [, paymentToken, price, , inventoryCount, active] = listing;
+  const [, , price, , inventoryCount, active] = listing;
   if (!active) return null;
 
-  const label    = style ?? (inventoryCount > 0n ? 'Loading…' : 'Beer NFT');
-  const token    = tokenLabel(paymentToken);
   const priceStr = price != null ? formatUnits(price, 18) : '—';
   const inStock  = inventoryCount != null && inventoryCount > 0n;
-  const approved = allowance != null && price != null && allowance >= price;
-
-  const handleBuy = () => {
-    if (!approved) {
-      writeContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.MARKETPLACE, price] });
-    } else {
-      writeContract({ address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'buy', args: [BigInt(id)] });
-    }
-  };
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <span className="text-xs font-black uppercase tracking-widest text-hub-green">{token}</span>
-            <h3 className="text-gray-900 font-black text-lg mt-0.5 leading-tight">{label}</h3>
-          </div>
-          <span className="text-xs font-black uppercase bg-hub-green/10 text-hub-green px-2.5 py-1 rounded-lg shrink-0">
+      {/* Card — fully clickable */}
+      <div
+        onClick={() => setShowModal(true)}
+        className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+      >
+        {/* Label image */}
+        <div className="relative w-full aspect-square bg-gray-50 overflow-hidden">
+          {meta?.image && !imgErr ? (
+            <img
+              src={meta.image}
+              alt={meta.name ?? 'Beer NFT'}
+              onError={() => setImgErr(true)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ShoppingBag size={48} className="text-gray-200" />
+            </div>
+          )}
+          <span className={`absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg backdrop-blur-sm ${
+            inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
+          }`}>
+            {inStock ? `${inventoryCount?.toString()} in stock` : 'Sold Out'}
+          </span>
+          <span className="absolute top-3 right-3 text-[10px] font-black uppercase bg-black/50 text-white px-2 py-1 rounded-lg backdrop-blur-sm">
             #{id}
           </span>
+          {/* Owner stock shortcut */}
+          {isOwner && (
+            <button
+              onClick={e => { e.stopPropagation(); setShowStock(true); }}
+              className="absolute bottom-3 right-3 flex items-center gap-1 bg-white/90 text-hub-green border border-hub-green/40 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg hover:bg-hub-green hover:text-white transition-all backdrop-blur-sm"
+            >
+              <PackagePlus size={11} strokeWidth={3} />
+              {inStock ? 'Add Stock' : 'Stock'}
+            </button>
+          )}
         </div>
-        <div className="flex gap-6">
+
+        {/* Card body */}
+        <div className="p-5 flex flex-col gap-2 flex-1">
           <div>
-            <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
-            <p className="text-gray-900 font-black text-sm">{priceStr} {token}</p>
+            <h3 className="text-gray-900 font-black text-lg leading-tight">
+              {meta?.name ?? (inventoryCount > 0n ? 'Loading…' : 'Beer NFT')}
+            </h3>
+            {meta?.style && (
+              <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-0.5">
+                {meta.style}
+              </p>
+            )}
           </div>
-          <div>
-            <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">In Stock</p>
-            <p className="text-gray-900 font-black text-sm">{inventoryCount?.toString() ?? '—'}</p>
+
+          {(meta?.abv != null || meta?.ibu != null) && (
+            <div className="flex flex-wrap gap-1.5">
+              {meta.abv != null && (
+                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">
+                  {meta.abv}% ABV
+                </span>
+              )}
+              {meta.ibu != null && (
+                <span className="bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">
+                  {meta.ibu} IBU
+                </span>
+              )}
+            </div>
+          )}
+
+          {meta?.description && (
+            <p className="text-gray-400 text-xs font-medium leading-relaxed line-clamp-2">
+              {meta.description}
+            </p>
+          )}
+
+          <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
+              <p className="text-gray-900 font-black text-base">{priceStr} BEER</p>
+            </div>
+            <span className="text-hub-green text-xs font-black uppercase tracking-widest">
+              View →
+            </span>
           </div>
         </div>
-        {isOwner ? (
-          <button
-            onClick={() => setShowStock(true)}
-            className="w-full py-2.5 rounded-xl border-2 border-hub-green text-hub-green font-black uppercase tracking-widest text-xs hover:bg-hub-green hover:text-white transition-all flex items-center justify-center gap-1.5"
-          >
-            <PackagePlus size={13} strokeWidth={3} />
-            {inStock ? 'Add Stock' : 'Stock Listing'}
-          </button>
-        ) : address ? (
-          <button
-            onClick={handleBuy}
-            disabled={!inStock || isPending}
-            className="w-full py-2.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-xs disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
-          >
-            {!inStock ? 'Sold Out' : isPending ? 'Pending…' : !approved ? 'Approve & Buy' : 'Buy'}
-          </button>
-        ) : (
-          <div className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-400 font-black uppercase tracking-widest text-xs text-center">
-            Connect Wallet
-          </div>
-        )}
       </div>
+
+      {showModal && listing && (
+        <ListingModal
+          id={id}
+          meta={meta}
+          listing={listing}
+          inventory={inventory}
+          isOwner={isOwner}
+          onClose={() => setShowModal(false)}
+          onStocked={refetchListing}
+          onRefetch={refetchListing}
+        />
+      )}
 
       {showStock && (
         <StockModal
