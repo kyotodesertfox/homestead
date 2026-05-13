@@ -113,7 +113,20 @@ export const PAIR_ABI = [
 ];
 
 export const TREASURY_ABI = [
-  { name: 'dexExitFeeBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'dexExitFeeBps',        type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'stakeRatioBps',        type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'minListingBalance',    type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'requiredStakeFor',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'beerToEmit', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'maxEmittableFor',      type: 'function', stateMutability: 'view',        inputs: [{ name: 'wallet',     type: 'address' }], outputs: [{ type: 'uint256' }] },
+  {
+    name: 'postStake', type: 'function', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'nftContract', type: 'address'  },
+      { name: 'cids',        type: 'string[]' },
+      { name: 'beerToEmit',  type: 'uint256'  },
+    ],
+    outputs: [{ name: 'batchId', type: 'uint256' }],
+  },
 ];
 
 export const BEER_TOKEN_ABI = [
@@ -129,10 +142,10 @@ export const MARKETPLACE_ABI = [
   {
     name: 'createListing', type: 'function', stateMutability: 'nonpayable',
     inputs: [
-      { name: 'nftContract',   type: 'address' },
-      { name: 'paymentToken',  type: 'address' },
-      { name: 'price',         type: 'uint256' },
-      { name: 'proceeds',      type: 'address' },
+      { name: 'nftContract',  type: 'address' },
+      { name: 'paymentToken', type: 'address' },
+      { name: 'price',        type: 'uint256' },
+      { name: 'batchId',      type: 'uint256' },
     ],
     outputs: [{ name: 'listingId', type: 'uint256' }],
   },

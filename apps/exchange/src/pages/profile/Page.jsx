@@ -699,6 +699,11 @@ function LiquidityModal({ onClose }) {
   const [ethInput,  setEthInput]  = useState('');
   const [lpInput,   setLpInput]   = useState('');
   const [pendingAction, setPendingAction] = useState(null);
+  const [stakeBottles, setStakeBottles]   = useState('');
+  const [stakeEmit,    setStakeEmit]      = useState('');
+
+  const STAKE_RATIO_BPS = 1000; // 10% — placeholder until contract is live
+  const stakeEmitNum    = parseInt(stakeEmit, 10) || 0;
 
   const ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -713,6 +718,14 @@ function LiquidityModal({ onClose }) {
 
   const reservesReady = !reservesLoading && !reservesError;
   const [r0, r1]      = reserves ?? [0n, 0n];
+
+  // Stake calculator — uses live market price so the ETH required is realistic
+  const beerPriceEth  = reservesReady && r0 > 0n
+    ? Number(formatUnits(r1, 18)) / Number(formatUnits(r0, 18))
+    : 0;
+  const stakeRequired = stakeEmitNum > 0 && beerPriceEth > 0
+    ? (stakeEmitNum * beerPriceEth * STAKE_RATIO_BPS) / 10000
+    : 0;
   const hasLiquidity  = reservesReady && reserves != null && r0 > 0n && r1 > 0n;
   const poolEmpty     = reservesReady && reserves != null && r0 === 0n && r1 === 0n;
 
@@ -988,15 +1001,75 @@ function LiquidityModal({ onClose }) {
 
           {/* ── Staking ── */}
           {tab === 'staking' && (
-            <div className="flex flex-col items-center justify-center py-10 text-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-hub-green/10 flex items-center justify-center">
-                <Lock size={32} className="text-hub-green/40" />
-              </div>
-              <div>
-                <p className="text-white font-black text-lg uppercase tracking-tight">Staking Coming Soon</p>
-                <p className="text-stone-500 text-sm font-medium mt-1 max-w-xs">
-                  Lock $BEER or LP tokens to earn rewards. Feature under development.
+            <div className="relative">
+
+              {/* Coming-soon notice */}
+              <div className="flex items-center gap-3 bg-hub-green/10 border border-hub-green/20 rounded-xl px-4 py-3 mb-5">
+                <Lock size={13} className="text-hub-green shrink-0" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                  Contract deployment pending — preview only
                 </p>
+              </div>
+
+              {/* Grayed-out — explainer + position cards */}
+              <div className="opacity-40 pointer-events-none select-none space-y-4">
+
+                <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                  <p className="text-xs font-bold text-white leading-relaxed">
+                    To brew a batch and emit $BEER, you must post ETH as collateral.
+                    Your ETH is held in Treasury until each bottle is physically redeemed — released pro-rata on every redemption.
+                    Misrepresented batches are slashed and the ETH remains in Treasury as permanent floor.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1">ETH Staked</p>
+                    <p className="font-black text-white text-2xl">—</p>
+                    <p className="text-[9px] text-stone-500 font-bold mt-0.5">collateral posted</p>
+                  </div>
+                  <div className="bg-hub-green/10 rounded-xl p-4 border border-hub-green/20">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-hub-green/60 mb-1">Max Emittable</p>
+                    <p className="font-black text-white text-2xl">—</p>
+                    <p className="text-[9px] text-stone-500 font-bold mt-0.5">$BEER from stake</p>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Live calculator — interactive */}
+              <div className="mt-5 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 block">
+                  $BEER to Emit (target)
+                </label>
+                <input
+                  type="number" min="0" step="1" placeholder="e.g. 2400"
+                  value={stakeEmit}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '' || /^\d+$/.test(v)) setStakeEmit(v);
+                  }}
+                  className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors"
+                />
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">ETH Required</p>
+                    <p className="font-black text-white text-sm">
+                      {stakeRequired > 0 ? stakeRequired.toFixed(6) : '—'}
+                    </p>
+                  </div>
+                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Wallet Balance</p>
+                    <p className="font-black text-white text-sm">{ethBal ? fmtEth(ethBal.value) : '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Locked button */}
+              <div className="mt-4 opacity-40 pointer-events-none">
+                <button disabled className="w-full py-4 bg-hub-green text-white font-black uppercase tracking-widest text-sm rounded-xl">
+                  Post ETH Collateral &amp; Brew Batch
+                </button>
               </div>
             </div>
           )}
