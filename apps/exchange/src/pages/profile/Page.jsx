@@ -1,15 +1,31 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI } from '../../contracts';
+import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
 
 const HUB_CHAIN_ID = 167000;
 
 function fmt(addr)    { return `${addr.slice(0, 6)}...${addr.slice(-4)}`; }
 function fmtEth(wei)  { return parseFloat(formatUnits(wei, 18)).toFixed(4); }
 function fmtBeer(wei) { const n = parseFloat(formatUnits(wei, 18)); return n % 1 === 0 ? n.toFixed(0) : n.toFixed(4); }
+
+const IPFS_GW = 'https://ipfs.io/ipfs/';
+const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
+async function fetchNftMeta(tokenUri) {
+  try {
+    const m = await fetch(resolveIpfs(tokenUri)).then(r => r.json());
+    return {
+      name:        m?.name        ?? null,
+      description: m?.description ?? null,
+      image:       m?.image       ? resolveIpfs(m.image) : null,
+      style:       m?.attributes?.find(a => a.trait_type === 'Style')?.value ?? null,
+      abv:         m?.attributes?.find(a => a.trait_type === 'ABV')?.value   ?? null,
+      ibu:         m?.attributes?.find(a => a.trait_type === 'IBU')?.value   ?? null,
+    };
+  } catch { return null; }
+}
 
 export default function ProfilePage() {
   const { open }                        = useAppKit();
@@ -99,10 +115,16 @@ export default function ProfilePage() {
     <div className="bg-gray-50 min-h-screen py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
 
-        <header className="border-b-8 border-hub-green pb-6">
+        <header className="border-b-8 border-hub-green pb-6 flex items-end justify-between">
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900">
             Your <span className="text-hub-green">Dashboard</span>
           </h1>
+          <button
+            onClick={() => disconnect()}
+            className="shrink-0 py-2.5 px-5 rounded-2xl border-2 border-red-400 text-red-400 hover:bg-red-400 hover:text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95"
+          >
+            Disconnect
+          </button>
         </header>
 
         {/* Wallet card */}
@@ -203,6 +225,9 @@ export default function ProfilePage() {
           </section>
         )}
 
+        {/* NFT Listings */}
+        <MyListingsSection address={address} />
+
         {/* Quick actions */}
         <section>
           <h2 className="font-black uppercase tracking-tight text-gray-900 text-sm mb-4">Quick Actions</h2>
@@ -229,13 +254,6 @@ export default function ProfilePage() {
             />
           </div>
         </section>
-
-        <button
-          onClick={() => disconnect()}
-          className="w-full py-4 rounded-2xl border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-sm transition-all active:scale-95"
-        >
-          Disconnect Wallet
-        </button>
 
       </div>
     </div>
@@ -294,6 +312,359 @@ function ActionCard({ icon, title, description, href, internal = false, disabled
   if (disabled) return <div className={cls}>{inner}</div>;
   if (internal)  return <a href={href} className={cls}>{inner}</a>;
   return <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>;
+}
+
+// ─── My NFT Listings ─────────────────────────────────────────────────────────
+
+function MyListingsSection({ address }) {
+  const [selected, setSelected] = useState(null);
+  // selected = { id, meta, refetchCard }
+
+  const { data: nextId } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'nextListingId',
+    query:   { enabled: !!ADDRESSES.MARKETPLACE && !!address },
+  });
+
+  if (!ADDRESSES.MARKETPLACE || !address) return null;
+
+  const listingIds = nextId != null ? Array.from({ length: Number(nextId) }, (_, i) => i) : [];
+
+  return (
+    <>
+      <section>
+        <h2 className="font-black uppercase tracking-tight text-gray-900 text-sm mb-4">My Listings</h2>
+        {listingIds.length === 0 ? (
+          <p className="text-gray-400 text-sm font-medium">No market listings found.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {listingIds.map(id => (
+              <MyListingCard
+                key={id}
+                id={id}
+                address={address}
+                onSelect={setSelected}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {selected && (
+        <NFTManageModal
+          id={selected.id}
+          initialMeta={selected.meta}
+          onClose={() => setSelected(null)}
+          onUpdate={selected.refetchCard}
+        />
+      )}
+    </>
+  );
+}
+
+function MyListingCard({ id, address, onSelect }) {
+  const [meta,   setMeta]   = useState(null);
+  const [imgErr, setImgErr] = useState(false);
+
+  const { data: listing, refetch: refetchListing } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getListing',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const { data: inventory } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getInventory',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const firstTokenId = inventory?.[0];
+  const { data: tokenUri } = useReadContract({
+    address: ADDRESSES.BEER_NFT,
+    abi:     NFT_ABI,
+    functionName: 'tokenURI',
+    args:    [firstTokenId],
+    query:   { enabled: firstTokenId != null },
+  });
+
+  useEffect(() => {
+    if (!tokenUri) return;
+    fetchNftMeta(tokenUri).then(m => m && setMeta(m));
+  }, [tokenUri]);
+
+  if (!listing) return null;
+  const [, , , proceeds, inventoryCount, active] = listing;
+
+  // Only show if this wallet is the proceeds recipient
+  if (!proceeds || proceeds.toLowerCase() !== address?.toLowerCase()) return null;
+
+  const inStock = inventoryCount != null && inventoryCount > 0n;
+
+  return (
+    <button
+      onClick={() => onSelect({ id, meta, refetchCard: refetchListing })}
+      className="bg-hub-dark border-2 border-white/10 hover:border-amber-500/50 rounded-2xl overflow-hidden text-left transition-all group"
+    >
+      {/* Image */}
+      <div className="relative aspect-square bg-black/30 overflow-hidden">
+        {meta?.image && !imgErr ? (
+          <img
+            src={meta.image}
+            alt={meta.name ?? 'NFT'}
+            onError={() => setImgErr(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ShoppingBag size={32} className="text-white/10" />
+          </div>
+        )}
+        <span className={`absolute top-2 left-2 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+          !active    ? 'bg-stone-700 text-stone-400' :
+          inStock    ? 'bg-hub-green text-white'      :
+                       'bg-amber-500/80 text-white'
+        }`}>
+          {!active ? 'Unlisted' : inStock ? `${inventoryCount.toString()} left` : 'Sold Out'}
+        </span>
+      </div>
+
+      {/* Info */}
+      <div className="p-3">
+        <p className="text-white font-black text-sm truncate leading-tight">
+          {meta?.name ?? 'Loading…'}
+        </p>
+        {meta?.style && (
+          <p className="text-hub-green text-[10px] font-black uppercase tracking-widest truncate mt-0.5">
+            {meta.style}
+          </p>
+        )}
+        <p className="text-stone-500 text-[9px] font-black uppercase tracking-widest mt-1.5">
+          Listing #{id} · {inStock ? `${inventoryCount.toString()} in stock` : 'out of stock'}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
+  const [imgErr, setImgErr] = useState(false);
+  const [meta,   setMeta]   = useState(initialMeta ?? null);
+
+  // Fetch live listing data so status reflects post-TX state
+  const { data: listing, refetch: refetchListing } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getListing',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const { data: inventory } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getInventory',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const firstTokenId = inventory?.[0];
+  const { data: tokenUri } = useReadContract({
+    address: ADDRESSES.BEER_NFT,
+    abi:     NFT_ABI,
+    functionName: 'tokenURI',
+    args:    [firstTokenId],
+    query:   { enabled: firstTokenId != null && !meta },
+  });
+
+  useEffect(() => {
+    if (!tokenUri || meta) return;
+    fetchNftMeta(tokenUri).then(m => m && setMeta(m));
+  }, [tokenUri]);
+
+  const [withdrawCount, setWithdrawCount] = useState('');
+
+  const { writeContract, data: txHash, isPending, error: writeErr } = useWriteContract();
+  const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash, query: { enabled: !!txHash } });
+
+  useEffect(() => {
+    if (!isSuccess) return;
+    setWithdrawCount('');
+    refetchListing();
+    onUpdate?.();
+  }, [isSuccess]);
+
+  if (!listing) return null;
+
+  const [, , price, , inventoryCount, active] = listing;
+  const inStock    = inventoryCount != null && inventoryCount > 0n;
+  const maxWithdraw = Number(inventoryCount ?? 0n);
+  const priceStr   = price != null ? formatUnits(price, 18) : '—';
+
+  const withdrawNum = parseInt(withdrawCount) || 0;
+  const canWithdraw = withdrawNum > 0 && withdrawNum <= maxWithdraw;
+
+  const handleToggle = () => {
+    writeContract({
+      address: ADDRESSES.MARKETPLACE,
+      abi:     MARKETPLACE_ABI,
+      functionName: 'setActive',
+      args:    [BigInt(id), !active],
+    });
+  };
+
+  const handleWithdraw = () => {
+    writeContract({
+      address: ADDRESSES.MARKETPLACE,
+      abi:     MARKETPLACE_ABI,
+      functionName: 'withdrawInventory',
+      args:    [BigInt(id), BigInt(withdrawNum)],
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Left — image */}
+        <div className="relative md:w-2/5 aspect-square md:aspect-auto bg-gray-50 shrink-0">
+          {meta?.image && !imgErr ? (
+            <img
+              src={meta.image}
+              alt={meta?.name ?? 'NFT'}
+              onError={() => setImgErr(true)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center min-h-[180px]">
+              <ShoppingBag size={56} className="text-gray-200" />
+            </div>
+          )}
+          <span className="absolute top-4 left-4 text-[10px] font-black uppercase bg-black/50 text-white px-2.5 py-1 rounded-lg backdrop-blur-sm">
+            Listing #{id}
+          </span>
+          <span className={`absolute top-4 right-4 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg backdrop-blur-sm ${
+            active ? 'bg-hub-green text-white' : 'bg-stone-700/80 text-stone-300'
+          }`}>
+            {active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        {/* Right — details + actions */}
+        <div className="flex flex-col p-7 overflow-y-auto flex-1 gap-4">
+
+          <button onClick={onClose} className="self-end text-gray-400 hover:text-gray-700 -mt-2 -mr-2 transition-colors">
+            <X size={20} />
+          </button>
+
+          {/* Name + style */}
+          <div>
+            <h2 className="text-gray-900 font-black text-xl leading-tight">{meta?.name ?? 'Beer NFT'}</h2>
+            {meta?.style && (
+              <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-0.5">{meta.style}</p>
+            )}
+          </div>
+
+          {/* ABV / IBU */}
+          {(meta?.abv != null || meta?.ibu != null) && (
+            <div className="flex flex-wrap gap-2">
+              {meta.abv != null && (
+                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-lg">
+                  {meta.abv}% ABV
+                </span>
+              )}
+              {meta.ibu != null && (
+                <span className="bg-sky-50 text-sky-700 border border-sky-200 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-lg">
+                  {meta.ibu} IBU
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Description */}
+          {meta?.description && (
+            <p className="text-gray-500 text-sm font-medium leading-relaxed">{meta.description}</p>
+          )}
+
+          {/* Listing stats */}
+          <div className="flex gap-6 border-t border-b border-gray-100 py-4">
+            <div>
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Price</p>
+              <p className="text-gray-900 font-black text-lg">{priceStr} BEER</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">In Stock</p>
+              <p className={`font-black text-lg ${inStock ? 'text-hub-green' : 'text-gray-300'}`}>
+                {inventoryCount?.toString() ?? '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* Partial withdraw */}
+          {inStock && (
+            <div className="space-y-2">
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">
+                Withdraw to Wallet
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={`1 – ${maxWithdraw}`}
+                  value={withdrawCount}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '' || /^\d+$/.test(v)) setWithdrawCount(v);
+                  }}
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 font-black text-sm outline-none focus:border-hub-green transition-colors"
+                />
+                <button
+                  onClick={handleWithdraw}
+                  disabled={!canWithdraw || isPending || confirming}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-black uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 whitespace-nowrap"
+                >
+                  {isPending || confirming ? '…' : 'Withdraw'}
+                </button>
+              </div>
+              <p className="text-gray-400 text-[10px] font-medium">
+                NFTs return to your wallet; listing stays active with reduced stock.
+              </p>
+            </div>
+          )}
+
+          {writeErr && (
+            <p className="text-red-400 text-xs font-medium">{writeErr.shortMessage ?? writeErr.message}</p>
+          )}
+          {isSuccess && (
+            <p className="text-hub-green text-xs font-black uppercase tracking-widest">
+              {active ? 'Listing is now active.' : 'Listing paused.'}
+            </p>
+          )}
+
+          <button
+            onClick={handleToggle}
+            disabled={isPending || confirming}
+            className={`w-full py-3.5 rounded-xl font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 ${
+              active
+                ? 'border-2 border-red-400 text-red-400 hover:bg-red-400 hover:text-white'
+                : 'bg-hub-green text-white hover:brightness-110'
+            }`}
+          >
+            {isPending || confirming ? 'Confirming…' : active ? 'Unlist All' : 'Relist'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const PCT_BTNS = [0, 25, 50, 75, 100];

@@ -52,6 +52,12 @@ interface IWETH {
     function withdraw(uint256 value) external;
 }
 
+interface INFTTemplate {
+    function redeemed(uint256 tokenId) external view returns (bool);
+    function redeem(uint256 tokenId) external;
+    function markRedeemed(uint256 tokenId) external;
+}
+
 interface ITreasury {
     function dexEntryFeeBps() external view returns (uint256);
     function dexExitFeeBps() external view returns (uint256);

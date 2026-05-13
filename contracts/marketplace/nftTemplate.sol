@@ -27,7 +27,11 @@ contract nftTemplate is
     mapping(uint256 => string) private _tokenCIDs;
     uint256 public nextTokenId;
 
-    uint256[47] private __gap;
+    mapping(uint256 => bool) public redeemed;
+    mapping(uint256 => string) private _redeemedCIDs;
+    mapping(address => bool) public redemptionOperator;
+
+    uint256[44] private __gap;
 
     // =========================================================================
 
@@ -35,6 +39,7 @@ contract nftTemplate is
 
     event Minted(address indexed to, uint256 indexed tokenId, string cid);
     event BatchMinted(address indexed to, uint256 startTokenId, uint256 count);
+    event Redeemed(uint256 indexed tokenId, address indexed holder);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -82,16 +87,37 @@ contract nftTemplate is
     }
 
     // =========================================================================
-    // REDEMPTION — burn on redeem
-    // Callable by the token holder or an approved operator (e.g. Marketplace).
+    // REDEMPTION — sets on-chain flag; NFT is NOT burned (becomes collectible).
+    // Callable by: token holder, approved operator, or a trusted redemptionOperator
+    // (e.g. Marketplace POS). markRedeemed() is an owner-only bypass for bar staff
+    // who scan a physical bottle without requiring the customer's wallet signature.
     // =========================================================================
 
     function redeem(uint256 tokenId) external {
+        require(!redeemed[tokenId], 'nftTemplate: ALREADY_REDEEMED');
         require(
+            redemptionOperator[msg.sender] ||
             _isAuthorized(ownerOf(tokenId), msg.sender, tokenId),
             'nftTemplate: NOT_AUTHORIZED'
         );
-        _burn(tokenId);
+        redeemed[tokenId] = true;
+        emit Redeemed(tokenId, ownerOf(tokenId));
+    }
+
+    function markRedeemed(uint256 tokenId) external onlyOwner {
+        require(!redeemed[tokenId], 'nftTemplate: ALREADY_REDEEMED');
+        _requireOwned(tokenId);
+        redeemed[tokenId] = true;
+        emit Redeemed(tokenId, ownerOf(tokenId));
+    }
+
+    function setRedemptionOperator(address operator, bool approved) external onlyOwner {
+        redemptionOperator[operator] = approved;
+    }
+
+    function setRedeemedCID(uint256 tokenId, string memory cid) external onlyOwner {
+        _requireOwned(tokenId);
+        _redeemedCIDs[tokenId] = cid;
     }
 
     // =========================================================================
@@ -100,6 +126,9 @@ contract nftTemplate is
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
+        if (redeemed[tokenId] && bytes(_redeemedCIDs[tokenId]).length > 0) {
+            return string.concat("ipfs://", _redeemedCIDs[tokenId]);
+        }
         string memory cid = _tokenCIDs[tokenId];
         require(bytes(cid).length > 0, 'nftTemplate: URI_NOT_SET');
         return string.concat("ipfs://", cid);

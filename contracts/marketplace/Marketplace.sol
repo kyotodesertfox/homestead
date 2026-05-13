@@ -101,6 +101,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         require(listing.nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
+            require(
+                !INFTTemplate(listing.nftContract).redeemed(tokenIds[i]),
+                'Marketplace: TOKEN_ALREADY_REDEEMED'
+            );
             IERC721(listing.nftContract).transferFrom(msg.sender, address(this), tokenIds[i]);
             listing.inventory.push(tokenIds[i]);
         }
@@ -180,8 +184,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
     // REDEMPTION
-    // Burns the NFT on physical pickup.
-    // Emits an event the POS system can listen for.
+    // Sets the on-chain redeemed flag; NFT is NOT burned — it stays as art/collectible.
+    // Caller must be the token holder. Marketplace must be set as a redemptionOperator
+    // on the nftTemplate after deployment so it can call through without a separate
+    // per-token approval from the holder.
     // =========================================================================
 
     function redeem(address nftContract, uint256 tokenId) external nonReentrant whenNotPaused {
@@ -194,11 +200,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             'Marketplace: NOT_OWNER'
         );
 
-        IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-        (bool success, ) = nftContract.call(
-            abi.encodeWithSignature("burn(uint256)", tokenId)
-        );
-        require(success, 'Marketplace: BURN_FAILED');
+        INFTTemplate(nftContract).redeem(tokenId);
 
         emit Redeemed(nftContract, tokenId, msg.sender);
     }

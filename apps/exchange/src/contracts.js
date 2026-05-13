@@ -152,7 +152,8 @@ export const MARKETPLACE_ABI = [
   { name: 'setActive',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'active', type: 'bool' }], outputs: [] },
   { name: 'updatePrice',      type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'newPrice', type: 'uint256' }], outputs: [] },
   { name: 'getInventory',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'listingId', type: 'uint256' }], outputs: [{ type: 'uint256[]' }] },
-  { name: 'depositInventory', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'tokenIds', type: 'uint256[]' }], outputs: [] },
+  { name: 'depositInventory',  type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'tokenIds',  type: 'uint256[]' }], outputs: [] },
+  { name: 'withdrawInventory', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'count',     type: 'uint256'   }], outputs: [] },
 ];
 
 export const NFT_ABI = [
