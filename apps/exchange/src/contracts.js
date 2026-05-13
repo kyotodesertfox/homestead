@@ -83,6 +83,15 @@ export const ROUTER_ABI = [
     ],
     outputs: [{ name: 'amounts', type: 'uint256[]' }],
   },
+  {
+    name: 'getAmountsIn',
+    type: 'function', stateMutability: 'view',
+    inputs: [
+      { name: 'amountOut', type: 'uint256' },
+      { name: 'path',      type: 'address[]' },
+    ],
+    outputs: [{ name: 'amounts', type: 'uint256[]' }],
+  },
 ];
 
 export const PAIR_ABI = [

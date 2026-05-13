@@ -10,15 +10,18 @@ import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, TREASURY_ABI, CONTRACT_URI_
 
 const HUB_CHAIN_ID = 167000;
 
+// Product tokens only — ETH is always the other side and is never selectable
 const TOKENS = [
-  { symbol: 'ETH',   address: null,                decimals: 18, color: 'bg-blue-500'  },
   { symbol: '$BEER', address: ADDRESSES.BEER_TOKEN, decimals: 18, color: 'bg-amber-400' },
-  { symbol: '$EGG',  address: null,                decimals: 18, color: 'bg-yellow-400' },
+  { symbol: '$EGG',  address: null,                 decimals: 18, color: 'bg-yellow-400' },
 ];
 
-function buildPath(from, to) {
-  if (from === 'ETH'   && to === '$BEER') return [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN];
-  if (from === '$BEER' && to === 'ETH')   return [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH];
+function buildPath(tokenSymbol, isSelling) {
+  if (tokenSymbol === '$BEER') {
+    return isSelling
+      ? [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH]
+      : [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN];
+  }
   return null;
 }
 
@@ -35,9 +38,7 @@ function TokenLogo({ symbol, address, color }) {
     functionName: 'contractURI',
     query: { enabled: !!address },
   });
-
   const [imgSrc, setImgSrc] = useState(null);
-
   useEffect(() => {
     if (!uri) return;
     async function resolve() {
@@ -49,15 +50,11 @@ function TokenLogo({ symbol, address, color }) {
           meta = await fetch(toHttp(uri)).then(r => r.json());
         }
         setImgSrc(toHttp(meta?.image) ?? null);
-      } catch { /* uri not set or fetch failed — fall through to fallback */ }
+      } catch {}
     }
     resolve();
   }, [uri]);
-
   if (imgSrc) return <img src={imgSrc} alt={symbol} className="w-5 h-5 rounded-full object-cover" />;
-  if (symbol === 'ETH') return (
-    <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white font-black" style={{ fontSize: 9 }}>Ξ</div>
-  );
   return <div className={`w-4 h-4 rounded-full ${color}`} />;
 }
 
@@ -97,63 +94,71 @@ export default function SwapPage() {
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
 
-  const [amount, setAmount]       = useState('');
-  const [fromToken, setFromToken] = useState('ETH');
-  const [toToken, setToToken]     = useState('$BEER');
-  const [mounted, setMounted]     = useState(false);
+  const [tokenAmount, setTokenAmount]     = useState('');
+  const [selectedToken, setSelectedToken] = useState('$BEER');
+  const [isSelling, setIsSelling]         = useState(false);
+  const [mounted, setMounted]             = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const isBeerToEth = fromToken === '$BEER';
-  const path        = buildPath(fromToken, toToken);
-  const fromDef     = TOKENS.find(t => t.symbol === fromToken);
+  const tokenDef = TOKENS.find(t => t.symbol === selectedToken);
+  const path     = buildPath(selectedToken, isSelling);
 
-  const amountBig = useMemo(() => {
-    try { return amount ? parseUnits(amount, 18) : 0n; }
+  const tokenAmountBig = useMemo(() => {
+    try { return tokenAmount ? parseUnits(tokenAmount, 18) : 0n; }
     catch { return 0n; }
-  }, [amount]);
+  }, [tokenAmount]);
 
-  const { data: quoteData } = useReadContract({
+  // Buy: getAmountsIn(desiredTokenOut, [WETH, TOKEN]) → ethIn = amounts[0]
+  const { data: buyQuote } = useReadContract({
+    address: ADDRESSES.ROUTER,
+    abi: ROUTER_ABI,
+    functionName: 'getAmountsIn',
+    args: [tokenAmountBig, path ?? [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN]],
+    query: { enabled: !isSelling && !!path && tokenAmountBig > 0n },
+  });
+
+  // Sell: getAmountsOut(tokenIn, [TOKEN, WETH]) → ethOut = amounts[1]
+  const { data: sellQuote } = useReadContract({
     address: ADDRESSES.ROUTER,
     abi: ROUTER_ABI,
     functionName: 'getAmountsOut',
-    args: [amountBig, path ?? [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN]],
-    query: { enabled: !!path && amountBig > 0n },
+    args: [tokenAmountBig, path ?? [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH]],
+    query: { enabled: isSelling && !!path && tokenAmountBig > 0n },
   });
 
-  // LP fee from pair contract (30 bps = 0.3%) — requires updated DexPair implementation
   const { data: lpFeeBps = 30n } = useReadContract({
     address: ADDRESSES.BEER_WETH_PAIR,
     abi: PAIR_ABI,
     functionName: 'swapFeeBps',
   });
 
-  // Platform exit fee from Treasury — only applied on BEER → ETH
   const { data: exitFeeBps = 0n } = useReadContract({
     address: ADDRESSES.TREASURY,
     abi: TREASURY_ABI,
     functionName: 'dexExitFeeBps',
   });
 
-  const grossAmountOut = quoteData?.[1] ?? 0n;
-  // For BEER→ETH the router deducts the platform fee from the ETH output after the swap
-  const amountOut    = isBeerToEth && grossAmountOut > 0n
-    ? (grossAmountOut * (10000n - exitFeeBps)) / 10000n
-    : grossAmountOut;
-  // amountOutMin is checked by the contract against the gross output (before platform fee)
-  const amountOutMin = applySlippage(grossAmountOut);
+  // Gross ETH before platform exit fee
+  const grossEthAmount = isSelling ? (sellQuote?.[1] ?? 0n) : (buyQuote?.[0] ?? 0n);
+
+  // Net ETH after exit fee (only applied when selling)
+  const netEthAmount = isSelling && grossEthAmount > 0n
+    ? (grossEthAmount * (10000n - exitFeeBps)) / 10000n
+    : grossEthAmount;
 
   const { data: reserves } = useReadContract({
     address: ADDRESSES.BEER_WETH_PAIR,
     abi: PAIR_ABI,
     functionName: 'getReserves',
-    query: { enabled: !!path && amountBig > 0n },
+    query: { enabled: !!path && tokenAmountBig > 0n },
   });
 
-  const { data: fromBalance } = useBalance({
+  const { data: ethBal   } = useBalance({ address, query: { enabled: !!address } });
+  const { data: tokenBal } = useBalance({
     address,
-    token: fromDef?.address ?? undefined,
+    token: tokenDef?.address ?? undefined,
     chainId,
-    query: { enabled: !!address },
+    query: { enabled: !!address && !!tokenDef?.address },
   });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -161,66 +166,84 @@ export default function SwapPage() {
     abi: ERC20_ABI,
     functionName: 'allowance',
     args: [address ?? '0x0000000000000000000000000000000000000000', ADDRESSES.ROUTER],
-    query: { enabled: !!address && isBeerToEth },
+    query: { enabled: !!address && isSelling },
   });
-  const needsApproval = isBeerToEth && allowance !== undefined && allowance < amountBig;
+  const needsApproval = isSelling && allowance !== undefined && allowance < tokenAmountBig;
 
   const { writeContract: writeApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: writeSwap,   data: swapTxHash }     = useWriteContract();
-
   const { isLoading: approving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({ hash: approveTxHash });
   const { isLoading: swapping }                                = useWaitForTransactionReceipt({ hash: swapTxHash });
-
   useEffect(() => { if (approveConfirmed) refetchAllowance(); }, [approveConfirmed, refetchAllowance]);
 
   const isPending = approving || swapping;
 
+  const insufficientBalance = isSelling
+    ? !!tokenBal && tokenAmountBig > 0n && tokenAmountBig > tokenBal.value
+    : !!ethBal && grossEthAmount > 0n && grossEthAmount > ethBal.value;
+
+  // Rate: ETH per TOKEN (consistent for both directions)
   const rateDisplay = useMemo(() => {
-    if (!quoteData || amountBig === 0n || amountOut === 0n) return null;
-    return parseFloat(formatUnits(amountOut, 18)) / parseFloat(formatUnits(amountBig, 18));
-  }, [quoteData, amountBig, amountOut]);
+    if (tokenAmountBig === 0n || netEthAmount === 0n) return null;
+    return parseFloat(formatUnits(netEthAmount, 18)) / parseFloat(formatUnits(tokenAmountBig, 18));
+  }, [tokenAmountBig, netEthAmount]);
 
+  // Price impact: deviation from mid price expressed as %
   const priceImpact = useMemo(() => {
-    if (!reserves || !quoteData || amountBig === 0n || amountOut === 0n) return null;
-    const [r0, r1] = reserves; // BEER = token0, WETH = token1
-    const [rIn, rOut] = isBeerToEth ? [r0, r1] : [r1, r0];
-    if (rIn === 0n || rOut === 0n) return null;
-    const midPrice  = parseFloat(formatUnits(rOut, 18)) / parseFloat(formatUnits(rIn, 18));
-    const execPrice = parseFloat(formatUnits(amountOut, 18)) / parseFloat(formatUnits(amountBig, 18));
-    return Math.max(0, ((midPrice - execPrice) / midPrice) * 100).toFixed(2);
-  }, [reserves, quoteData, amountBig, amountOut, isBeerToEth]);
+    if (!reserves || tokenAmountBig === 0n || netEthAmount === 0n) return null;
+    const [r0, r1] = reserves; // r0 = BEER (token0), r1 = WETH
+    if (r0 === 0n || r1 === 0n) return null;
+    const midPrice  = parseFloat(formatUnits(r1, 18)) / parseFloat(formatUnits(r0, 18));
+    const execPrice = parseFloat(formatUnits(netEthAmount, 18)) / parseFloat(formatUnits(tokenAmountBig, 18));
+    return Math.abs((midPrice - execPrice) / midPrice * 100).toFixed(2);
+  }, [reserves, tokenAmountBig, netEthAmount]);
 
+  // LP fee: on the input token (BEER when selling, ETH when buying)
   const lpFeeDisplay = useMemo(() => {
-    if (amountBig === 0n) return '0';
-    return parseFloat(formatUnits((amountBig * lpFeeBps) / 10000n, 18)).toFixed(6);
-  }, [amountBig, lpFeeBps]);
+    if (tokenAmountBig === 0n) return '0';
+    if (isSelling) return parseFloat(formatUnits((tokenAmountBig * lpFeeBps) / 10000n, 18)).toFixed(4);
+    return grossEthAmount > 0n ? parseFloat(formatUnits((grossEthAmount * lpFeeBps) / 10000n, 18)).toFixed(6) : '0';
+  }, [tokenAmountBig, grossEthAmount, lpFeeBps, isSelling]);
 
   const exitFeeDisplay = useMemo(() => {
-    if (!isBeerToEth || grossAmountOut === 0n) return null;
-    return parseFloat(formatUnits((grossAmountOut * exitFeeBps) / 10000n, 18)).toFixed(6);
-  }, [isBeerToEth, grossAmountOut, exitFeeBps]);
+    if (!isSelling || grossEthAmount === 0n) return null;
+    return parseFloat(formatUnits((grossEthAmount * exitFeeBps) / 10000n, 18)).toFixed(6);
+  }, [isSelling, grossEthAmount, exitFeeBps]);
 
-  const lpFeePercent   = (Number(lpFeeBps)   / 100).toFixed(2).replace(/\.?0+$/, '');
-  const exitFeePercent = (Number(exitFeeBps)  / 100).toFixed(2).replace(/\.?0+$/, '');
+  const lpFeePercent   = (Number(lpFeeBps)  / 100).toFixed(2).replace(/\.?0+$/, '');
+  const exitFeePercent = (Number(exitFeeBps) / 100).toFixed(2).replace(/\.?0+$/, '');
+  const lpFeeCurrency  = isSelling ? selectedToken : 'ETH';
 
-  const insufficientBalance = !!fromBalance && amountBig > 0n && amountBig > fromBalance.value;
+  // Minimum received: BEER when buying, ETH when selling
+  const minReceived        = isSelling ? applySlippage(grossEthAmount) : applySlippage(tokenAmountBig);
+  const minReceivedDisplay = isSelling
+    ? `${parseFloat(formatUnits(minReceived, 18)).toFixed(8)} ETH`
+    : `${parseFloat(formatUnits(minReceived, 18)).toFixed(4)} ${selectedToken}`;
 
-  const balanceLabel = useMemo(() => {
-    if (!mounted || !isConnected) return 'Balance: 0.00';
-    if (!fromBalance) return 'Balance: ...';
-    return `Balance: ${parseFloat(formatUnits(fromBalance.value, fromBalance.decimals)).toFixed(4)}`;
-  }, [mounted, isConnected, fromBalance]);
-
-  const handleFlip    = () => { setFromToken(toToken); setToToken(fromToken); setAmount(''); };
-  const handleMax     = () => { if (fromBalance) setAmount(formatUnits(fromBalance.value, fromBalance.decimals)); };
-  const handleApprove = () => writeApprove({ address: ADDRESSES.BEER_TOKEN, abi: ERC20_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, amountBig] });
-  const handleSwap    = () => {
-    if (!path || amountBig === 0n || !address) return;
+  const handleToggle  = () => { setIsSelling(s => !s); setTokenAmount(''); };
+  // Floor to whole units — BEER/EGG are whole-unit tokens
+  const handleMax     = () => { if (isSelling && tokenBal) setTokenAmount((tokenBal.value / (10n ** 18n)).toString()); };
+  const handleApprove = () => writeApprove({
+    address: ADDRESSES.BEER_TOKEN, abi: ERC20_ABI,
+    functionName: 'approve', args: [ADDRESSES.ROUTER, tokenAmountBig],
+  });
+  const handleSwap = () => {
+    if (!path || tokenAmountBig === 0n || !address) return;
     const dl = DEADLINE();
-    if (isBeerToEth) {
-      writeSwap({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'swapExactTokensForETH', args: [amountBig, amountOutMin, path, address, dl] });
+    if (isSelling) {
+      writeSwap({
+        address: ADDRESSES.ROUTER, abi: ROUTER_ABI,
+        functionName: 'swapExactTokensForETH',
+        args: [tokenAmountBig, applySlippage(grossEthAmount), path, address, dl],
+      });
     } else {
-      writeSwap({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'swapExactETHForTokens', args: [amountOutMin, path, address, dl], value: amountBig });
+      // Send the exact ETH quoted by getAmountsIn; amountOutMin protects against slippage
+      writeSwap({
+        address: ADDRESSES.ROUTER, abi: ROUTER_ABI,
+        functionName: 'swapExactETHForTokens',
+        args: [applySlippage(tokenAmountBig), path, address, dl],
+        value: grossEthAmount,
+      });
     }
   };
 
@@ -228,6 +251,17 @@ export default function SwapPage() {
   const statusColor = chainId === HUB_CHAIN_ID ? 'bg-emerald-500' : 'bg-amber-400';
 
   if (!mounted) return null;
+
+  // Display values
+  const ethDisplay = netEthAmount > 0n
+    ? parseFloat(formatUnits(netEthAmount, 18)).toFixed(8)
+    : tokenAmountBig > 0n ? '...' : '0.00';
+
+  const tokenBalDisplay = tokenBal ? parseFloat(formatUnits(tokenBal.value, 18)).toFixed(0) : '...';
+  const ethBalDisplay   = ethBal   ? parseFloat(formatUnits(ethBal.value, 18)).toFixed(4)   : '...';
+
+  const tokenLabel = isSelling ? 'You Sell' : 'You Buy';
+  const ethLabel   = isSelling ? 'You Receive' : 'You Pay';
 
   let actionButton;
   if (!isConnected) {
@@ -239,7 +273,7 @@ export default function SwapPage() {
   } else if (!path) {
     actionButton = (
       <button disabled className="w-full mt-2 bg-stone-700 text-stone-500 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
-        No Route Available
+        {selectedToken} Coming Soon
       </button>
     );
   } else if (insufficientBalance) {
@@ -250,14 +284,14 @@ export default function SwapPage() {
     );
   } else if (needsApproval) {
     actionButton = (
-      <button onClick={handleApprove} disabled={isPending || amountBig === 0n} className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
-        {approving ? 'Approving...' : 'Approve $BEER'}
+      <button onClick={handleApprove} disabled={isPending || tokenAmountBig === 0n} className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
+        {approving ? 'Approving...' : `Approve ${selectedToken}`}
       </button>
     );
   } else {
     actionButton = (
-      <button onClick={handleSwap} disabled={isPending || amountBig === 0n || !quoteData} className="w-full mt-2 bg-hub-green hover:bg-hub-light text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
-        {swapping ? 'Swapping...' : `Swap ${fromToken} → ${toToken}`}
+      <button onClick={handleSwap} disabled={isPending || tokenAmountBig === 0n || (!isSelling && grossEthAmount === 0n)} className="w-full mt-2 bg-hub-green hover:bg-hub-light text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
+        {swapping ? 'Swapping...' : isSelling ? `Sell ${selectedToken}` : `Buy ${selectedToken}`}
       </button>
     );
   }
@@ -282,70 +316,82 @@ export default function SwapPage() {
           >
             <div className="flex flex-col gap-4">
 
-              {/* FROM */}
+              {/* TOKEN BOX — always the editable input */}
               <div className="bg-black/40 border border-white/10 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">You Sell</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-hub-green">{balanceLabel}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">{tokenLabel}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-hub-green">
+                    Balance: {tokenBalDisplay} {selectedToken}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center gap-4 mb-4">
                   <input
-                    type="number"
-                    placeholder="0.0"
-                    className="bg-transparent text-3xl font-black text-white outline-none w-full"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="bg-transparent text-3xl font-black text-white outline-none w-full overflow-hidden"
+                    value={tokenAmount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '' || /^\d+$/.test(v)) setTokenAmount(v);
+                    }}
                   />
                   <TokenSelect
-                    selected={fromToken}
-                    options={TOKENS.filter(t => t.symbol !== toToken)}
-                    onChange={(sym) => setFromToken(sym)}
+                    selected={selectedToken}
+                    options={TOKENS}
+                    onChange={(sym) => { setSelectedToken(sym); setTokenAmount(''); }}
                   />
                 </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleMax}
-                    className="bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 px-4 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
-                  >
-                    Max
-                  </button>
-                </div>
+                {isSelling && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleMax}
+                      className="bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 px-4 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
+                    >
+                      Max
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* FLIP */}
+              {/* DIRECTION TOGGLE */}
               <div className="flex justify-center -my-2 z-10">
                 <button
-                  onClick={handleFlip}
+                  onClick={handleToggle}
                   className="bg-hub-dark border-2 border-hub-green p-2 rounded-full text-hub-green shadow-xl hover:rotate-180 transition-all duration-500"
                 >
                   <ArrowDown size={20} strokeWidth={3} />
                 </button>
               </div>
 
-              {/* TO */}
+              {/* ETH BOX — display only, never editable */}
               <div className="bg-black/40 border border-white/10 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">You Receive</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">{ethLabel}</span>
+                  {!isSelling && (
+                    <span className="text-[10px] font-black uppercase tracking-widest text-stone-500">
+                      Wallet: {ethBalDisplay} ETH
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-between items-center gap-4">
-                  <div className="text-3xl font-black text-white">
-                    {!path ? '—' : amountOut > 0n ? parseFloat(formatUnits(amountOut, 18)).toFixed(6) : '0.00'}
+                  <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-white' : 'text-stone-600'}`}>
+                    {ethDisplay}
                   </div>
-                  <TokenSelect
-                    selected={toToken}
-                    options={TOKENS.filter(t => t.symbol !== fromToken)}
-                    onChange={(sym) => setToToken(sym)}
-                  />
+                  <div className="shrink-0 bg-stone-800 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white font-black" style={{ fontSize: 9 }}>Ξ</div>
+                    <span className="font-black text-white text-xs">ETH</span>
+                  </div>
                 </div>
               </div>
 
-              {/* DETAILS */}
-              {amountBig > 0n && path && quoteData && (
+              {/* TRADE DETAILS */}
+              {tokenAmountBig > 0n && !!path && netEthAmount > 0n && (
                 <div className="bg-black/20 rounded-2xl p-4 text-[10px] font-black uppercase tracking-widest text-stone-400 flex flex-col gap-2 border border-white/5">
                   {rateDisplay !== null && (
                     <div className="flex justify-between">
                       <span>Rate</span>
-                      <span className="text-white">1 {fromToken} = {rateDisplay.toFixed(6)} {toToken}</span>
+                      <span className="text-white">1 {selectedToken} = {rateDisplay.toFixed(6)} ETH</span>
                     </div>
                   )}
                   {priceImpact !== null && (
@@ -356,7 +402,7 @@ export default function SwapPage() {
                   )}
                   <div className="flex justify-between">
                     <span>Market Fee ({lpFeePercent}%)</span>
-                    <span className="text-white">{lpFeeDisplay} {fromToken}</span>
+                    <span className="text-white">{lpFeeDisplay} {lpFeeCurrency}</span>
                   </div>
                   {exitFeeDisplay !== null && (
                     <div className="flex justify-between">
@@ -366,7 +412,7 @@ export default function SwapPage() {
                   )}
                   <div className="flex justify-between border-t border-white/5 pt-2">
                     <span>Minimum Received</span>
-                    <span className="text-white">{parseFloat(formatUnits(amountOutMin, 18)).toFixed(6)} {toToken}</span>
+                    <span className="text-white">{minReceivedDisplay}</span>
                   </div>
                 </div>
               )}
