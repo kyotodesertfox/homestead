@@ -62,6 +62,7 @@ interface INFTTemplate {
 interface ITreasury {
     function dexEntryFeeBps() external view returns (uint256);
     function dexExitFeeBps() external view returns (uint256);
+    function lpRewardFeeBps() external view returns (uint256);
     function marketplaceFeeBps() external view returns (uint256);
     // Called by Marketplace when a brewer's listing is created
     function markListed(uint256 batchId, uint256 listingId) external;
@@ -69,6 +70,14 @@ interface ITreasury {
     function onRedeem(uint256 batchId) external;
     // Called by Marketplace.createListing to validate permissionless listings
     function validateListingCaller(uint256 batchId, address caller, address nftContract) external view returns (bool);
+    // Called by DEXPair when an LP holder claims rewards
+    function receiveAndMintLPReward(address rewardToken, address to) external payable;
+}
+
+interface IDEXPair {
+    function setRewardsTreasury(address _treasury) external;
+    function claimRewards(address account) external;
+    function earned(address account) external view returns (uint256);
 }
 
 // =========================================================================

@@ -46,7 +46,7 @@ contract Router {
     }
 
     // =========================================================================
-    // EXIT — Token → ETH (5% platform fee → Treasury)
+    // EXIT — Token → ETH (3% platform fee → Treasury, 2% LP rewards → pair)
     // =========================================================================
 
     function swapExactTokensForETH(
@@ -64,18 +64,28 @@ contract Router {
         address firstPair = IFactory(factory).getPair(path[0], path[1]);
         IERC20(path[0]).transferFrom(msg.sender, firstPair, amounts[0]);
 
-        // Router receives WETH, unwraps, deducts platform fee, forwards remainder
+        // Router receives WETH, unwraps, splits platform fee between Treasury and LP rewards
         _swap(amounts, path, address(this));
 
         uint256 ethOut = amounts[amounts.length - 1];
         IWETH(WETH).withdraw(ethOut);
 
-        uint256 platformFee = (ethOut * ITreasury(treasury).dexExitFeeBps()) / 10000;
-        uint256 userProceeds = ethOut - platformFee;
+        uint256 totalFeeBps  = ITreasury(treasury).dexExitFeeBps();
+        uint256 lpFeeBps     = ITreasury(treasury).lpRewardFeeBps();
+        uint256 lpReward     = (ethOut * lpFeeBps) / 10000;
+        uint256 treasuryFee  = (ethOut * totalFeeBps) / 10000 - lpReward;
+        uint256 userProceeds = ethOut - lpReward - treasuryFee;
 
-        if (platformFee > 0) {
-            (bool feeSuccess,) = treasury.call{value: platformFee}("");
-            require(feeSuccess, 'Router: FEE_TRANSFER_FAILED');
+        // Send LP reward share to the exit pair
+        if (lpReward > 0) {
+            address exitPair = IFactory(factory).getPair(path[path.length - 2], path[path.length - 1]);
+            (bool rewardOk,) = exitPair.call{value: lpReward}("");
+            require(rewardOk, 'Router: REWARD_TRANSFER_FAILED');
+        }
+
+        if (treasuryFee > 0) {
+            (bool feeOk,) = treasury.call{value: treasuryFee}("");
+            require(feeOk, 'Router: FEE_TRANSFER_FAILED');
         }
 
         (bool success,) = to.call{value: userProceeds}("");
@@ -134,6 +144,9 @@ contract Router {
     ) external ensure(deadline) returns (uint256 amountToken, uint256 amountETH) {
         address pair = IFactory(factory).getPair(token, WETH);
         require(pair != address(0), 'Router: PAIR_NOT_FOUND');
+
+        // Auto-claim LP rewards before LP balance drops to zero
+        IDEXPair(pair).claimRewards(msg.sender);
 
         IPair(pair).transferFrom(msg.sender, pair, liquidity);
         (uint256 amount0, uint256 amount1) = IPair(pair).burn(address(this));

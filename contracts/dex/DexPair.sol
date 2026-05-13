@@ -26,7 +26,13 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     uint256 public price1CumulativeLast;
     uint256 public kLast;
 
-    uint256[42] private __gap;
+    // ---- LP REWARDS (added in upgrade) ----
+    address public rewardsTreasury;
+    uint256 public rewardPerTokenStored;                           // scaled by 1e18
+    mapping(address => uint256) public userRewardPerTokenPaid;
+    mapping(address => uint256) public pendingRewards;             // accrued ETH per LP holder
+
+    uint256[38] private __gap;
 
     // =========================================================================
 
@@ -37,10 +43,64 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
 
     function swapFeeBps() external pure returns (uint256) { return SWAP_FEE_BPS; }
 
+    // The non-WETH token in this pair — what LP holders earn as rewards
+    function rewardToken() public view returns (address) {
+        return token0 == weth ? token1 : token0;
+    }
+
+    // =========================================================================
+    // RECEIVE — reward ETH sent by Router on exit swaps
+    // =========================================================================
+
+    receive() external payable {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply > 0) {
+            rewardPerTokenStored += (msg.value * 1e18) / _totalSupply;
+            emit RewardAdded(msg.value, rewardPerTokenStored);
+        }
+        // if no LPs yet, ETH accrues in contract until first LP claims or burns
+    }
+
+    // =========================================================================
+    // LP REWARDS
+    // =========================================================================
+
+    function setRewardsTreasury(address _treasury) external {
+        require(msg.sender == factory, 'DEXPair: FORBIDDEN');
+        rewardsTreasury = _treasury;
+    }
+
+    function earned(address account) public view returns (uint256) {
+        return (balanceOf(account) * (rewardPerTokenStored - userRewardPerTokenPaid[account])) / 1e18;
+    }
+
+    function _updateReward(address account) internal {
+        if (account != address(0)) {
+            pendingRewards[account] += earned(account);
+            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+        }
+    }
+
+    function _claim(address account) internal {
+        uint256 reward = pendingRewards[account];
+        if (reward > 0 && rewardsTreasury != address(0)) {
+            pendingRewards[account] = 0;
+            ITreasury(rewardsTreasury).receiveAndMintLPReward{value: reward}(rewardToken(), account);
+            emit RewardClaimed(account, reward);
+        }
+    }
+
+    function claimRewards(address account) external nonReentrant {
+        _updateReward(account);
+        _claim(account);
+    }
+
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to);
     event Sync(uint112 reserve0, uint112 reserve1);
+    event RewardAdded(uint256 amount, uint256 rewardPerTokenStored);
+    event RewardClaimed(address indexed account, uint256 ethForwarded);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -89,6 +149,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
+        _updateReward(to);
         (uint112 _reserve0, uint112 _reserve1) = getReserves();
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));

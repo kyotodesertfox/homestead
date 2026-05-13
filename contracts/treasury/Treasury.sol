@@ -44,7 +44,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     mapping(uint256 => Batch) public batches;
     mapping(address => bool) public isTrustedCaller;
 
-    uint256[36] private __gap;
+    // ---- LP REWARDS (added in upgrade) ----
+    address public weth;
+    uint256 public lpRewardFeeBps;      // portion of dexExitFeeBps routed to LP rewards (e.g. 200 = 2%)
+
+    uint256[34] private __gap;
 
     // =========================================================================
 
@@ -72,6 +76,9 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event StakeSlashed(uint256 indexed batchId, address indexed brewer, uint256 remaining);
     event BatchListed(uint256 indexed batchId, uint256 indexed listingId);
     event TrustedCallerSet(address indexed caller, bool trusted);
+    event LPRewardClaimed(address indexed to, address indexed token, uint256 ethIn, uint256 tokenOut);
+    event WethSet(address indexed weth);
+    event LpRewardFeeBpsUpdated(uint256 feeBps);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -221,18 +228,18 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
     // How many bps of the token's ETH market cap is covered by the Treasury floor.
     // e.g. 12000 = 120% backed. Requires a live DEX pair; returns 0 if not seeded.
-    function floorRatio(address token, address weth) external view returns (uint256 ratioBps) {
+    function floorRatio(address token, address _weth) external view returns (uint256 ratioBps) {
         uint256 supply = IMintableToken(token).totalSupply();
         if (supply == 0) return type(uint256).max;
 
-        address pair = IFactory(dexFactory).getPair(token, weth);
+        address pair = IFactory(dexFactory).getPair(token, _weth);
         if (pair == address(0)) return 0;
 
         (uint112 r0, uint112 r1) = IPair(pair).getReserves();
         if (r0 == 0 || r1 == 0) return 0;
 
         address t0 = IPair(pair).token0();
-        uint256 spotPrice = (t0 == weth)
+        uint256 spotPrice = (t0 == _weth)
             ? (uint256(r0) * 1e18) / uint256(r1)
             : (uint256(r1) * 1e18) / uint256(r0);
 
@@ -395,5 +402,49 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // Frontend: stake cost for a given emission amount.
     function requiredStakeFor(uint256 beerToEmit) external view returns (uint256) {
         return (beerToEmit * stakeRatioBps) / 10000;
+    }
+
+    // =========================================================================
+    // LP REWARDS — called by DEXPair when an LP holder claims
+    // ETH flows permanently into Treasury floor; tokens are minted at spot price.
+    // =========================================================================
+
+    function receiveAndMintLPReward(
+        address rewardToken,
+        address to
+    ) external payable nonReentrant {
+        require(isTrustedCaller[msg.sender], 'Treasury: NOT_TRUSTED');
+        require(msg.value > 0,              'Treasury: NO_ETH');
+        require(weth != address(0),         'Treasury: WETH_NOT_SET');
+        require(ITokenDeployer(tokenDeployer).isRegistered(rewardToken), 'Treasury: UNREGISTERED_TOKEN');
+
+        address pair = IFactory(dexFactory).getPair(rewardToken, weth);
+        require(pair != address(0), 'Treasury: PAIR_NOT_FOUND');
+
+        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
+        require(r0 > 0 && r1 > 0, 'Treasury: NO_LIQUIDITY');
+
+        address t0 = IPair(pair).token0();
+        // Convert ETH value to token amount using spot price
+        uint256 tokenAmount = (t0 == weth)
+            ? (msg.value * uint256(r1)) / uint256(r0)   // r0=WETH, r1=token
+            : (msg.value * uint256(r0)) / uint256(r1);  // r0=token, r1=WETH
+
+        require(tokenAmount > 0, 'Treasury: ZERO_REWARD');
+
+        // ETH stays in Treasury as permanent floor (not added to accumulatedFees)
+        IMintableToken(rewardToken).mintToWallet(to, tokenAmount);
+        emit LPRewardClaimed(to, rewardToken, msg.value, tokenAmount);
+    }
+
+    function setWeth(address _weth) external onlyOwner {
+        weth = _weth;
+        emit WethSet(_weth);
+    }
+
+    function setLpRewardFeeBps(uint256 bps) external onlyOwner {
+        require(bps <= dexExitFeeBps, 'Treasury: EXCEEDS_EXIT_FEE');
+        lpRewardFeeBps = bps;
+        emit LpRewardFeeBpsUpdated(bps);
     }
 }

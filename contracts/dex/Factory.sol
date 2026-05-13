@@ -22,7 +22,9 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
 
-    uint256[44] private __gap;
+    address public pairTreasury;  // forwarded to each new pair for LP reward claims
+
+    uint256[43] private __gap;
 
     // =========================================================================
 
@@ -79,6 +81,10 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
         getPair[token1][token0] = pair;
         allPairs.push(pair);
 
+        if (pairTreasury != address(0)) {
+            IDEXPair(pair).setRewardsTreasury(pairTreasury);
+        }
+
         emit PairCreated(token0, token1, pair, allPairs.length);
     }
 
@@ -98,6 +104,19 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
 
     function setTokenDeployer(address _tokenDeployer) external onlyOwner {
         tokenDeployer = _tokenDeployer;
+    }
+
+    function setPairTreasury(address _treasury) external onlyOwner {
+        pairTreasury = _treasury;
+    }
+
+    // Configure rewards on existing pairs deployed before pairTreasury was set
+    function batchConfigurePairRewards(address[] calldata pairs) external onlyOwner {
+        address _treasury = pairTreasury;
+        require(_treasury != address(0), 'DEX: TREASURY_NOT_SET');
+        for (uint256 i = 0; i < pairs.length; i++) {
+            IDEXPair(pairs[i]).setRewardsTreasury(_treasury);
+        }
     }
 
     // Upgrade the logic for every pair simultaneously
