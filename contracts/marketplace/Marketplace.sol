@@ -22,7 +22,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     mapping(uint256 => Listing) private _listings;
     uint256 public nextListingId;
 
-    uint256[45] private __gap;
+    // batchId associated with a listing (0 = pre-upgrade listing, no stake tracking)
+    mapping(uint256 => uint256) private _listingBatch;
+    // tracks which listing a token was sold from (stored as listingId+1; 0 = untracked)
+    mapping(uint256 => uint256) private _tokenListingId;
+
+    uint256[43] private __gap;
 
     // =========================================================================
 
@@ -67,12 +72,14 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // Both the NFT contract and payment token must be from the trust hierarchy.
     // =========================================================================
 
+    // batchId = 0 is owner-only bypass (pre-upgrade / admin listings).
+    // Non-owners must supply a valid batchId from Treasury.postStake().
     function createListing(
         address nftContract,
         address paymentToken,
         uint256 price,
-        address proceeds
-    ) external onlyOwner returns (uint256 listingId) {
+        uint256 batchId
+    ) external whenNotPaused returns (uint256 listingId) {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
             'Marketplace: UNREGISTERED_NFT'
@@ -81,24 +88,40 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             ITokenDeployer(tokenDeployer).isRegistered(paymentToken),
             'Marketplace: UNREGISTERED_TOKEN'
         );
-        require(price > 0,              'Marketplace: ZERO_PRICE');
-        require(proceeds != address(0), 'Marketplace: ZERO_PROCEEDS');
+        require(price > 0, 'Marketplace: ZERO_PRICE');
+
+        if (msg.sender != owner()) {
+            require(batchId > 0, 'Marketplace: BATCH_REQUIRED');
+            require(
+                ITreasury(feeCollector).validateListingCaller(batchId, msg.sender, nftContract),
+                'Marketplace: INVALID_BATCH'
+            );
+        }
 
         listingId = nextListingId++;
         _listings[listingId].nftContract  = nftContract;
         _listings[listingId].paymentToken = paymentToken;
         _listings[listingId].price        = price;
-        _listings[listingId].proceeds     = proceeds;
+        _listings[listingId].proceeds     = msg.sender;
         _listings[listingId].active       = true;
 
-        emit ListingCreated(listingId, nftContract, paymentToken, proceeds, price);
+        if (batchId > 0) {
+            _listingBatch[listingId] = batchId;
+            ITreasury(feeCollector).markListed(batchId, listingId);
+        }
+
+        emit ListingCreated(listingId, nftContract, paymentToken, msg.sender, price);
     }
 
     // Transfer producer NFTs into marketplace custody.
     // Caller must approve this contract on the NFT contract first.
-    function depositInventory(uint256 listingId, uint256[] calldata tokenIds) external onlyOwner {
+    function depositInventory(uint256 listingId, uint256[] calldata tokenIds) external {
         Listing storage listing = _listings[listingId];
         require(listing.nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
+        require(
+            msg.sender == owner() || msg.sender == listing.proceeds,
+            'Marketplace: NOT_AUTHORIZED'
+        );
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
             require(
@@ -113,8 +136,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     }
 
     // Pull unsold NFTs back from custody.
-    function withdrawInventory(uint256 listingId, uint256 count) external onlyOwner {
+    function withdrawInventory(uint256 listingId, uint256 count) external {
         Listing storage listing = _listings[listingId];
+        require(
+            msg.sender == owner() || msg.sender == listing.proceeds,
+            'Marketplace: NOT_AUTHORIZED'
+        );
         require(listing.inventory.length >= count, 'Marketplace: INSUFFICIENT_INVENTORY');
 
         for (uint256 i = 0; i < count; i++) {
@@ -126,13 +153,21 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         emit InventoryWithdrawn(listingId, count);
     }
 
-    function setActive(uint256 listingId, bool active) external onlyOwner {
+    function setActive(uint256 listingId, bool active) external {
         require(_listings[listingId].nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
+        require(
+            msg.sender == owner() || msg.sender == _listings[listingId].proceeds,
+            'Marketplace: NOT_AUTHORIZED'
+        );
         _listings[listingId].active = active;
     }
 
-    function updatePrice(uint256 listingId, uint256 newPrice) external onlyOwner {
+    function updatePrice(uint256 listingId, uint256 newPrice) external {
         require(newPrice > 0, 'Marketplace: ZERO_PRICE');
+        require(
+            msg.sender == owner() || msg.sender == _listings[listingId].proceeds,
+            'Marketplace: NOT_AUTHORIZED'
+        );
         _listings[listingId].price = newPrice;
     }
 
@@ -150,6 +185,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
         uint256 tokenId = listing.inventory[listing.inventory.length - 1];
         listing.inventory.pop();
+
+        // Record which listing this token came from so redeem() can release the correct stake.
+        // Only set on first custody — preserves original batch link if resold through marketplace.
+        if (_tokenListingId[tokenId] == 0) {
+            _tokenListingId[tokenId] = listingId + 1;
+        }
 
         uint256 fee      = (listing.price * ITreasury(feeCollector).marketplaceFeeBps()) / 10000;
         uint256 proceeds = listing.price - fee;
@@ -201,6 +242,15 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         );
 
         INFTTemplate(nftContract).redeem(tokenId);
+
+        // Release pro-rata stake if this token was sold through a staked listing
+        uint256 storedId = _tokenListingId[tokenId];
+        if (storedId > 0) {
+            uint256 batchId = _listingBatch[storedId - 1];
+            if (batchId > 0) {
+                ITreasury(feeCollector).onRedeem(batchId);
+            }
+        }
 
         emit Redeemed(nftContract, tokenId, msg.sender);
     }

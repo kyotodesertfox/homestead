@@ -56,12 +56,19 @@ interface INFTTemplate {
     function redeemed(uint256 tokenId) external view returns (bool);
     function redeem(uint256 tokenId) external;
     function markRedeemed(uint256 tokenId) external;
+    function mintBatch(address to, string[] calldata cids) external returns (uint256 startTokenId);
 }
 
 interface ITreasury {
     function dexEntryFeeBps() external view returns (uint256);
     function dexExitFeeBps() external view returns (uint256);
     function marketplaceFeeBps() external view returns (uint256);
+    // Called by Marketplace when a brewer's listing is created
+    function markListed(uint256 batchId, uint256 listingId) external;
+    // Called by Marketplace when a physical bottle is redeemed
+    function onRedeem(uint256 batchId) external;
+    // Called by Marketplace.createListing to validate permissionless listings
+    function validateListingCaller(uint256 batchId, address caller, address nftContract) external view returns (bool);
 }
 
 // =========================================================================

@@ -36,9 +36,29 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // ETH paid is permanently locked — it is never returned. This is the floor.
     mapping(address => uint256) public nftPrices;
 
-    uint256[42] private __gap;
+    // ---- STAKE SYSTEM (added in upgrade) ----
+    address public beerToken;
+    uint256 public stakeRatioBps;       // e.g. 1000 = brewer must stake 10% of beerToEmit
+    uint256 public minListingBalance;   // minimum $BEER balance to call postStake
+    uint256 public nextBatchId;         // auto-starts at 1 (pre-increment on first use)
+    mapping(uint256 => Batch) public batches;
+    mapping(address => bool) public isTrustedCaller;
+
+    uint256[36] private __gap;
 
     // =========================================================================
+
+    struct Batch {
+        address brewer;
+        address nftContract;
+        uint256 stakedAmount;
+        uint256 beerToEmit;
+        uint256 totalNFTs;
+        uint256 redeemedCount;
+        uint256 startTokenId;
+        bool listed;
+        bool slashed;
+    }
 
     event NFTPriceSet(address indexed nftContract, uint256 priceWei);
     event InventoryNFTPurchased(address indexed producer, address indexed nftContract, uint256 indexed tokenId, uint256 ethPaid);
@@ -47,6 +67,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event DexExitFeeUpdated(uint256 feeBps);
     event MarketplaceFeeUpdated(uint256 feeBps);
     event FeesWithdrawn(address indexed to, uint256 amount);
+    event StakePosted(uint256 indexed batchId, address indexed brewer, address indexed nftContract, uint256 stakedAmount, uint256 beerToEmit, uint256 nftCount);
+    event StakeReleased(uint256 indexed batchId, address indexed brewer, uint256 amount, uint256 redeemedCount);
+    event StakeSlashed(uint256 indexed batchId, address indexed brewer, uint256 remaining);
+    event BatchListed(uint256 indexed batchId, uint256 indexed listingId);
+    event TrustedCallerSet(address indexed caller, bool trusted);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -215,5 +240,160 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
         uint256 marketCapEth = (supply * spotPrice) / 1e18;
         ratioBps = (floorBalance() * 10000) / marketCapEth;
+    }
+
+    // =========================================================================
+    // STAKE — brewer posts $BEER stake and mints their batch to their own wallet
+    // Required stake = (beerToEmit * stakeRatioBps) / 10000
+    // =========================================================================
+
+    function postStake(
+        address nftContract,
+        string[] calldata cids,
+        uint256 beerToEmit
+    ) external nonReentrant whenNotPaused returns (uint256 batchId) {
+        require(beerToken != address(0),    'Treasury: BEER_NOT_SET');
+        require(cids.length > 0,            'Treasury: NO_CIDS');
+        require(beerToEmit > 0,             'Treasury: ZERO_EMIT');
+        require(
+            INFTDeployer(nftDeployer).isRegistered(nftContract),
+            'Treasury: UNREGISTERED_NFT'
+        );
+        require(
+            IERC20(beerToken).balanceOf(msg.sender) >= minListingBalance,
+            'Treasury: BELOW_MIN_BALANCE'
+        );
+
+        // Basic IPFS CID sanity check — CIDv0 is exactly 46 chars, CIDv1 is longer
+        for (uint256 i = 0; i < cids.length; i++) {
+            require(bytes(cids[i]).length >= 46, 'Treasury: INVALID_CID');
+        }
+
+        uint256 requiredStake = (beerToEmit * stakeRatioBps) / 10000;
+        require(requiredStake > 0, 'Treasury: ZERO_STAKE');
+
+        require(
+            IERC20(beerToken).transferFrom(msg.sender, address(this), requiredStake),
+            'Treasury: STAKE_TRANSFER_FAILED'
+        );
+
+        // Mint batch to brewer's wallet; Treasury must be set as a minter on nftTemplate
+        uint256 startTokenId = INFTTemplate(nftContract).mintBatch(msg.sender, cids);
+
+        batchId = ++nextBatchId; // pre-increment: first batchId = 1, 0 stays as sentinel
+        batches[batchId] = Batch({
+            brewer:        msg.sender,
+            nftContract:   nftContract,
+            stakedAmount:  requiredStake,
+            beerToEmit:    beerToEmit,
+            totalNFTs:     cids.length,
+            redeemedCount: 0,
+            startTokenId:  startTokenId,
+            listed:        false,
+            slashed:       false
+        });
+
+        emit StakePosted(batchId, msg.sender, nftContract, requiredStake, beerToEmit, cids.length);
+    }
+
+    // =========================================================================
+    // TRUSTED CALLER CALLBACKS — Marketplace calls these on listing + redemption
+    // =========================================================================
+
+    // Called by Marketplace.createListing when a brewer's listing goes live.
+    function markListed(uint256 batchId, uint256 listingId) external {
+        require(isTrustedCaller[msg.sender],   'Treasury: NOT_TRUSTED');
+        Batch storage batch = batches[batchId];
+        require(batch.brewer != address(0),    'Treasury: BATCH_NOT_FOUND');
+        require(!batch.listed,                 'Treasury: ALREADY_LISTED');
+        batch.listed = true;
+        emit BatchListed(batchId, listingId);
+    }
+
+    // Called by Marketplace.redeem when a physical bottle is claimed.
+    // Releases the brewer's pro-rata stake for that NFT.
+    function onRedeem(uint256 batchId) external {
+        require(isTrustedCaller[msg.sender],             'Treasury: NOT_TRUSTED');
+        Batch storage batch = batches[batchId];
+        require(batch.brewer != address(0),              'Treasury: BATCH_NOT_FOUND');
+        require(!batch.slashed,                          'Treasury: ALREADY_SLASHED');
+        require(batch.redeemedCount < batch.totalNFTs,   'Treasury: FULLY_REDEEMED');
+
+        batch.redeemedCount++;
+        uint256 release = batch.stakedAmount / batch.totalNFTs;
+
+        if (release > 0) {
+            require(
+                IERC20(beerToken).transfer(batch.brewer, release),
+                'Treasury: RELEASE_FAILED'
+            );
+        }
+
+        emit StakeReleased(batchId, batch.brewer, release, batch.redeemedCount);
+    }
+
+    // =========================================================================
+    // STAKE ADMIN
+    // =========================================================================
+
+    // Forfeit the remaining stake for a batch; $BEER stays in Treasury.
+    function slashStake(uint256 batchId) external onlyOwner {
+        Batch storage batch = batches[batchId];
+        require(batch.brewer != address(0), 'Treasury: BATCH_NOT_FOUND');
+        require(!batch.slashed,             'Treasury: ALREADY_SLASHED');
+
+        batch.slashed = true;
+
+        uint256 alreadyReleased = (batch.stakedAmount / batch.totalNFTs) * batch.redeemedCount;
+        uint256 remaining = batch.stakedAmount - alreadyReleased;
+
+        emit StakeSlashed(batchId, batch.brewer, remaining);
+    }
+
+    function setTrustedCaller(address caller, bool trusted) external onlyOwner {
+        isTrustedCaller[caller] = trusted;
+        emit TrustedCallerSet(caller, trusted);
+    }
+
+    function setBeerToken(address _beerToken) external onlyOwner {
+        beerToken = _beerToken;
+    }
+
+    function setStakeRatioBps(uint256 bps) external onlyOwner {
+        stakeRatioBps = bps;
+    }
+
+    function setMinListingBalance(uint256 amount) external onlyOwner {
+        minListingBalance = amount;
+    }
+
+    // =========================================================================
+    // STAKE READ
+    // =========================================================================
+
+    // Used by Marketplace.createListing to gate permissionless listings.
+    function validateListingCaller(
+        uint256 batchId,
+        address caller,
+        address nftContract
+    ) external view returns (bool) {
+        Batch storage batch = batches[batchId];
+        return (
+            batch.brewer      == caller      &&
+            batch.nftContract == nftContract &&
+            !batch.slashed                   &&
+            batch.brewer      != address(0)
+        );
+    }
+
+    // Frontend: max $BEER a wallet could emit given its current balance.
+    function maxEmittableFor(address wallet) external view returns (uint256) {
+        if (stakeRatioBps == 0) return 0;
+        return (IERC20(beerToken).balanceOf(wallet) * 10000) / stakeRatioBps;
+    }
+
+    // Frontend: stake cost for a given emission amount.
+    function requiredStakeFor(uint256 beerToEmit) external view returns (uint256) {
+        return (beerToEmit * stakeRatioBps) / 10000;
     }
 }

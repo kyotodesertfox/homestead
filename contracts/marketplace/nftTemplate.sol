@@ -30,8 +30,9 @@ contract nftTemplate is
     mapping(uint256 => bool) public redeemed;
     mapping(uint256 => string) private _redeemedCIDs;
     mapping(address => bool) public redemptionOperator;
+    mapping(address => bool) public isMinter;
 
-    uint256[44] private __gap;
+    uint256[43] private __gap;
 
     // =========================================================================
 
@@ -69,14 +70,16 @@ contract nftTemplate is
     // MINTING — owner only, pre-minted inventory model
     // =========================================================================
 
-    function mint(address to, string memory cid) external onlyOwner returns (uint256 tokenId) {
+    function mint(address to, string memory cid) external returns (uint256 tokenId) {
+        require(isMinter[msg.sender] || msg.sender == owner(), 'nftTemplate: NOT_AUTHORIZED');
         tokenId = nextTokenId++;
         _tokenCIDs[tokenId] = cid;
         _safeMint(to, tokenId);
         emit Minted(to, tokenId, cid);
     }
 
-    function mintBatch(address to, string[] calldata cids) external onlyOwner returns (uint256 startTokenId) {
+    function mintBatch(address to, string[] calldata cids) external returns (uint256 startTokenId) {
+        require(isMinter[msg.sender] || msg.sender == owner(), 'nftTemplate: NOT_AUTHORIZED');
         startTokenId = nextTokenId;
         for (uint256 i = 0; i < cids.length; i++) {
             uint256 tokenId = nextTokenId++;
@@ -84,6 +87,10 @@ contract nftTemplate is
             _safeMint(to, tokenId);
         }
         emit BatchMinted(to, startTokenId, cids.length);
+    }
+
+    function setMinter(address minter, bool approved) external onlyOwner {
+        isMinter[minter] = approved;
     }
 
     // =========================================================================
