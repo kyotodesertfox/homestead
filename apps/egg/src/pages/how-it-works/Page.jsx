@@ -7,7 +7,7 @@ export default function HowItWorksPage() {
       id: 1,
       title: "Physical Claim",
       icon: "🥚",
-      text: "Holding 1 $EGG token provides a digital claim on 1 real egg. Upon $EGG redemption, inventory is transferred at a Jacksonville location."
+      text: "Holding 1 $EGG token provides a digital claim on 1 real egg. Upon $EGG redemption, inventory is transferred at a designated pickup location."
     },
     {
       id: 2,
