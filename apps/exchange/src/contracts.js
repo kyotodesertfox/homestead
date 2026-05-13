@@ -91,9 +91,8 @@ export const PAIR_ABI = [
     type: 'function', stateMutability: 'view',
     inputs: [],
     outputs: [
-      { name: '_reserve0',           type: 'uint112' },
-      { name: '_reserve1',           type: 'uint112' },
-      { name: '_blockTimestampLast', type: 'uint32'  },
+      { name: '_reserve0', type: 'uint112' },
+      { name: '_reserve1', type: 'uint112' },
     ],
   },
   {

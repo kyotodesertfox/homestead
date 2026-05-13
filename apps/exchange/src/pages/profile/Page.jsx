@@ -332,24 +332,25 @@ function LiquidityModal({ onClose }) {
   const ZERO = '0x0000000000000000000000000000000000000000';
 
   const { data: ethBal  } = useBalance({ address, query: { enabled: !!address } });
-  const { data: beerBal } = useReadContract({ address: ADDRESSES.BEER_TOKEN,     abi: BEER_TOKEN_ABI, functionName: 'balanceOf',  args: [address ?? ZERO], query: { enabled: !!address } });
-  const { data: reserves, isLoading: reservesLoading } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI, functionName: 'getReserves' });
-  const { data: lpBalance, refetch: refetchLp }        = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'balanceOf',  args: [address ?? ZERO], query: { enabled: !!address } });
-  const { data: lpSupply  }                            = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'totalSupply' });
+  const { data: beerBal } = useReadContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'balanceOf', args: [address ?? ZERO], query: { enabled: !!address } });
+
+  const { data: reserves,  isLoading: reservesLoading,  isError: reservesError  } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,       functionName: 'getReserves',  query: { enabled: !!ADDRESSES.BEER_WETH_PAIR } });
+  const { data: lpBalance, isLoading: lpBalLoading,     isError: lpBalError,    refetch: refetchLp } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'balanceOf',   args: [address ?? ZERO], query: { enabled: !!address && !!ADDRESSES.BEER_WETH_PAIR } });
+  const { data: lpSupply,  isLoading: lpSupLoading,     isError: lpSupError     } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'totalSupply',  query: { enabled: !!ADDRESSES.BEER_WETH_PAIR } });
   const { data: beerAllow, refetch: refetchBeerAllow } = useReadContract({ address: ADDRESSES.BEER_TOKEN,     abi: BEER_TOKEN_ABI, functionName: 'allowance', args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
   const { data: lpAllow,   refetch: refetchLpAllow   } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI,      functionName: 'allowance', args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
 
-  // Only treat pool as empty when reserves have loaded AND are actually 0
-  const reservesLoaded = reserves != null;
-  const [r0, r1]     = reservesLoaded ? reserves : [0n, 0n];
-  const hasLiquidity = reservesLoaded && r0 > 0n && r1 > 0n;
-  const poolEmpty    = reservesLoaded && r0 === 0n && r1 === 0n;
+  const reservesReady = !reservesLoading && !reservesError;
+  const [r0, r1]      = reserves ?? [0n, 0n];
+  const hasLiquidity  = reservesReady && reserves != null && r0 > 0n && r1 > 0n;
+  const poolEmpty     = reservesReady && reserves != null && r0 === 0n && r1 === 0n;
 
-  // LP position breakdown
-  const hasLp      = (lpBalance ?? 0n) > 0n && (lpSupply ?? 0n) > 0n;
-  const lpShare    = hasLp ? Number(lpBalance) / Number(lpSupply) : 0;        // fraction 0–1
-  const lpBeer     = hasLp ? (lpBalance * r0) / lpSupply : 0n;
-  const lpEth      = hasLp ? (lpBalance * r1) / lpSupply : 0n;
+  const lpReady    = !lpBalLoading && !lpBalError && !lpSupLoading && !lpSupError;
+  const hasLp      = lpReady && (lpBalance ?? 0n) > 0n && (lpSupply ?? 0n) > 0n;
+  const lpShare    = hasLp ? Number(lpBalance) / Number(lpSupply) : 0;
+  // Only compute underlying amounts when reserves are also ready — avoids showing 0 during race
+  const lpBeer     = hasLp && reservesReady && reserves != null ? (lpBalance * r0) / lpSupply : null;
+  const lpEth      = hasLp && reservesReady && reserves != null ? (lpBalance * r1) / lpSupply : null;
   const lpSharePct = (lpShare * 100).toFixed(4);
 
   const beerWei = useMemo(() => { try { return beerInput ? parseUnits(beerInput, 18) : 0n; } catch { return 0n; } }, [beerInput]);
@@ -408,28 +409,28 @@ function LiquidityModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-          <h2 className="font-black uppercase tracking-tight text-white text-lg">$BEER Portfolio</h2>
-          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors"><X size={20} /></button>
+        <div className="flex items-center justify-between px-7 pt-7 pb-4 shrink-0">
+          <h2 className="font-black uppercase tracking-tight text-white text-xl">$BEER Portfolio</h2>
+          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors"><X size={22} /></button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-white/10 px-6 shrink-0">
+        <div className="flex border-b border-white/10 px-7 shrink-0">
           {TABS.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors -mb-px ${
+              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors -mb-px ${
                 tab === id ? 'border-hub-green text-hub-green' : 'border-transparent text-stone-500 hover:text-white'
               }`}>
-              <Icon size={12} strokeWidth={3} />{label}
+              <Icon size={13} strokeWidth={3} />{label}
             </button>
           ))}
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto px-6 py-5 flex-1 space-y-4">
+        <div className="overflow-y-auto px-7 py-6 flex-1 space-y-4">
 
           {/* ── Holdings ── */}
           {tab === 'holdings' && (
@@ -448,20 +449,22 @@ function LiquidityModal({ onClose }) {
 
               {/* LP Position */}
               <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-hub-green">LP Position — BEER/ETH</p>
+                <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+                  <p className="text-xs font-black uppercase tracking-widest text-hub-green">LP Position — BEER/ETH</p>
                   {hasLp && (
                     <span className="text-[10px] font-black text-hub-green bg-hub-green/10 px-2 py-0.5 rounded-md">
                       {lpSharePct}% of pool
                     </span>
                   )}
                 </div>
-                {!reservesLoaded || reservesLoading ? (
-                  <p className="px-4 pb-4 text-stone-500 text-xs font-bold">Loading pool data…</p>
+                {lpBalLoading || lpSupLoading ? (
+                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">Loading…</p>
+                ) : lpBalError || lpSupError ? (
+                  <p className="px-5 pb-5 text-red-400 text-sm font-bold">Could not load LP data.</p>
                 ) : !hasLp ? (
-                  <p className="px-4 pb-4 text-stone-500 text-xs font-bold">No LP tokens in this wallet.</p>
+                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">No LP tokens in this wallet.</p>
                 ) : (
-                  <div className="px-4 pb-4 space-y-2 mt-1">
+                  <div className="px-5 pb-5 space-y-2 mt-1">
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">LP Tokens</span>
                       <span className="text-white font-black">{parseFloat(formatUnits(lpBalance, 18)).toFixed(6)}</span>
@@ -469,23 +472,29 @@ function LiquidityModal({ onClose }) {
                     <div className="h-px bg-white/10" />
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">$BEER in pool</span>
-                      <span className="text-amber-400 font-black">{fmtBeer(lpBeer)}</span>
+                      <span className="text-amber-400 font-black">
+                        {lpBeer == null ? (reservesLoading ? 'Loading…' : '—') : fmtBeer(lpBeer)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">ETH in pool</span>
-                      <span className="text-white font-black">{fmtEth(lpEth)}</span>
+                      <span className="text-white font-black">
+                        {lpEth == null ? (reservesLoading ? 'Loading…' : '—') : parseFloat(formatUnits(lpEth, 18)).toFixed(8)}
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Pool reserves */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-3">Total Pool Reserves</p>
-                {reservesLoading || !reservesLoaded ? (
-                  <p className="text-stone-500 text-xs font-bold">Loading…</p>
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-5">
+                <p className="text-xs font-black uppercase tracking-widest text-stone-400 mb-3">Total Pool Reserves</p>
+                {reservesLoading ? (
+                  <p className="text-stone-500 text-sm font-bold">Loading…</p>
+                ) : reservesError ? (
+                  <p className="text-red-400 text-sm font-bold">Could not load reserves.</p>
                 ) : poolEmpty ? (
-                  <p className="text-amber-400 text-xs font-bold">Pool is currently empty.</p>
+                  <p className="text-amber-400 text-sm font-bold">Pool is currently empty.</p>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
@@ -494,7 +503,7 @@ function LiquidityModal({ onClose }) {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">ETH</span>
-                      <span className="text-white font-black">{fmtEth(r1)}</span>
+                      <span className="text-white font-black">{parseFloat(formatUnits(r1, 18)).toFixed(8)}</span>
                     </div>
                     {r0 > 0n && r1 > 0n && (
                       <div className="flex justify-between text-sm pt-1 border-t border-white/10">
@@ -529,8 +538,10 @@ function LiquidityModal({ onClose }) {
 
               {liqTab === 'add' ? (
                 <div className="space-y-3">
-                  {reservesLoading || !reservesLoaded ? (
+                  {reservesLoading ? (
                     <p className="text-stone-400 text-xs font-bold uppercase tracking-widest bg-white/5 rounded-xl px-3 py-2">Loading pool data…</p>
+                  ) : reservesError ? (
+                    <p className="text-red-400 text-xs font-bold uppercase tracking-widest bg-red-500/10 rounded-xl px-3 py-2">Could not load pool — check your network.</p>
                   ) : poolEmpty ? (
                     <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">
                       Pool is empty — you set the initial price
