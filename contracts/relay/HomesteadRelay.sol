@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ITreasury {
     function trustedRelay() external view returns (address);
+    function attestationTier(address wallet) external view returns (uint8);
 }
 
 interface IBurnableToken {
@@ -147,9 +148,12 @@ contract HomesteadRelay is Ownable {
     function joinGroup(uint256 groupId) external {
         Group storage g = groups[groupId];
         require(g.active, "Relay: group inactive");
-        require(attestation[msg.sender] >= g.minTier, "Relay: insufficient attestation");
         require(x25519Key[msg.sender] != bytes32(0), "Relay: register key first");
         require(!isMember[groupId][msg.sender], "Relay: already member");
+        // Tier = higher of manual attestation or stake-derived tier from Treasury
+        uint8 derived = ITreasury(treasury).attestationTier(msg.sender);
+        uint8 effective = attestation[msg.sender] > derived ? attestation[msg.sender] : derived;
+        require(effective >= g.minTier, "Relay: insufficient attestation");
         groupMembers[groupId].push(msg.sender);
         isMember[groupId][msg.sender] = true;
         emit GroupJoined(groupId, msg.sender);

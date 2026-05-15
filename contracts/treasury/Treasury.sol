@@ -51,7 +51,13 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // ETH claimed per batch — offsets claimable so partial claims are safe
     mapping(uint256 => uint256) private _claimedAmount;
 
-    uint256[33] private __gap;
+    // ---- REPUTATION SYSTEM ----
+    // Cumulative ETH staked lifetime per wallet — never decreases, drives attestation tier
+    mapping(address => uint256) public cumulativeStake;
+    // ETH thresholds per tier: tier → minimum cumulative ETH (in wei)
+    mapping(uint8 => uint256) public tierThreshold;
+
+    uint256[31] private __gap;
 
     // =========================================================================
 
@@ -74,9 +80,10 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event DexExitFeeUpdated(uint256 feeBps);
     event MarketplaceFeeUpdated(uint256 feeBps);
     event FeesWithdrawn(address indexed to, uint256 amount);
-    event StakePosted(uint256 indexed batchId, address indexed brewer, address indexed nftContract, uint256 stakedAmount, uint256 beerToEmit, uint256 nftCount);
+    event StakePosted(uint256 indexed batchId, address indexed brewer, address indexed nftContract, uint256 stakedAmount, uint256 tokenToEmit, uint256 nftCount);
     event StakeClaimed(uint256 indexed batchId, address indexed brewer, uint256 amount, uint256 redeemedCount);
     event StakeSlashed(uint256 indexed batchId, address indexed brewer, uint256 remaining);
+    event TierThresholdSet(uint8 indexed tier, uint256 ethAmount);
     event BatchListed(uint256 indexed batchId, uint256 indexed listingId);
     event TrustedCallerSet(address indexed caller, bool trusted);
     event LPRewardClaimed(address indexed to, address indexed token, uint256 ethIn, uint256 tokenOut);
@@ -253,22 +260,27 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     }
 
     // =========================================================================
-    // STAKE — brewer stakes ETH; $BEER is minted to them as liquidity
+    // STAKE — producer stakes ETH; their chosen token is minted to them
     //
     // ETH is permanently locked in Treasury as the ecosystem floor.
-    // $BEER minted here is what the brewer uses to purchase and price their NFTs.
+    // The minted token is what the producer uses to price and sell their inventory.
+    // Cumulative ETH staked drives on-chain reputation / attestation tier.
     // On physical delivery (redeem), ETH unlocks pro-rata and becomes claimable.
     // =========================================================================
 
     function postStake(
+        address token,
         address nftContract,
         string[] calldata cids,
-        uint256 beerToEmit
+        uint256 tokenToEmit
     ) external payable nonReentrant whenNotPaused returns (uint256 batchId) {
-        require(beerToken != address(0),    'Treasury: BEER_NOT_SET');
-        require(msg.value > 0,              'Treasury: NO_ETH');
-        require(cids.length > 0,            'Treasury: NO_CIDS');
-        require(beerToEmit > 0,             'Treasury: ZERO_EMIT');
+        require(msg.value > 0,   'Treasury: NO_ETH');
+        require(cids.length > 0, 'Treasury: NO_CIDS');
+        require(tokenToEmit > 0, 'Treasury: ZERO_EMIT');
+        require(
+            ITokenDeployer(tokenDeployer).isRegistered(token),
+            'Treasury: UNREGISTERED_TOKEN'
+        );
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
             'Treasury: UNREGISTERED_NFT'
@@ -279,18 +291,21 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
             require(bytes(cids[i]).length >= 46, 'Treasury: INVALID_CID');
         }
 
-        // ETH stays in Treasury as permanent floor; $BEER minted to brewer
-        IMintableToken(beerToken).mintToWallet(msg.sender, beerToEmit);
+        // ETH stays in Treasury as permanent floor; producer's token minted to them
+        IMintableToken(token).mintToWallet(msg.sender, tokenToEmit);
 
-        // Mint NFT batch to brewer's wallet; Treasury must be set as a minter on nftTemplate
+        // Mint NFT batch to producer's wallet; Treasury must be set as a minter on nftTemplate
         uint256 startTokenId = INFTTemplate(nftContract).mintBatch(msg.sender, cids);
+
+        // Accumulate lifetime stake — drives attestation tier, never decreases
+        cumulativeStake[msg.sender] += msg.value;
 
         batchId = ++nextBatchId; // pre-increment: first batchId = 1, 0 stays as sentinel
         batches[batchId] = Batch({
             brewer:        msg.sender,
             nftContract:   nftContract,
             stakedAmount:  msg.value,
-            beerToEmit:    beerToEmit,
+            beerToEmit:    tokenToEmit,
             totalNFTs:     cids.length,
             redeemedCount: 0,
             startTokenId:  startTokenId,
@@ -298,7 +313,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
             slashed:       false
         });
 
-        emit StakePosted(batchId, msg.sender, nftContract, msg.value, beerToEmit, cids.length);
+        emit StakePosted(batchId, msg.sender, nftContract, msg.value, tokenToEmit, cids.length);
     }
 
     // =========================================================================
@@ -400,12 +415,29 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         );
     }
 
-    // Frontend: how much ETH a brewer can claim right now from a batch.
+    // Frontend: how much ETH a producer can claim right now from a batch.
     function claimableStake(uint256 batchId) external view returns (uint256) {
         Batch storage batch = batches[batchId];
         if (batch.totalNFTs == 0 || batch.slashed) return 0;
         uint256 earned = (batch.stakedAmount * batch.redeemedCount) / batch.totalNFTs;
         return earned > _claimedAmount[batchId] ? earned - _claimedAmount[batchId] : 0;
+    }
+
+    // Attestation tier derived from lifetime cumulative ETH staked.
+    // Tier 0 = none, 1 = holder, 2 = brewer/producer, 3 = verified.
+    // Thresholds set by owner via setTierThreshold(). Returns the highest tier earned.
+    function attestationTier(address wallet) external view returns (uint8) {
+        uint256 staked = cumulativeStake[wallet];
+        if (tierThreshold[3] > 0 && staked >= tierThreshold[3]) return 3;
+        if (tierThreshold[2] > 0 && staked >= tierThreshold[2]) return 2;
+        if (tierThreshold[1] > 0 && staked >= tierThreshold[1]) return 1;
+        return 0;
+    }
+
+    function setTierThreshold(uint8 tier, uint256 ethAmount) external onlyOwner {
+        require(tier >= 1 && tier <= 3, 'Treasury: INVALID_TIER');
+        tierThreshold[tier] = ethAmount;
+        emit TierThresholdSet(tier, ethAmount);
     }
 
     // =========================================================================
