@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink, LayoutDashboard } from 'lucide-react';
+import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink, LayoutDashboard, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
@@ -31,6 +31,7 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
+            <NavLink to="/relay"   icon={<Radio size={18} />}        label="Relay" />
             <NavLink to="/market"  icon={<ShoppingBag size={18} />} label="Market" />
             <NavLink to="/swap"    icon={<Repeat size={18} />}       label="Swap" />
             <NavLink to="/bridge"  icon={<ArrowLeftRight size={18} />} label="Bridge" />
@@ -75,6 +76,7 @@ export default function Navbar() {
 
       <div className={`${isOpen ? 'block' : 'hidden'} md:hidden bg-hub-dark border-t border-hub-green/20`}>
         <div className="px-4 pt-2 pb-6 space-y-1">
+          <MobileNavLink to="/relay"   icon={<Radio size={20} />}            label="Relay"   onClick={closeMenu} />
           <MobileNavLink to="/market"  icon={<ShoppingBag size={20} />}    label="Market"  onClick={closeMenu} />
           <MobileNavLink to="/swap"    icon={<Repeat size={20} />}          label="Swap"    onClick={closeMenu} />
           <MobileNavLink to="/bridge"  icon={<ArrowLeftRight size={20} />}  label="Bridge"  onClick={closeMenu} />
