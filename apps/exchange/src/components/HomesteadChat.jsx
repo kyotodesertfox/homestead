@@ -134,7 +134,7 @@ export default function HomesteadChat() {
                       />
                       <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
                         <Shield size={10} className="text-hub-green" />
-                        Quantum upgrade · $BEER fee
+                        Quantum upgrade · 1 $BEER
                       </span>
                     </label>
                     <button
@@ -211,7 +211,7 @@ export default function HomesteadChat() {
         className="fixed bottom-6 right-6 w-14 h-14 bg-hub-green hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center z-50 transition-all active:scale-95"
         aria-label="Open Homestead Chat"
       >
-        {open ? <ChevronDown size={22} /> : <MessageSquare size={22} />}
+        {open ? <ChevronDown size={22} /> : <Lock size={22} />}
       </button>
     </>
   );
