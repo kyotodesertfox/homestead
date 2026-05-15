@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
 import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
+import MessagesPanel from '../../components/MessagesPanel';
 
 const HUB_CHAIN_ID = 167000;
 
@@ -33,7 +34,8 @@ export default function ProfilePage() {
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
   const [copied, setCopied]             = useState(false);
-  const [showLiquidity, setShowLiquidity] = useState(false);
+  const [showLiquidity, setShowLiquidity]   = useState(false);
+  const [showMessages,  setShowMessages]    = useState(false);
 
   const { data: ethBalance }  = useBalance({ address, query: { enabled: !!address } });
   const { data: beerRaw } = useReadContract({
@@ -115,17 +117,28 @@ export default function ProfilePage() {
     <div className="bg-gray-50 min-h-screen py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
 
-        <header className="border-b-8 border-hub-green pb-6 flex items-end justify-between">
+        <header className="border-b-8 border-hub-green pb-6 flex items-end justify-between gap-4">
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900">
             Your <span className="text-hub-green">Dashboard</span>
           </h1>
-          <button
-            onClick={() => disconnect()}
-            className="shrink-0 py-2.5 px-5 rounded-2xl border-2 border-red-400 text-red-400 hover:bg-red-400 hover:text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95"
-          >
-            Disconnect
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => disconnect()}
+              className="py-2 px-4 rounded-2xl border-2 border-red-400 text-red-400 hover:bg-red-400 hover:text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95"
+            >
+              Disconnect
+            </button>
+            <button
+              onClick={() => setShowMessages(true)}
+              className="flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-hub-green hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md"
+            >
+              <Lock size={14} />
+              Messages
+            </button>
+          </div>
         </header>
+
+        {showMessages && <MessagesPanel onClose={() => setShowMessages(false)} />}
 
         {/* Wallet card */}
         <section className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl p-6 shadow-xl">
