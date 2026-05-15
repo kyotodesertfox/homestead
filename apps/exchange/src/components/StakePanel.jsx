@@ -15,16 +15,16 @@ const TIER_COLORS = [
 ];
 
 function fmtEth(wei) {
-  if (!wei && wei !== 0n) return '—';
+  if (wei == null) return '—';
   return parseFloat(formatUnits(BigInt(wei), 18)).toFixed(4);
 }
 
 export default function StakePanel({ onClose }) {
   const { address } = useAccount();
-  const client = usePublicClient();
+  const client      = usePublicClient();
 
   const [batchIds,   setBatchIds]   = useState([]);
-  const [claimable,  setClaimable]  = useState({}); // batchId → bigint
+  const [claimable,  setClaimable]  = useState({});
   const [loadingIds, setLoadingIds] = useState(true);
 
   const { data: cumulative, refetch: refetchCumulative } = useReadContract({
@@ -43,25 +43,22 @@ export default function StakePanel({ onClose }) {
     query:   { enabled: !!address && !!ADDRESSES.TREASURY },
   });
 
-  // Fetch StakePosted events for this wallet to find their batch IDs
   useEffect(() => {
     if (!address || !client || !ADDRESSES.TREASURY) return;
     setLoadingIds(true);
     client.getLogs({
-      address: ADDRESSES.TREASURY,
-      event:   TREASURY_ABI.find(e => e.name === 'StakePosted' && e.type === 'event'),
-      args:    { brewer: address },
+      address:   ADDRESSES.TREASURY,
+      event:     TREASURY_ABI.find(e => e.name === 'StakePosted' && e.type === 'event'),
+      args:      { brewer: address },
       fromBlock: 0n,
       toBlock:   'latest',
     }).then(logs => {
-      const ids = logs.map(l => Number(l.args.batchId));
-      setBatchIds(ids);
+      setBatchIds(logs.map(l => Number(l.args.batchId)));
     }).catch(() => setBatchIds([])).finally(() => setLoadingIds(false));
   }, [address, client]);
 
-  // Read claimable per batch
   useEffect(() => {
-    if (!batchIds.length || !ADDRESSES.TREASURY) return;
+    if (!batchIds.length || !ADDRESSES.TREASURY || !client) return;
     Promise.all(
       batchIds.map(id =>
         client.readContract({
@@ -71,9 +68,7 @@ export default function StakePanel({ onClose }) {
           args:         [BigInt(id)],
         }).then(v => [id, v]).catch(() => [id, 0n])
       )
-    ).then(pairs => {
-      setClaimable(Object.fromEntries(pairs));
-    });
+    ).then(pairs => setClaimable(Object.fromEntries(pairs)));
   }, [batchIds, client]);
 
   const { writeContract, data: claimHash, isPending: claiming } = useWriteContract();
@@ -82,7 +77,6 @@ export default function StakePanel({ onClose }) {
   useEffect(() => {
     if (!claimSuccess) return;
     refetchCumulative();
-    // Re-read claimable after claim
     setBatchIds(ids => [...ids]);
   }, [claimSuccess]);
 
@@ -95,70 +89,75 @@ export default function StakePanel({ onClose }) {
     });
   };
 
-  const tierIndex = typeof tier === 'number' ? tier : (tier != null ? Number(tier) : 0);
-  const hasClaimable = Object.values(claimable).some(v => v > 0n);
+  const tierIndex = tier != null ? Number(tier) : 0;
 
   return (
-    <div className="fixed inset-0 z-60 flex items-start justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="relative z-10 h-full w-full max-w-sm bg-hub-dark border-l border-hub-green/20 shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh]"
+        onClick={e => e.stopPropagation()}
+      >
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between shrink-0">
+        <div className="flex items-center justify-between px-7 pt-7 pb-4 shrink-0">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-hub-green" />
-            <span className="text-white font-black uppercase tracking-widest text-sm">Your Stake</span>
+            <h2 className="font-black uppercase tracking-tight text-white text-xl">Your Stake</h2>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
-            <X size={18} />
+          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors">
+            <X size={22} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        {/* Body */}
+        <div className="overflow-y-auto px-7 pb-7 flex-1 space-y-5">
 
           {/* Tier + cumulative */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Attestation Tier</span>
-              <span className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border ${TIER_COLORS[tierIndex]}`}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Lifetime Stake</p>
+              <p className="font-black text-white text-2xl">{fmtEth(cumulative)}</p>
+              <p className="text-[9px] text-stone-500 font-bold uppercase tracking-widest mt-0.5">ETH</p>
+            </div>
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Attestation Tier</p>
+              <span className={`inline-block text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border mt-1 ${TIER_COLORS[tierIndex]}`}>
                 {TIER_LABELS[tierIndex]}
               </span>
+              <p className="text-[9px] text-stone-500 font-bold uppercase tracking-widest mt-2">Stake more to advance</p>
             </div>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/40 block mb-1">Lifetime Stake</span>
-              <span className="text-white font-black text-3xl">{fmtEth(cumulative)} <span className="text-white/40 text-base font-bold">ETH</span></span>
-            </div>
-            <p className="text-white/30 text-xs font-medium leading-relaxed">
-              Cumulative ETH staked across all batches. Tier unlocks automatically as your stake grows — no approval needed.
-            </p>
           </div>
 
-          {/* Claimable batches */}
+          <p className="text-stone-500 text-xs font-medium leading-relaxed">
+            Cumulative ETH staked across all batches. Tier is derived on-chain from your lifetime stake — no approval needed.
+          </p>
+
+          {/* Active batches */}
           <div>
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Active Batches</h3>
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-3">Active Batches</p>
 
             {loadingIds ? (
-              <div className="flex items-center gap-2 text-white/30 text-xs py-4">
+              <div className="flex items-center gap-2 text-stone-500 text-xs py-4">
                 <Loader size={14} className="animate-spin" />
                 Loading batches…
               </div>
             ) : batchIds.length === 0 ? (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-                <p className="text-white/30 text-xs font-medium">No batches yet. Post a stake to get started.</p>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
+                <p className="text-stone-500 text-xs font-medium">No batches yet. Post a stake to get started.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {batchIds.map(id => {
-                  const amount = claimable[id] ?? 0n;
+                  const amount   = claimable[id] ?? 0n;
                   const hasClaim = amount > 0n;
                   return (
-                    <div key={id} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                    <div key={id} className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Batch #{id}</p>
-                        <p className={`font-black text-sm mt-0.5 ${hasClaim ? 'text-hub-green' : 'text-white/20'}`}>
+                        <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest">Batch #{id}</p>
+                        <p className={`font-black text-sm mt-0.5 ${hasClaim ? 'text-hub-green' : 'text-stone-600'}`}>
                           {hasClaim ? `${fmtEth(amount)} ETH claimable` : 'Nothing to claim'}
                         </p>
                       </div>
@@ -166,7 +165,7 @@ export default function StakePanel({ onClose }) {
                         <button
                           onClick={() => handleClaim(id)}
                           disabled={claiming}
-                          className="shrink-0 bg-hub-green hover:brightness-110 disabled:opacity-40 text-white font-black text-xs uppercase tracking-widest px-3 py-2 rounded-lg transition-all"
+                          className="shrink-0 bg-hub-green hover:brightness-110 disabled:opacity-40 text-white font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl transition-all"
                         >
                           {claiming ? '…' : 'Claim'}
                         </button>
@@ -178,24 +177,16 @@ export default function StakePanel({ onClose }) {
             )}
           </div>
 
-        </div>
-
-        {/* Footer — post more stake */}
-        <div className="px-6 py-5 border-t border-white/10 shrink-0">
-          <button
-            className="w-full flex items-center justify-between bg-hub-green hover:brightness-110 text-white font-black uppercase tracking-widest text-xs px-5 py-3.5 rounded-xl transition-all"
-          >
+          {/* Post more stake */}
+          <button className="w-full flex items-center justify-between bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green text-white font-black uppercase tracking-widest text-xs px-5 py-4 rounded-2xl transition-all group">
             <div className="flex items-center gap-2">
-              <Zap size={14} strokeWidth={3} />
+              <Zap size={14} strokeWidth={3} className="text-hub-green" />
               Post More Stake
             </div>
-            <ChevronRight size={14} />
+            <ChevronRight size={14} className="text-stone-500 group-hover:text-hub-green transition-colors" />
           </button>
-          <p className="text-white/20 text-[10px] font-medium text-center mt-2">
-            Opens the producer onboarding flow
-          </p>
-        </div>
 
+        </div>
       </div>
     </div>
   );
