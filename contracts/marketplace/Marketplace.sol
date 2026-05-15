@@ -8,6 +8,10 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../dex/Interfaces.sol";
 
+interface IBurnableToken {
+    function burn(uint256 amount) external;
+}
+
 contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
     // =========================================================================
@@ -26,8 +30,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     mapping(uint256 => uint256) private _listingBatch;
     // tracks which listing a token was sold from (stored as listingId+1; 0 = untracked)
     mapping(uint256 => uint256) private _tokenListingId;
+    // $BEER held in escrow per token — burned on redemption to release brewer's stake
+    mapping(uint256 => uint256) private _escrowedBeer;
 
-    uint256[43] private __gap;
+    uint256[42] private __gap;
 
     // =========================================================================
 
@@ -173,8 +179,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
     // PURCHASE
-    // Buyer spends paymentToken, receives the next available NFT from inventory.
-    // Platform fee routes to feeCollector (Treasury); remainder to producer.
+    // Buyer spends paymentToken; platform fee routes to Treasury immediately.
+    // Remainder held in escrow — burned on redemption to release brewer's ETH stake.
     // Caller must approve this contract on the payment token first.
     // =========================================================================
 
@@ -193,7 +199,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         }
 
         uint256 fee      = (listing.price * ITreasury(feeCollector).marketplaceFeeBps()) / 10000;
-        uint256 proceeds = listing.price - fee;
+        uint256 escrowed = listing.price - fee;
 
         // Collect full payment from buyer
         require(
@@ -209,13 +215,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             );
         }
 
-        // Sale proceeds → producer
-        if (proceeds > 0) {
-            require(
-                IERC20(listing.paymentToken).transfer(listing.proceeds, proceeds),
-                'Marketplace: PROCEEDS_FAILED'
-            );
-        }
+        // Remainder locked in escrow until physical delivery is confirmed via redeem()
+        _escrowedBeer[tokenId] = escrowed;
 
         // Deliver NFT from custody to buyer
         IERC721(listing.nftContract).transferFrom(address(this), msg.sender, tokenId);
@@ -225,7 +226,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
     // REDEMPTION
-    // Sets the on-chain redeemed flag; NFT is NOT burned — it stays as art/collectible.
+    // Buyer confirms physical delivery by calling redeem(). This burns escrowed
+    // $BEER (deflation) and marks the brewer's pro-rata ETH stake as claimable.
     // Caller must be the token holder. Marketplace must be set as a redemptionOperator
     // on the nftTemplate after deployment so it can call through without a separate
     // per-token approval from the holder.
@@ -243,10 +245,19 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
         INFTTemplate(nftContract).redeem(tokenId);
 
-        // Release pro-rata stake if this token was sold through a staked listing
         uint256 storedId = _tokenListingId[tokenId];
         if (storedId > 0) {
-            uint256 batchId = _listingBatch[storedId - 1];
+            uint256 listingId = storedId - 1;
+
+            // Burn escrowed $BEER — this is the unlock key for the brewer's ETH stake
+            uint256 escrowed = _escrowedBeer[tokenId];
+            if (escrowed > 0) {
+                delete _escrowedBeer[tokenId];
+                IBurnableToken(_listings[listingId].paymentToken).burn(escrowed);
+            }
+
+            // Notify Treasury: mark pro-rata ETH stake claimable for this batch
+            uint256 batchId = _listingBatch[listingId];
             if (batchId > 0) {
                 ITreasury(feeCollector).onRedeem(batchId);
             }
