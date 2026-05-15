@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
+import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI } from '../../contracts';
 import MessagesPanel from '../../components/MessagesPanel';
+import StakePanel    from '../../components/StakePanel';
 
 const HUB_CHAIN_ID = 167000;
 
@@ -34,10 +35,18 @@ export default function ProfilePage() {
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
   const [copied, setCopied]             = useState(false);
-  const [showLiquidity, setShowLiquidity]   = useState(false);
-  const [showMessages,  setShowMessages]    = useState(false);
+  const [showLiquidity, setShowLiquidity] = useState(false);
+  const [showMessages,  setShowMessages]  = useState(false);
+  const [showStake,     setShowStake]     = useState(false);
 
-  const { data: ethBalance }  = useBalance({ address, query: { enabled: !!address } });
+  const { data: ethBalance }    = useBalance({ address, query: { enabled: !!address } });
+  const { data: cumulativeStake } = useReadContract({
+    address: ADDRESSES.TREASURY,
+    abi: TREASURY_ABI,
+    functionName: 'cumulativeStake',
+    args: [address ?? '0x0000000000000000000000000000000000000000'],
+    query: { enabled: !!address && !!ADDRESSES.TREASURY },
+  });
   const { data: beerRaw } = useReadContract({
     address: ADDRESSES.BEER_TOKEN,
     abi: BEER_TOKEN_ABI,
@@ -139,6 +148,7 @@ export default function ProfilePage() {
         </header>
 
         {showMessages && <MessagesPanel onClose={() => setShowMessages(false)} />}
+        {showStake    && <StakePanel    onClose={() => setShowStake(false)}    />}
 
         {/* Wallet card */}
         <section className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl p-6 shadow-xl">
@@ -175,6 +185,17 @@ export default function ProfilePage() {
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
               <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
             </div>
+            <button
+              onClick={() => setShowStake(true)}
+              className="bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green rounded-2xl p-4 min-w-[110px] text-left transition-all group"
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-hub-green mb-1">Stake</p>
+              <p className="font-black text-white text-2xl">{cumulativeStake != null ? fmtEth(cumulativeStake) : '—'}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Manage</span>
+                <ChevronRight size={10} className="text-white/30 group-hover:text-hub-green transition-colors" />
+              </div>
+            </button>
           </div>
         </section>
 

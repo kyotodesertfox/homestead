@@ -113,19 +113,31 @@ export const PAIR_ABI = [
 ];
 
 export const TREASURY_ABI = [
-  { name: 'dexExitFeeBps',        type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'stakeRatioBps',        type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'minListingBalance',    type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'requiredStakeFor',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'beerToEmit', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
-  { name: 'maxEmittableFor',      type: 'function', stateMutability: 'view',        inputs: [{ name: 'wallet',     type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'dexExitFeeBps',     type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'cumulativeStake',   type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'attestationTier',   type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet', type: 'address' }], outputs: [{ type: 'uint8'   }] },
+  { name: 'claimableStake',    type: 'function', stateMutability: 'view', inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'claimStake',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [] },
   {
-    name: 'postStake', type: 'function', stateMutability: 'nonpayable',
+    name: 'postStake', type: 'function', stateMutability: 'payable',
     inputs: [
+      { name: 'token',       type: 'address'  },
       { name: 'nftContract', type: 'address'  },
       { name: 'cids',        type: 'string[]' },
-      { name: 'beerToEmit',  type: 'uint256'  },
+      { name: 'tokenToEmit', type: 'uint256'  },
     ],
     outputs: [{ name: 'batchId', type: 'uint256' }],
+  },
+  {
+    name: 'StakePosted', type: 'event',
+    inputs: [
+      { name: 'batchId',     type: 'uint256', indexed: true  },
+      { name: 'brewer',      type: 'address', indexed: true  },
+      { name: 'nftContract', type: 'address', indexed: true  },
+      { name: 'stakedAmount',type: 'uint256', indexed: false },
+      { name: 'tokenToEmit', type: 'uint256', indexed: false },
+      { name: 'nftCount',    type: 'uint256', indexed: false },
+    ],
   },
 ];
 
