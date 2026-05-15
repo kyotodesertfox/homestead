@@ -274,46 +274,56 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         string[] calldata cids,
         uint256 tokenToEmit
     ) external payable nonReentrant whenNotPaused returns (uint256 batchId) {
-        require(msg.value > 0,   'Treasury: NO_ETH');
-        require(cids.length > 0, 'Treasury: NO_CIDS');
-        require(tokenToEmit > 0, 'Treasury: ZERO_EMIT');
-        require(
-            ITokenDeployer(tokenDeployer).isRegistered(token),
-            'Treasury: UNREGISTERED_TOKEN'
-        );
-        require(
-            INFTDeployer(nftDeployer).isRegistered(nftContract),
-            'Treasury: UNREGISTERED_NFT'
-        );
+        require(msg.value > 0, 'Treasury: NO_ETH');
 
-        // Basic IPFS CID sanity check — CIDv0 is exactly 46 chars, CIDv1 is longer
-        for (uint256 i = 0; i < cids.length; i++) {
-            require(bytes(cids[i]).length >= 46, 'Treasury: INVALID_CID');
+        // token and nftContract may both be address(0) for a floor-only stake
+        // (first-time producers building cumulativeStake before their token exists)
+        if (token != address(0)) {
+            require(
+                ITokenDeployer(tokenDeployer).isRegistered(token),
+                'Treasury: UNREGISTERED_TOKEN'
+            );
         }
 
-        // ETH stays in Treasury as permanent floor; producer's token minted to them
-        IMintableToken(token).mintToWallet(msg.sender, tokenToEmit);
+        if (nftContract != address(0)) {
+            require(cids.length > 0, 'Treasury: NO_CIDS');
+            require(
+                INFTDeployer(nftDeployer).isRegistered(nftContract),
+                'Treasury: UNREGISTERED_NFT'
+            );
+            for (uint256 i = 0; i < cids.length; i++) {
+                require(bytes(cids[i]).length >= 46, 'Treasury: INVALID_CID');
+            }
+        }
 
-        // Mint NFT batch to producer's wallet; Treasury must be set as a minter on nftTemplate
-        uint256 startTokenId = INFTTemplate(nftContract).mintBatch(msg.sender, cids);
-
-        // Accumulate lifetime stake — drives attestation tier, never decreases
+        // ETH is always permanently locked as floor; cumulativeStake always accumulates
         cumulativeStake[msg.sender] += msg.value;
 
-        batchId = ++nextBatchId; // pre-increment: first batchId = 1, 0 stays as sentinel
+        uint256 startTokenId;
+        uint256 nftCount = (nftContract != address(0)) ? cids.length : 0;
+
+        if (token != address(0) && tokenToEmit > 0) {
+            IMintableToken(token).mintToWallet(msg.sender, tokenToEmit);
+        }
+
+        if (nftCount > 0) {
+            startTokenId = INFTTemplate(nftContract).mintBatch(msg.sender, cids);
+        }
+
+        batchId = ++nextBatchId;
         batches[batchId] = Batch({
             brewer:        msg.sender,
             nftContract:   nftContract,
             stakedAmount:  msg.value,
             beerToEmit:    tokenToEmit,
-            totalNFTs:     cids.length,
+            totalNFTs:     nftCount,
             redeemedCount: 0,
             startTokenId:  startTokenId,
             listed:        false,
             slashed:       false
         });
 
-        emit StakePosted(batchId, msg.sender, nftContract, msg.value, tokenToEmit, cids.length);
+        emit StakePosted(batchId, msg.sender, nftContract, msg.value, tokenToEmit, nftCount);
     }
 
     // =========================================================================

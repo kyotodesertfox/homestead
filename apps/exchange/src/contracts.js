@@ -7,6 +7,8 @@ export const ADDRESSES = {
   MARKETPLACE:    import.meta.env.VITE_MARKETPLACE,
   TREASURY:       import.meta.env.VITE_TREASURY,
   BEER_WETH_PAIR: import.meta.env.VITE_BEER_WETH_PAIR,
+  TOKEN_DEPLOYER: import.meta.env.VITE_TOKEN_DEPLOYER,
+  NFT_DEPLOYER:   import.meta.env.VITE_NFT_DEPLOYER,
 };
 
 export const ERC20_ABI = [
@@ -15,6 +17,8 @@ export const ERC20_ABI = [
   { name: 'balanceOf',    type: 'function', stateMutability: 'view',       inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'decimals',     type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint8' }] },
   { name: 'totalSupply',  type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'name',         type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'string' }] },
+  { name: 'symbol',       type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'string' }] },
 ];
 
 export const ROUTER_ABI = [
@@ -116,6 +120,23 @@ export const TREASURY_ABI = [
   { name: 'dexExitFeeBps',     type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'cumulativeStake',   type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'attestationTier',   type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet', type: 'address' }], outputs: [{ type: 'uint8'   }] },
+  { name: 'tierThreshold',     type: 'function', stateMutability: 'view', inputs: [{ name: 'tier',   type: 'uint8'   }], outputs: [{ type: 'uint256' }] },
+  { name: 'nextBatchId',       type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  {
+    name: 'batches', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'batchId', type: 'uint256' }],
+    outputs: [
+      { name: 'brewer',        type: 'address' },
+      { name: 'nftContract',   type: 'address' },
+      { name: 'stakedAmount',  type: 'uint256' },
+      { name: 'beerToEmit',    type: 'uint256' },
+      { name: 'totalNFTs',     type: 'uint256' },
+      { name: 'redeemedCount', type: 'uint256' },
+      { name: 'startTokenId',  type: 'uint256' },
+      { name: 'listed',        type: 'bool'    },
+      { name: 'slashed',       type: 'bool'    },
+    ],
+  },
   { name: 'claimableStake',    type: 'function', stateMutability: 'view', inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
   { name: 'claimStake',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [] },
   {
@@ -182,6 +203,8 @@ export const MARKETPLACE_ABI = [
 ];
 
 export const NFT_ABI = [
+  { name: 'name',             type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'string' }] },
+  { name: 'symbol',           type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'string' }] },
   { name: 'tokenURI',         type: 'function', stateMutability: 'view',        inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
   { name: 'totalSupply',      type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'tokenByIndex',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'index', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
@@ -191,6 +214,18 @@ export const NFT_ABI = [
   { name: 'mintBatch',        type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to', type: 'address' }, { name: 'cids', type: 'string[]' }], outputs: [{ name: 'startTokenId', type: 'uint256' }] },
   { name: 'isApprovedForAll', type: 'function', stateMutability: 'view',        inputs: [{ name: 'owner', type: 'address' }, { name: 'operator', type: 'address' }], outputs: [{ type: 'bool' }] },
   { name: 'setApprovalForAll', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'operator', type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
+];
+
+export const TOKEN_DEPLOYER_ABI = [
+  { name: 'getAllTokens',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address[]' }] },
+  { name: 'isRegistered', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'totalTokens',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+];
+
+export const NFT_DEPLOYER_ABI = [
+  { name: 'getAllContracts', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address[]' }] },
+  { name: 'isRegistered',   type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'totalContracts', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
 ];
 
 export const CONTRACT_URI_ABI = [

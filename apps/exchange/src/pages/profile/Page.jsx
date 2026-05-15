@@ -55,33 +55,6 @@ export default function ProfilePage() {
     query: { enabled: !!address && !!ADDRESSES.BEER_TOKEN },
   });
 
-  // --- Mint ---
-  const { data: isMinter } = useReadContract({
-    address: ADDRESSES.BEER_TOKEN,
-    abi: BEER_TOKEN_ABI,
-    functionName: 'isMinter',
-    args: [address ?? '0x0000000000000000000000000000000000000000'],
-    query: { enabled: !!address },
-  });
-
-  const [mintAmount, setMintAmount] = useState('');
-  const [mintDest, setMintDest]     = useState('wallet');
-
-  const { writeContract: writeMint, data: mintTxHash }        = useWriteContract();
-  const { isLoading: minting, isSuccess: mintConfirmed }       = useWaitForTransactionReceipt({ hash: mintTxHash });
-
-  const handleMint = () => {
-    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
-    const amount = BigInt(Math.round(Number(mintAmount)));
-    if (mintDest === 'pool') {
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, amount] });
-    } else {
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [address, amount] });
-    }
-  };
-
-  useEffect(() => { if (mintConfirmed) setMintAmount(''); }, [mintConfirmed]);
-
   // --- Copy ---
   const copyAddress = () => {
     if (!address) return;
@@ -209,55 +182,6 @@ export default function ProfilePage() {
         </div>
 
         {showLiquidity && <LiquidityModal onClose={() => setShowLiquidity(false)} />}
-
-        {/* Mint $BEER — only visible to minters */}
-        {isMinter === true && (
-          <section className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl p-6 shadow-xl">
-            <div className="flex items-center gap-2 mb-5">
-              <Flame size={18} className="text-hub-green" />
-              <h2 className="font-black uppercase tracking-tight text-white text-sm">Mint $BEER</h2>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="number"
-                min="1"
-                step="1"
-                placeholder="Amount"
-                value={mintAmount}
-                onChange={e => setMintAmount(e.target.value)}
-                className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors"
-              />
-
-              <div className="flex rounded-xl overflow-hidden border border-white/10">
-                <button
-                  onClick={() => setMintDest('wallet')}
-                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'wallet' ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
-                >
-                  To Wallet
-                </button>
-                <button
-                  onClick={() => setMintDest('pool')}
-                  className={`px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === 'pool' ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
-                >
-                  To Pool
-                </button>
-              </div>
-
-              <button
-                onClick={handleMint}
-                disabled={minting || !mintAmount || Number(mintAmount) <= 0}
-                className="bg-hub-green hover:bg-hub-light disabled:opacity-40 text-white font-black px-8 py-3 rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 whitespace-nowrap"
-              >
-                {minting ? 'Minting...' : mintConfirmed ? 'Minted ✓' : 'Mint'}
-              </button>
-            </div>
-
-            <p className="mt-3 text-[10px] font-bold text-white/30 uppercase tracking-widest">
-              {mintDest === 'pool' ? 'Tokens go directly into the BEER/WETH liquidity pool.' : 'Tokens land in your connected wallet.'}
-            </p>
-          </section>
-        )}
 
         {/* NFT Listings */}
         <MyListingsSection address={address} />
@@ -735,6 +659,36 @@ function LiquidityModal({ onClose }) {
   const [pendingAction, setPendingAction] = useState(null);
   const [stakeBottles, setStakeBottles]   = useState('');
   const [stakeEmit,    setStakeEmit]      = useState('');
+  const [mintAmount,    setMintAmount]    = useState('');
+  const [mintDest,      setMintDest]      = useState('self');
+  const [mintRecipient, setMintRecipient] = useState('');
+
+  const { data: isMinter } = useReadContract({
+    address: ADDRESSES.BEER_TOKEN,
+    abi:     BEER_TOKEN_ABI,
+    functionName: 'isMinter',
+    args:    [address ?? ZERO],
+    query:   { enabled: !!address },
+  });
+
+  const { writeContract: writeMint, data: mintTxHash }   = useWriteContract();
+  const { isLoading: minting, isSuccess: mintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash });
+
+  const handleMint = () => {
+    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
+    const amount = BigInt(Math.round(Number(mintAmount)));
+    if (mintDest === 'pool') {
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, amount] });
+    } else {
+      const to = mintDest === 'wallet' ? mintRecipient : address;
+      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [to, amount] });
+    }
+  };
+
+  const mintDisabled = minting || !mintAmount || Number(mintAmount) <= 0
+    || (mintDest === 'wallet' && !/^0x[0-9a-fA-F]{40}$/.test(mintRecipient));
+
+  useEffect(() => { if (mintConfirmed) { setMintAmount(''); setMintRecipient(''); } }, [mintConfirmed]);
 
   const STAKE_RATIO_BPS = 1000; // 10% — placeholder until contract is live
   const stakeEmitNum    = parseInt(stakeEmit, 10) || 0;
@@ -1105,6 +1059,65 @@ function LiquidityModal({ onClose }) {
                   Post ETH Collateral &amp; Brew Batch
                 </button>
               </div>
+
+              {/* Mint — only visible to registered minters */}
+              {isMinter === true && (
+                <div className="mt-5 pt-5 border-t border-amber-500/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Flame size={13} className="text-amber-400 shrink-0" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Mint $BEER</p>
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-500/40 text-amber-500/70">
+                      Admin
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Amount"
+                      value={mintAmount}
+                      onChange={e => setMintAmount(e.target.value)}
+                      className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                    <div className="flex rounded-xl overflow-hidden border border-amber-500/20">
+                      {['self', 'wallet', 'pool'].map(d => (
+                        <button key={d} onClick={() => setMintDest(d)}
+                          className={`px-3 py-2.5 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === d ? 'bg-amber-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {mintDest === 'wallet' && (
+                    <input
+                      type="text"
+                      placeholder="0x recipient address"
+                      value={mintRecipient}
+                      onChange={e => setMintRecipient(e.target.value)}
+                      className="w-full bg-white/10 text-white placeholder-white/30 font-mono text-sm rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                  )}
+
+                  <button
+                    onClick={handleMint}
+                    disabled={mintDisabled}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95"
+                  >
+                    {minting ? 'Minting…' : mintConfirmed ? 'Minted ✓' : 'Mint'}
+                  </button>
+
+                  <p className="text-[10px] font-bold text-amber-500/30 uppercase tracking-widest">
+                    {mintDest === 'pool'   ? 'Tokens go into the BEER/WETH liquidity pool.'
+                   : mintDest === 'wallet' ? 'Tokens go to the address entered above.'
+                   :                        'Tokens land in your connected wallet.'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

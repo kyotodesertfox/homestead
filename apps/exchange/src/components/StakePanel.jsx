@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, TrendingUp, Zap, ChevronRight, Loader } from 'lucide-react';
+import OnboardingWizard from './OnboardingWizard';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
-import { ADDRESSES, TREASURY_ABI } from '../contracts';
+import { ADDRESSES, TREASURY_ABI, MARKETPLACE_ABI } from '../contracts';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -23,9 +24,11 @@ export default function StakePanel({ onClose }) {
   const { address } = useAccount();
   const client      = usePublicClient();
 
-  const [batchIds,   setBatchIds]   = useState([]);
+  const [batches,    setBatches]    = useState([]);
   const [claimable,  setClaimable]  = useState({});
+  const [listings,   setListings]   = useState([]);
   const [loadingIds, setLoadingIds] = useState(true);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const { data: cumulative, refetch: refetchCumulative } = useReadContract({
     address: ADDRESSES.TREASURY,
@@ -43,33 +46,88 @@ export default function StakePanel({ onClose }) {
     query:   { enabled: !!address && !!ADDRESSES.TREASURY },
   });
 
-  useEffect(() => {
-    if (!address || !client || !ADDRESSES.TREASURY) return;
+  const loadBatches = async () => {
+    if (!address || !client) return;
     setLoadingIds(true);
-    client.getLogs({
-      address:   ADDRESSES.TREASURY,
-      event:     TREASURY_ABI.find(e => e.name === 'StakePosted' && e.type === 'event'),
-      args:      { brewer: address },
-      fromBlock: 0n,
-      toBlock:   'latest',
-    }).then(logs => {
-      setBatchIds(logs.map(l => Number(l.args.batchId)));
-    }).catch(() => setBatchIds([])).finally(() => setLoadingIds(false));
-  }, [address, client]);
 
-  useEffect(() => {
-    if (!batchIds.length || !ADDRESSES.TREASURY || !client) return;
-    Promise.all(
-      batchIds.map(id =>
-        client.readContract({
-          address:      ADDRESSES.TREASURY,
-          abi:          TREASURY_ABI,
-          functionName: 'claimableStake',
-          args:         [BigInt(id)],
-        }).then(v => [id, v]).catch(() => [id, 0n])
-      )
-    ).then(pairs => setClaimable(Object.fromEntries(pairs)));
-  }, [batchIds, client]);
+    // ── Treasury batches — independent, failures don't affect listings ──
+    if (ADDRESSES.TREASURY) {
+      try {
+        const nextBatchId = await client.readContract({
+          address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'nextBatchId',
+        });
+        const batchTotal = Number(nextBatchId);
+        if (batchTotal > 0) {
+          const results = await Promise.all(
+            Array.from({ length: batchTotal }, (_, i) => i + 1).map(id =>
+              client.readContract({
+                address: ADDRESSES.TREASURY, abi: TREASURY_ABI,
+                functionName: 'batches', args: [BigInt(id)],
+              }).then(b => ({ id, ...b })).catch(() => null)
+            )
+          );
+          const mine = results.filter(b => b && b.brewer.toLowerCase() === address.toLowerCase());
+          setBatches(mine);
+          const claimPairs = await Promise.all(
+            mine.map(b =>
+              client.readContract({
+                address: ADDRESSES.TREASURY, abi: TREASURY_ABI,
+                functionName: 'claimableStake', args: [BigInt(b.id)],
+              }).then(v => [b.id, v]).catch(() => [b.id, 0n])
+            )
+          );
+          setClaimable(Object.fromEntries(claimPairs));
+        } else {
+          setBatches([]);
+        }
+      } catch {
+        setBatches([]);
+      }
+    }
+
+    // ── Marketplace listings — runs regardless of Treasury result ──
+    if (ADDRESSES.MARKETPLACE) {
+      try {
+        // Post-incremented: first listing = ID 0. Fall back to scanning 10 IDs if
+        // nextListingId doesn't exist on the deployed contract (pre-upgrade).
+        let scanCount = 10;
+        try {
+          const nextListingId = await client.readContract({
+            address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'nextListingId',
+          });
+          scanCount = Math.max(Number(nextListingId), 1);
+        } catch { /* pre-upgrade contract — use fallback scanCount */ }
+        const listingResults = await Promise.all(
+          Array.from({ length: scanCount }, (_, i) => i).map(id =>
+            client.readContract({
+              address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI,
+              functionName: 'getListing', args: [BigInt(id)],
+            }).then(l => ({
+              id,
+              nftContract:    l.nftContract,
+              paymentToken:   l.paymentToken,
+              price:          l.price,
+              proceeds:       l.proceeds,
+              inventoryCount: l.inventoryCount,
+              active:         l.active,
+            })).catch(() => null)
+          )
+        );
+        setListings(
+          listingResults.filter(
+            l => l && l.proceeds && l.nftContract !== '0x0000000000000000000000000000000000000000'
+              && l.proceeds.toLowerCase() === address.toLowerCase()
+          )
+        );
+      } catch {
+        setListings([]);
+      }
+    }
+
+    setLoadingIds(false);
+  };
+
+  useEffect(() => { loadBatches(); }, [address, client]);
 
   const { writeContract, data: claimHash, isPending: claiming } = useWriteContract();
   const { isSuccess: claimSuccess } = useWaitForTransactionReceipt({ hash: claimHash, query: { enabled: !!claimHash } });
@@ -77,7 +135,7 @@ export default function StakePanel({ onClose }) {
   useEffect(() => {
     if (!claimSuccess) return;
     refetchCumulative();
-    setBatchIds(ids => [...ids]);
+    loadBatches();
   }, [claimSuccess]);
 
   const handleClaim = (batchId) => {
@@ -92,6 +150,7 @@ export default function StakePanel({ onClose }) {
   const tierIndex = tier != null ? Number(tier) : 0;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={onClose}
@@ -144,26 +203,37 @@ export default function StakePanel({ onClose }) {
                 <Loader size={14} className="animate-spin" />
                 Loading batches…
               </div>
-            ) : batchIds.length === 0 ? (
+            ) : batches.length === 0 ? (
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
                 <p className="text-stone-500 text-xs font-medium">No batches yet. Post a stake to get started.</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {batchIds.map(id => {
-                  const amount   = claimable[id] ?? 0n;
+                {batches.map(batch => {
+                  const amount   = claimable[batch.id] ?? 0n;
                   const hasClaim = amount > 0n;
+                  const redeemed = Number(batch.redeemedCount);
+                  const total    = Number(batch.totalNFTs);
                   return (
-                    <div key={id} className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest">Batch #{id}</p>
+                    <div key={batch.id} className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest">Batch #{batch.id}</p>
+                          {batch.listed  && <span className="text-[9px] font-black uppercase tracking-widest text-hub-green border border-hub-green/30 px-1.5 py-0.5 rounded-full">Listed</span>}
+                          {batch.slashed && <span className="text-[9px] font-black uppercase tracking-widest text-red-400 border border-red-400/30 px-1.5 py-0.5 rounded-full">Slashed</span>}
+                        </div>
+                        {total > 0 && (
+                          <p className="text-stone-500 text-[10px] font-medium">
+                            {redeemed}/{total} redeemed · {fmtEth(batch.stakedAmount)} ETH staked
+                          </p>
+                        )}
                         <p className={`font-black text-sm mt-0.5 ${hasClaim ? 'text-hub-green' : 'text-stone-600'}`}>
-                          {hasClaim ? `${fmtEth(amount)} ETH claimable` : 'Nothing to claim'}
+                          {hasClaim ? `${fmtEth(amount)} ETH claimable` : total === 0 ? 'Floor stake — no NFTs' : 'Nothing to claim yet'}
                         </p>
                       </div>
                       {hasClaim && (
                         <button
-                          onClick={() => handleClaim(id)}
+                          onClick={() => handleClaim(batch.id)}
                           disabled={claiming}
                           className="shrink-0 bg-hub-green hover:brightness-110 disabled:opacity-40 text-white font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl transition-all"
                         >
@@ -177,8 +247,39 @@ export default function StakePanel({ onClose }) {
             )}
           </div>
 
+          {/* Marketplace listings */}
+          {listings.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-3">Your Listings</p>
+              <div className="space-y-2">
+                {listings.map(listing => (
+                  <div key={listing.id} className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest">Listing #{listing.id}</p>
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border
+                        ${listing.active
+                          ? 'text-hub-green border-hub-green/30'
+                          : 'text-stone-500 border-stone-500/30'}`}>
+                        {listing.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p className="text-stone-500 text-[10px] font-medium">
+                      {Number(listing.inventoryCount)} in inventory
+                    </p>
+                    <p className="text-stone-600 text-[9px] font-mono mt-0.5 truncate">
+                      {listing.nftContract.slice(0, 10)}…{listing.nftContract.slice(-6)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Post more stake */}
-          <button className="w-full flex items-center justify-between bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green text-white font-black uppercase tracking-widest text-xs px-5 py-4 rounded-2xl transition-all group">
+          <button
+            onClick={() => setWizardOpen(true)}
+            className="w-full flex items-center justify-between bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green text-white font-black uppercase tracking-widest text-xs px-5 py-4 rounded-2xl transition-all group"
+          >
             <div className="flex items-center gap-2">
               <Zap size={14} strokeWidth={3} className="text-hub-green" />
               Post More Stake
@@ -189,5 +290,10 @@ export default function StakePanel({ onClose }) {
         </div>
       </div>
     </div>
+
+    {wizardOpen && (
+      <OnboardingWizard skipInitial onClose={() => setWizardOpen(false)} />
+    )}
+    </>
   );
 }
