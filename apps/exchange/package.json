@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/curves": "^2.2.0",
+    "@noble/post-quantum": "^0.6.1",
     "@reown/appkit": "^1.8.19",
     "@reown/appkit-adapter-wagmi": "^1.8.19",
     "@tailwindcss/vite": "^4.1.18",

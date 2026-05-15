@@ -8,6 +8,15 @@ interface ITreasury {
     function trustedRelay() external view returns (address);
 }
 
+interface IBurnableToken {
+    function burn(uint256 amount) external;
+}
+
+interface IPair {
+    function getReserves() external view returns (uint112 r0, uint112 r1, uint32 ts);
+    function token0() external view returns (address);
+}
+
 contract HomesteadRelay is Ownable {
 
     uint8 public constant TIER_NONE     = 0;
@@ -16,8 +25,9 @@ contract HomesteadRelay is Ownable {
     uint8 public constant TIER_VERIFIED = 3;
 
     address public treasury;
-    address public feeToken;
-    uint256 public quantumFee;
+    address public feeToken;   // $BEER — burned on token path
+    uint256 public quantumFee; // canonical fee in $BEER units (e.g. 1e18 = 1 $BEER)
+    address public dexPair;    // $BEER/WETH pair — used to calculate ETH equivalent at send time
 
     // X25519 pubkey stored in state — 32 bytes, one slot, cheap lookup
     mapping(address => bytes32) public x25519Key;
@@ -87,12 +97,39 @@ contract HomesteadRelay is Ownable {
         isAttester[attester] = false;
     }
 
+    // --- Fee Logic ---
+
+    // Returns the ETH equivalent of quantumFee $BEER at current DEX spot price.
+    // Only called when dexPair is set and the sender chooses the ETH path.
+    function ethEquivalent() public view returns (uint256) {
+        require(dexPair != address(0), "Relay: DEX_PAIR_NOT_SET");
+        (uint112 r0, uint112 r1,) = IPair(dexPair).getReserves();
+        address t0 = IPair(dexPair).token0();
+        // quantumFee is in $BEER units; derive ETH cost at spot
+        return t0 == feeToken
+            ? (quantumFee * uint256(r1)) / uint256(r0)   // r0=BEER r1=WETH
+            : (quantumFee * uint256(r0)) / uint256(r1);  // r0=WETH r1=BEER
+    }
+
+    function _chargeQuantumFee(bool exempt) internal {
+        if (msg.value > 0) {
+            // ETH path — spot-priced against 1 $BEER unit, goes to Treasury floor
+            require(msg.value >= ethEquivalent(), "Relay: INSUFFICIENT_ETH");
+            (bool ok,) = treasury.call{value: msg.value}("");
+            require(ok, "Relay: ETH_FAILED");
+        } else if (!exempt) {
+            // $BEER path — always 1 unit, burned from sender
+            IERC20(feeToken).transferFrom(msg.sender, address(this), quantumFee);
+            IBurnableToken(feeToken).burn(quantumFee);
+        }
+    }
+
     // --- 1:1 Messaging ---
 
-    function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external {
+    function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external payable {
         require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
-        if (quantumReady && quantumFee > 0 && !quantumFreeRecipient[to]) {
-            IERC20(feeToken).transferFrom(msg.sender, treasury, quantumFee);
+        if (quantumReady && quantumFee > 0) {
+            _chargeQuantumFee(quantumFreeRecipient[to]);
         }
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
     }
@@ -118,11 +155,11 @@ contract HomesteadRelay is Ownable {
         emit GroupJoined(groupId, msg.sender);
     }
 
-    function sendGroupMessage(uint256 groupId, bytes calldata encryptedPayload, bool quantumReady) external {
+    function sendGroupMessage(uint256 groupId, bytes calldata encryptedPayload, bool quantumReady) external payable {
         require(isMember[groupId][msg.sender], "Relay: not a member");
         require(groups[groupId].active, "Relay: group inactive");
         if (quantumReady && quantumFee > 0) {
-            IERC20(feeToken).transferFrom(msg.sender, treasury, quantumFee);
+            _chargeQuantumFee(false);
         }
         emit GroupMessageSent(groupId, msg.sender, encryptedPayload, quantumReady, block.timestamp);
     }
@@ -154,7 +191,8 @@ contract HomesteadRelay is Ownable {
     function setTreasury(address _treasury)                        external onlyOwner { treasury                        = _treasury; }
     function setFeeToken(address _feeToken)                        external onlyOwner { feeToken                        = _feeToken; }
     function setQuantumFee(uint256 _fee)                           external onlyOwner { quantumFee                      = _fee;      }
+    function setDexPair(address _dexPair)                          external onlyOwner { dexPair                         = _dexPair;  }
     function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;    }
 
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

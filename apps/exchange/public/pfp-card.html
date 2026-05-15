@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 675px;
+    background: #0f2318;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* grid overlay */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(22,163,74,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(22,163,74,0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* glow blobs */
+  .glow-tl {
+    position: absolute;
+    top: -120px; left: -120px;
+    width: 520px; height: 520px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(22,163,74,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .glow-br {
+    position: absolute;
+    bottom: -100px; right: -80px;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(74,222,128,0.10) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 32px;
+    padding: 0 80px;
+    width: 100%;
+  }
+
+  /* logo row */
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .logo-box {
+    width: 64px; height: 64px;
+    background: #16a34a;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 32px rgba(22,163,74,0.5);
+  }
+
+  .logo-box svg {
+    width: 36px; height: 36px;
+    color: white;
+    stroke: white;
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+  }
+
+  .brand-top {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #4ade80;
+  }
+
+  .brand-name {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: #ffffff;
+    margin-top: 2px;
+  }
+
+  /* divider */
+  .divider {
+    width: 64px;
+    height: 3px;
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+    border-radius: 2px;
+  }
+
+  /* headline */
+  .headline {
+    font-size: 52px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    color: #ffffff;
+    max-width: 700px;
+  }
+
+  .headline em {
+    color: #4ade80;
+    font-style: normal;
+  }
+
+  /* tagline */
+  .tagline {
+    font-size: 20px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.01em;
+    max-width: 620px;
+    line-height: 1.5;
+  }
+
+  /* badge row */
+  .badges {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .badge-taiko {
+    background: rgba(22,163,74,0.15);
+    border: 1.5px solid rgba(22,163,74,0.4);
+    color: #4ade80;
+  }
+
+  .badge-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: pulse 2s infinite;
+  }
+
+  .badge-dark {
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* handle */
+  .handle {
+    position: absolute;
+    bottom: 36px;
+    right: 80px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.25);
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="grid"></div>
+<div class="glow-tl"></div>
+<div class="glow-br"></div>
+
+<div class="card">
+
+  <div class="logo-row">
+    <div class="logo-box">
+      <!-- lucide Home icon paths -->
+      <svg viewBox="0 0 24 24">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+        <path d="M9 21V12h6v9"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <span class="brand-top">Introducing</span>
+      <span class="brand-name">Homestead Exchange</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="headline">
+    Real beer.<br>
+    <em>On-chain proof.</em><br>
+    No middlemen.
+  </div>
+
+  <div class="tagline">
+    Physical beer backed by $BEER tokens. NFTs as redemption vouchers.
+    Brewer stakes ETH — buyer burns $BEER on delivery. The chain proves everything.
+  </div>
+
+  <div class="badges">
+    <div class="badge badge-taiko">
+      <div class="badge-dot"></div>
+      Built on Taiko
+    </div>
+    <div class="badge badge-dark">$BEER</div>
+    <div class="badge badge-dark">ERC-20 · ERC-721</div>
+    <div class="badge badge-dark">Quantum Chat</div>
+  </div>
+
+</div>
+
+<div class="handle">@lonewolf_eth</div>
+
+</body>
+</html>

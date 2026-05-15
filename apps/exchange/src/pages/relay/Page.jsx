@@ -164,10 +164,10 @@ export default function RelayPage() {
               </div>
               <div className="bg-white/5 border border-white/10 rounded-xl p-5">
                 <div className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">General Messaging</div>
-                <div className="text-white font-black uppercase tracking-tight mb-1">Upgrade for $BEER</div>
+                <div className="text-white font-black uppercase tracking-tight mb-1">Quantum Upgrade</div>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  Standard messages use X25519 encryption at no cost. Participants who want
-                  post-quantum protection pay a $BEER fee — sent directly to the Treasury.
+                  Standard messages use X25519 at no cost. Quantum upgrade costs 1 $BEER
+                  (burned, deflationary) or the ETH equivalent at DEX spot — your choice.
                 </p>
               </div>
             </div>

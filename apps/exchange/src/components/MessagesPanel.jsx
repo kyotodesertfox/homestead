@@ -160,7 +160,7 @@ export default function MessagesPanel({ onClose }) {
                       />
                       <span className="text-xs text-gray-500 flex items-center gap-1">
                         <Shield size={10} className="text-hub-green" />
-                        1 $BEER
+                        1 $BEER or ETH
                       </span>
                     </label>
                     <button

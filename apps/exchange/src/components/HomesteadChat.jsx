@@ -125,7 +125,7 @@ export default function HomesteadChat() {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer" title="Upgrade to hybrid X25519 + ML-KEM-768 encryption. Fee paid in $BEER to the Treasury.">
+                    <label className="flex items-center gap-2 cursor-pointer" title="Upgrade to hybrid X25519 + ML-KEM-768 encryption. Burn 1 $BEER or pay the ETH equivalent at spot.">
                       <input
                         type="checkbox"
                         checked={quantumReady}
@@ -134,7 +134,7 @@ export default function HomesteadChat() {
                       />
                       <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
                         <Shield size={10} className="text-hub-green" />
-                        Quantum upgrade · 1 $BEER
+                        Quantum · 1 $BEER or ETH
                       </span>
                     </label>
                     <button
