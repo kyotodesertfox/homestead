@@ -25,6 +25,7 @@ contract HomesteadRelay is Ownable {
     mapping(address => uint8)  public attestation;
     mapping(address => bool)   public isAttester;
     mapping(address => bool)   public registeredContract;
+    mapping(address => bool)   public quantumFreeRecipient;
 
     struct Group {
         address creator;
@@ -90,7 +91,7 @@ contract HomesteadRelay is Ownable {
 
     function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external {
         require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
-        if (quantumReady && quantumFee > 0) {
+        if (quantumReady && quantumFee > 0 && !quantumFreeRecipient[to]) {
             IERC20(feeToken).transferFrom(msg.sender, treasury, quantumFee);
         }
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
@@ -150,9 +151,10 @@ contract HomesteadRelay is Ownable {
 
     // --- Config ---
 
-    function setTreasury(address _treasury) external onlyOwner  { treasury   = _treasury; }
-    function setFeeToken(address _feeToken) external onlyOwner  { feeToken   = _feeToken; }
-    function setQuantumFee(uint256 _fee)    external onlyOwner  { quantumFee = _fee; }
+    function setTreasury(address _treasury)                        external onlyOwner { treasury                        = _treasury; }
+    function setFeeToken(address _feeToken)                        external onlyOwner { feeToken                        = _feeToken; }
+    function setQuantumFee(uint256 _fee)                           external onlyOwner { quantumFee                      = _fee;      }
+    function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;    }
 
     uint256[47] private __gap;
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquare, X, Lock, Send, Key, ChevronDown, Users, Inbox } from 'lucide-react';
+import { MessageSquare, X, Lock, Send, Key, ChevronDown, Users, Inbox, Shield } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 
@@ -61,9 +61,10 @@ export default function HomesteadChat() {
               {/* Tabs */}
               <div className="flex border-b border-gray-100 shrink-0">
                 {[
-                  { id: 'inbox',   icon: <Inbox size={12} />,   label: 'Inbox'   },
-                  { id: 'compose', icon: <Send size={12} />,     label: 'Compose' },
-                  { id: 'groups',  icon: <Users size={12} />,    label: 'Groups'  },
+                  { id: 'inbox',   icon: <Inbox size={12} />,        label: 'Inbox'   },
+                  { id: 'compose', icon: <Send size={12} />,          label: 'Compose' },
+                  { id: 'support', icon: <MessageSquare size={12} />, label: 'Support' },
+                  { id: 'groups',  icon: <Users size={12} />,         label: 'Groups'  },
                 ].map(({ id, icon, label }) => (
                   <button
                     key={id}
@@ -124,7 +125,7 @@ export default function HomesteadChat() {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-2 cursor-pointer" title="Upgrade to hybrid X25519 + ML-KEM-768 encryption. Fee paid in $BEER to the Treasury.">
                       <input
                         type="checkbox"
                         checked={quantumReady}
@@ -132,13 +133,51 @@ export default function HomesteadChat() {
                         className="accent-hub-green"
                       />
                       <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
-                        <Lock size={10} className="text-hub-green" />
-                        Quantum-ready
+                        <Shield size={10} className="text-hub-green" />
+                        Quantum upgrade · $BEER fee
                       </span>
                     </label>
                     <button
                       onClick={handleSend}
                       disabled={!message.trim() || !recipient.trim()}
+                      className="flex items-center gap-1.5 bg-hub-green hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-2 px-4 rounded uppercase tracking-widest text-xs transition-all"
+                    >
+                      <Send size={12} />
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Support */}
+              {tab === 'support' && (
+                <div className="flex-1 flex flex-col p-3 gap-3">
+                  <div className="bg-hub-dark rounded-xl p-3 flex items-center gap-2">
+                    <Shield size={14} className="text-hub-light shrink-0" />
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-white">Quantum by Default</p>
+                      <p className="text-xs text-gray-400 leading-relaxed mt-0.5">
+                        Support messages use hybrid X25519 + ML-KEM-768 encryption at no extra cost.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex flex-col">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-500 mb-1 block">Your Message</label>
+                    <textarea
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Describe what you need help with..."
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-900 resize-none focus:outline-none focus:border-hub-green min-h-28"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Lock size={11} className="text-hub-green" />
+                      <span className="text-xs text-gray-400 font-medium">Quantum encrypted · free</span>
+                    </div>
+                    <button
+                      disabled={!message.trim()}
+                      onClick={handleSend}
                       className="flex items-center gap-1.5 bg-hub-green hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-2 px-4 rounded uppercase tracking-widest text-xs transition-all"
                     >
                       <Send size={12} />

@@ -134,7 +134,7 @@ export default function RelayPage() {
               HomesteadRelay's hybrid encryption model is built for that world today.
             </p>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/5 border border-white/10 rounded-xl p-6">
                 <div className="text-xs font-black uppercase tracking-widest text-hub-light mb-2">Classical Layer</div>
                 <div className="text-white font-black uppercase tracking-tight mb-1">X25519 ECDH</div>
@@ -153,12 +153,31 @@ export default function RelayPage() {
               </div>
             </div>
 
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/5 border border-hub-light/30 rounded-xl p-5">
+                <div className="text-xs font-black uppercase tracking-widest text-hub-light mb-2">Support Channel</div>
+                <div className="text-white font-black uppercase tracking-tight mb-1">Quantum by Default · Free</div>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Direct support messages are always quantum-encrypted at no cost. The contract
+                  recognizes designated recipients and waives the fee automatically.
+                </p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                <div className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">General Messaging</div>
+                <div className="text-white font-black uppercase tracking-tight mb-1">Upgrade for $BEER</div>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Standard messages use X25519 encryption at no cost. Participants who want
+                  post-quantum protection pay a $BEER fee — sent directly to the Treasury.
+                </p>
+              </div>
+            </div>
+
             <div className="bg-white/5 border border-white/10 rounded-xl p-6">
               <div className="text-xs font-black uppercase tracking-widest text-hub-light mb-3">The Model</div>
               <p className="text-gray-300 text-sm leading-relaxed">
-                Quantum-ready messaging is a premium tier today — the fee goes directly into the Homestead Treasury.
-                As the Treasury grows, that paywall comes down. The goal is quantum-resistant messaging
-                for every wallet, permanently free, funded by the people who valued it enough to pay first.
+                Early adopters fund the reserve. As the Treasury matures, the quantum fee comes down —
+                not because the Treasury subsidizes it, but because it no longer needs the revenue from it.
+                Free quantum encryption for everyone is the end state. The fee is the path there.
               </p>
             </div>
           </div>
