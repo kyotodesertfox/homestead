@@ -156,7 +156,7 @@ export default function RelayPage() {
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               <div className="bg-white/5 border border-hub-light/30 rounded-xl p-5">
                 <div className="text-xs font-black uppercase tracking-widest text-hub-light mb-2">Support Channel</div>
-                <div className="text-white font-black uppercase tracking-tight mb-1">Quantum by Default · Free</div>
+                <div className="text-white font-black uppercase tracking-tight mb-1">Quantum Encryption · Free</div>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   Direct support messages are always quantum-encrypted at no cost. The contract
                   recognizes designated recipients and waives the fee automatically.

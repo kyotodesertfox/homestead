@@ -155,7 +155,7 @@ export default function HomesteadChat() {
                   <div className="bg-hub-dark rounded-xl p-3 flex items-center gap-2">
                     <Shield size={14} className="text-hub-light shrink-0" />
                     <div>
-                      <p className="text-xs font-black uppercase tracking-widest text-white">Quantum by Default</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-white">Quantum Encryption</p>
                       <p className="text-xs text-gray-400 leading-relaxed mt-0.5">
                         Support messages use hybrid X25519 + ML-KEM-768 encryption at no extra cost.
                       </p>
