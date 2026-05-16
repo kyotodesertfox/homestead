@@ -104,21 +104,13 @@ export default function ProfilePage() {
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900">
             Your <span className="text-hub-green">Dashboard</span>
           </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => disconnect()}
-              className="py-2 px-4 rounded-2xl border-2 border-red-400 text-red-400 hover:bg-red-400 hover:text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95"
-            >
-              Disconnect
-            </button>
-            <button
-              onClick={() => setShowMessages(true)}
-              className="flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-hub-green hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md"
-            >
-              <Lock size={14} />
-              Messages
-            </button>
-          </div>
+          <button
+            onClick={() => setShowMessages(true)}
+            className="flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-hub-green hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md shrink-0"
+          >
+            <Lock size={14} />
+            Messages
+          </button>
         </header>
 
         {showMessages && <MessagesPanel onClose={() => setShowMessages(false)} />}
@@ -129,9 +121,17 @@ export default function ProfilePage() {
           <div className="flex items-center gap-2 mb-5">
             <Wallet size={18} className="text-hub-green" />
             <h2 className="font-black uppercase tracking-tight text-white text-sm">Wallet</h2>
-            <div className="ml-auto flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${onCorrectChain ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-              <span className="text-[9px] font-black uppercase tracking-widest text-stone-400">{chain?.name ?? 'Unknown'}</span>
+            <div className="ml-auto flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${onCorrectChain ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className="text-[9px] font-black uppercase tracking-widest text-stone-400">{chain?.name ?? 'Unknown'}</span>
+              </div>
+              <button
+                onClick={() => disconnect()}
+                className="text-[9px] font-black uppercase tracking-widest text-red-400/60 hover:text-red-400 transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           </div>
 

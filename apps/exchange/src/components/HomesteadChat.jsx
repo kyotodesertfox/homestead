@@ -23,10 +23,7 @@ export default function HomesteadChat() {
   return (
     <>
       {open && (
-        <div
-          className="fixed bottom-20 right-6 w-80 sm:w-96 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
-          style={{ maxHeight: '72vh' }}
-        >
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:right-6 sm:w-96 sm:max-h-[72vh] sm:rounded-2xl bg-white sm:border sm:border-gray-200 shadow-2xl z-50 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-hub-dark px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
