@@ -128,7 +128,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => disconnect()}
-                className="text-[9px] font-black uppercase tracking-widest text-red-400/60 hover:text-red-400 transition-colors"
+                className="text-xs font-black uppercase tracking-widest text-red-400/60 hover:text-red-400 transition-colors"
               >
                 Disconnect
               </button>
