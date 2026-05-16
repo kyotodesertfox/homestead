@@ -123,8 +123,8 @@ export default function ProfilePage() {
             <h2 className="font-black uppercase tracking-tight text-white text-sm">Wallet</h2>
             <div className="ml-auto flex items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${onCorrectChain ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                <span className="text-[9px] font-black uppercase tracking-widest text-stone-400">{chain?.name ?? 'Unknown'}</span>
+                <div className={`w-2 h-2 rounded-full ${onCorrectChain ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className={`text-xs font-black uppercase tracking-widest ${onCorrectChain ? 'text-emerald-400' : 'text-amber-400'}`}>{chain?.name ?? 'Unknown'}</span>
               </div>
               <button
                 onClick={() => disconnect()}
