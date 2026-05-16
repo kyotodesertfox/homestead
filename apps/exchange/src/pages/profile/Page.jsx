@@ -367,6 +367,106 @@ function OrderCard({ tokenId, onClick }) {
   );
 }
 
+// ─── Staking Position Cards ───────────────────────────────────────────────────
+
+function StakingPositionCards({ address }) {
+  const ZERO = '0x0000000000000000000000000000000000000000';
+
+  const { data: staked } = useReadContract({
+    address:      ADDRESSES.TREASURY,
+    abi:          TREASURY_ABI,
+    functionName: 'cumulativeStake',
+    args:         [address ?? ZERO],
+    query:        { enabled: !!address && !!ADDRESSES.TREASURY },
+  });
+
+  const { data: nextBatchId } = useReadContract({
+    address:      ADDRESSES.TREASURY,
+    abi:          TREASURY_ABI,
+    functionName: 'nextBatchId',
+    query:        { enabled: !!ADDRESSES.TREASURY },
+  });
+
+  const batchCount   = nextBatchId != null ? Number(nextBatchId) : 0;
+  const batchIndices = Array.from({ length: batchCount }, (_, i) => i);
+
+  // Read batch structs + claimable amounts in one shot
+  const { data: batchResults, refetch: refetchBatches } = useReadContracts({
+    contracts: [
+      ...batchIndices.map(i => ({
+        address: ADDRESSES.TREASURY, abi: TREASURY_ABI,
+        functionName: 'batches', args: [BigInt(i)],
+      })),
+      ...batchIndices.map(i => ({
+        address: ADDRESSES.TREASURY, abi: TREASURY_ABI,
+        functionName: 'claimableStake', args: [BigInt(i)],
+      })),
+    ],
+    query: { enabled: batchCount > 0 && !!ADDRESSES.TREASURY },
+  });
+
+  const batchStructs  = batchResults?.slice(0, batchCount)?.map(r => r.result) ?? [];
+  const claimableAmts = batchResults?.slice(batchCount)?.map(r => r.result ?? 0n) ?? [];
+
+  // Filter to batches owned by this wallet (brewer = index 0 in tuple)
+  const myBatchIds = batchIndices.filter(
+    i => batchStructs[i]?.[0]?.toLowerCase() === address?.toLowerCase()
+  );
+  const totalClaimable = myBatchIds.reduce((sum, i) => sum + (claimableAmts[i] ?? 0n), 0n);
+
+  const { writeContract, data: claimTxHash, isPending: claiming } = useWriteContract();
+  const { isLoading: claimConfirming, isSuccess: claimDone } = useWaitForTransactionReceipt({ hash: claimTxHash });
+
+  const firstClaimableId = myBatchIds.find(i => (claimableAmts[i] ?? 0n) > 0n);
+
+  const handleClaim = () => {
+    if (firstClaimableId == null) return;
+    writeContract({
+      address:      ADDRESSES.TREASURY,
+      abi:          TREASURY_ABI,
+      functionName: 'claimStake',
+      args:         [BigInt(firstClaimableId)],
+    });
+  };
+
+  useEffect(() => { if (claimDone) refetchBatches(); }, [claimDone]);
+
+  const claimPending = claiming || claimConfirming;
+  const hasClaimable = totalClaimable > 0n;
+
+  return (
+    <div className="grid grid-cols-2 gap-3 mb-5">
+      {/* ETH Staked */}
+      <div className="bg-hub-green/10 rounded-xl p-4 border border-hub-green/20">
+        <p className="text-[9px] font-black uppercase tracking-widest text-hub-green/70 mb-1">ETH Staked</p>
+        <p className="font-black text-white text-2xl">{staked != null ? fmtEth(staked) : '—'}</p>
+        <p className="text-[9px] text-stone-500 font-bold mt-0.5">collateral posted</p>
+      </div>
+
+      {/* ETH Claimable */}
+      <div className={`rounded-xl p-4 border transition-colors ${
+        hasClaimable ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/5 border-white/10'
+      }`}>
+        <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${
+          hasClaimable ? 'text-amber-400' : 'text-stone-500'
+        }`}>ETH Claimable</p>
+        <p className="font-black text-white text-2xl">{fmtEth(totalClaimable)}</p>
+        {hasClaimable ? (
+          <button
+            onClick={handleClaim}
+            disabled={claimPending}
+            className="mt-1.5 text-[9px] font-black uppercase tracking-widest text-amber-400 hover:text-amber-300 disabled:opacity-40 transition-colors"
+          >
+            {claimPending ? 'Claiming…' : claimDone ? 'Claimed ✓' : 'Claim →'}
+          </button>
+        ) : (
+          <p className="text-[9px] text-stone-500 font-bold mt-0.5">unlocked on redemption</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Beer Card (shows BEER + LP balance) ─────────────────────────────────────
 function BeerCard({ beerRaw, address, onOpen }) {
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -1148,31 +1248,8 @@ function LiquidityModal({ onClose }) {
                 </p>
               </div>
 
-              {/* Grayed-out — explainer + position cards */}
-              <div className="opacity-40 pointer-events-none select-none space-y-4">
-
-                <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                  <p className="text-xs font-bold text-white leading-relaxed">
-                    To brew a batch and emit $BEER, you must post ETH as collateral.
-                    Your ETH is held in Treasury until each bottle is physically redeemed — released pro-rata on every redemption.
-                    Misrepresented batches are slashed and the ETH remains in Treasury as permanent floor.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1">ETH Staked</p>
-                    <p className="font-black text-white text-2xl">—</p>
-                    <p className="text-[9px] text-stone-500 font-bold mt-0.5">collateral posted</p>
-                  </div>
-                  <div className="bg-hub-green/10 rounded-xl p-4 border border-hub-green/20">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-hub-green/60 mb-1">Max Emittable</p>
-                    <p className="font-black text-white text-2xl">—</p>
-                    <p className="text-[9px] text-stone-500 font-bold mt-0.5">$BEER from stake</p>
-                  </div>
-                </div>
-
-              </div>
+              {/* Live position cards */}
+              <StakingPositionCards address={address} />
 
               {/* Live calculator — interactive */}
               <div className="mt-5 space-y-2">
