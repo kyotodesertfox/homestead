@@ -36,8 +36,8 @@ export default function MessagesPanel({ onClose }) {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Sidebar — conversation list */}
-        <div className="w-72 shrink-0 bg-white border-r border-gray-100 flex flex-col">
+        {/* Sidebar — conversation list; hidden on mobile when a thread is open */}
+        <div className={`w-full sm:w-72 shrink-0 bg-white border-r border-gray-100 flex-col ${selected ? 'hidden sm:flex' : 'flex'}`}>
 
           {/* Tabs */}
           <div className="flex border-b border-gray-100">
@@ -104,12 +104,19 @@ export default function MessagesPanel({ onClose }) {
           </div>
         </div>
 
-        {/* Thread view */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Thread view; full width on mobile when a thread is open */}
+        <div className={`flex-col overflow-hidden ${selected ? 'flex flex-1' : 'hidden sm:flex sm:flex-1'}`}>
           {selected ? (
             <>
               {/* Thread header */}
               <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center gap-3 shrink-0">
+                {/* Back to list on mobile */}
+                <button
+                  onClick={() => setSelected(null)}
+                  className="sm:hidden text-gray-400 hover:text-gray-700 transition-colors mr-1"
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <div className="w-9 h-9 rounded-full bg-hub-green/10 border border-hub-green/20 flex items-center justify-center">
                   <span className="text-sm font-black text-hub-green">{selected.address.slice(2, 4).toUpperCase()}</span>
                 </div>

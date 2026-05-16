@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Info, Plus, X, ImagePlus, Copy, CheckCheck, Upload, ArrowRight, PackagePlus } from 'lucide-react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI } from '../../contracts';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI } from '../../contracts';
 
 // ─── IPFS ────────────────────────────────────────────────────────────────────
 const IPFS_GW    = 'https://ipfs.io/ipfs/';
@@ -609,7 +609,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
   const [bought,   setBought]   = useState(false);
   const [showStock, setShowStock] = useState(false);
 
-  const [, , price, , inventoryCount, active] = listing;
+  const [, , price, proceeds, inventoryCount, active] = listing;
   const inStock  = inventoryCount != null && inventoryCount > 0n;
   const priceStr = price != null ? formatUnits(price, 18) : '—';
 
@@ -683,7 +683,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
               <X size={20} />
             </button>
 
-            {/* Name + style */}
+            {/* Name + style + reputation */}
             <div>
               <h2 className="text-gray-900 font-black text-2xl leading-tight">
                 {meta?.name ?? 'Beer NFT'}
@@ -692,6 +692,14 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                 <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-1">
                   {meta.style}
                 </p>
+              )}
+              {proceeds && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+                    {proceeds.slice(0, 6)}…{proceeds.slice(-4)}
+                  </span>
+                  <ReputationBadge seller={proceeds} />
+                </div>
               )}
             </div>
 
@@ -794,6 +802,33 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
   );
 }
 
+// ─── Reputation Badge ─────────────────────────────────────────────────────────
+const TIER_LABELS = { 1: 'Holder', 2: 'Producer', 3: 'Trusted' };
+const TIER_CLS    = {
+  1: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
+  2: 'bg-hub-green/10 text-hub-green border-hub-green/30',
+  3: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+};
+
+function ReputationBadge({ seller }) {
+  const { data: tier } = useReadContract({
+    address:      ADDRESSES.TREASURY,
+    abi:          TREASURY_ABI,
+    functionName: 'attestationTier',
+    args:         [seller],
+    query:        { enabled: !!seller && !!ADDRESSES.TREASURY },
+  });
+
+  if (!tier || tier === 0) return null;
+
+  return (
+    <span className={`inline-flex items-center gap-1 border text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${TIER_CLS[tier]}`}>
+      <span className="w-1 h-1 rounded-full bg-current" />
+      {TIER_LABELS[tier] ?? 'Verified'}
+    </span>
+  );
+}
+
 // ─── Listing Card ─────────────────────────────────────────────────────────────
 function ListingCard({ id, onStyleResolved, isOwner }) {
   const { address } = useAccount();
@@ -837,7 +872,7 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
   }, [tokenUri]);
 
   if (!listing) return null;
-  const [, , price, , inventoryCount, active] = listing;
+  const [, , price, proceeds, inventoryCount, active] = listing;
   if (!active) return null;
 
   const priceStr = price != null ? formatUnits(price, 18) : '—';
@@ -894,6 +929,11 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
               <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-0.5">
                 {meta.style}
               </p>
+            )}
+            {proceeds && (
+              <div className="mt-1.5">
+                <ReputationBadge seller={proceeds} />
+              </div>
             )}
           </div>
 
