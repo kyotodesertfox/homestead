@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink, LayoutDashboard, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const { open } = useAppKit();
   const { isConnected, address } = useAccount();
+  const { disconnect } = useDisconnect();
 
   const closeMenu = () => setIsOpen(false);
 
@@ -76,11 +77,19 @@ export default function Navbar() {
 
       <div className={`${isOpen ? 'block' : 'hidden'} md:hidden bg-hub-dark border-t border-hub-green/20`}>
         <div className="px-4 pt-2 pb-6 space-y-1">
-          <MobileNavLink to="/relay"   icon={<Radio size={20} />}            label="Relay"   onClick={closeMenu} />
-          <MobileNavLink to="/market"  icon={<ShoppingBag size={20} />}    label="Market"  onClick={closeMenu} />
-          <MobileNavLink to="/swap"    icon={<Repeat size={20} />}          label="Swap"    onClick={closeMenu} />
-          <MobileNavLink to="/bridge"  icon={<ArrowLeftRight size={20} />}  label="Bridge"  onClick={closeMenu} />
-          <div className="pt-4 px-3">
+          <MobileNavLink to="/relay"   icon={<Radio size={20} />}           label="Messages" onClick={closeMenu} />
+          <MobileNavLink to="/market"  icon={<ShoppingBag size={20} />}   label="Market"   onClick={closeMenu} />
+          <MobileNavLink to="/swap"    icon={<Repeat size={20} />}         label="Swap"     onClick={closeMenu} />
+          <MobileNavLink to="/bridge"  icon={<ArrowLeftRight size={20} />} label="Bridge"   onClick={closeMenu} />
+          <div className="pt-4 px-3 space-y-2">
+            {isConnected && (
+              <button
+                onClick={() => { disconnect(); closeMenu(); }}
+                className="w-full bg-red-900/40 hover:bg-red-800/60 text-red-400 py-3 rounded-xl font-black uppercase tracking-widest text-sm border border-red-800/40 transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
             {isConnected ? (
               <Link
                 to="/profile"

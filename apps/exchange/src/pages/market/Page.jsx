@@ -173,7 +173,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
       address: ADDRESSES.MARKETPLACE,
       abi:     MARKETPLACE_ABI,
       functionName: 'createListing',
-      args: [ADDRESSES.BEER_NFT, ADDRESSES.BEER_TOKEN, parseUnits('1', 18), address],
+      args: [ADDRESSES.BEER_NFT, ADDRESSES.BEER_TOKEN, 1n, address],
     });
   };
 
@@ -182,7 +182,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-hub-dark rounded-3xl w-full max-w-lg border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-hub-dark rounded-3xl w-full max-w-lg border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-8 pt-8 pb-4 shrink-0">

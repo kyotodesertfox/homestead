@@ -37,9 +37,9 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     mapping(address => uint256) public nftPrices;
 
     // ---- STAKE SYSTEM (added in upgrade) ----
-    address public beerToken;
-    uint256 public stakeRatioBps;       // e.g. 1000 = brewer must stake 10% of beerToEmit
-    uint256 public minListingBalance;   // minimum $BEER balance to call postStake
+    address public farmToken;       // $FARM governance token — minted as reward on stake and LP claim
+    uint256 public farmStakeBps;    // bps of ETH staked value to emit as $FARM at spot (e.g. 1000 = 10%)
+    uint256 public farmLpBps;       // bps of LP reward ETH value to emit as $FARM at spot
     uint256 public nextBatchId;         // auto-starts at 1 (pre-increment on first use)
     mapping(uint256 => Batch) public batches;
     mapping(address => bool) public isTrustedCaller;
@@ -57,7 +57,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // ETH thresholds per tier: tier → minimum cumulative ETH (in wei)
     mapping(uint8 => uint256) public tierThreshold;
 
-    uint256[31] private __gap;
+    // Attestation relay — the single HomesteadRelay instance authorized to record redemptions.
+    // Separate from isTrustedCaller (financial callbacks) so each can be revoked independently.
+    address public trustedRelay;
+
+    uint256[30] private __gap;
 
     // =========================================================================
 
@@ -86,9 +90,15 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event TierThresholdSet(uint8 indexed tier, uint256 ethAmount);
     event BatchListed(uint256 indexed batchId, uint256 indexed listingId);
     event TrustedCallerSet(address indexed caller, bool trusted);
+    event TrustedRelaySet(address indexed relay);
     event LPRewardClaimed(address indexed to, address indexed token, uint256 ethIn, uint256 tokenOut);
     event WethSet(address indexed weth);
     event LpRewardFeeBpsUpdated(uint256 feeBps);
+    event FarmTokenSet(address indexed farmToken);
+    event FarmStakeBpsSet(uint256 bps);
+    event FarmLpBpsSet(uint256 bps);
+    event FarmStakeReward(address indexed to, uint256 farmAmount, uint256 ethStaked);
+    event FarmLPReward(address indexed to, uint256 farmAmount, uint256 ethIn);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -245,7 +255,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         address pair = IFactory(dexFactory).getPair(token, _weth);
         if (pair == address(0)) return 0;
 
-        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
+        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
         if (r0 == 0 || r1 == 0) return 0;
 
         address t0 = IPair(pair).token0();
@@ -304,6 +314,27 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
         if (token != address(0) && tokenToEmit > 0) {
             IMintableToken(token).mintToWallet(msg.sender, tokenToEmit);
+        }
+
+        // Governance reward — $FARM emitted at DEX spot price, proportional to ETH staked.
+        // Dormant until farmToken, farmStakeBps, weth, and the FARM/WETH pair are all configured.
+        if (farmToken != address(0) && farmStakeBps > 0 && weth != address(0)) {
+            address farmPair = IFactory(dexFactory).getPair(farmToken, weth);
+            if (farmPair != address(0)) {
+                (uint112 fr0, uint112 fr1,) = IPair(farmPair).getReserves();
+                if (fr0 > 0 && fr1 > 0) {
+                    uint256 ethForFarm = (msg.value * farmStakeBps) / 10000;
+                    address ft0 = IPair(farmPair).token0();
+                    uint256 farmBaseUnits = (ft0 == weth)
+                        ? (ethForFarm * uint256(fr1)) / uint256(fr0)
+                        : (ethForFarm * uint256(fr0)) / uint256(fr1);
+                    uint256 farmHuman = farmBaseUnits / 1e18;
+                    if (farmHuman > 0) {
+                        IMintableToken(farmToken).mintToWallet(msg.sender, farmHuman);
+                        emit FarmStakeReward(msg.sender, farmHuman, msg.value);
+                    }
+                }
+            }
         }
 
         if (nftCount > 0) {
@@ -394,16 +425,27 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         emit TrustedCallerSet(caller, trusted);
     }
 
-    function setBeerToken(address _beerToken) external onlyOwner {
-        beerToken = _beerToken;
+    function setTrustedRelay(address relay) external onlyOwner {
+        trustedRelay = relay;
+        emit TrustedRelaySet(relay);
     }
 
-    function setStakeRatioBps(uint256 bps) external onlyOwner {
-        stakeRatioBps = bps;
+    function setFarmToken(address _farmToken) external onlyOwner {
+        require(_farmToken == address(0) || ITokenDeployer(tokenDeployer).isRegistered(_farmToken), 'Treasury: UNREGISTERED_TOKEN');
+        farmToken = _farmToken;
+        emit FarmTokenSet(_farmToken);
     }
 
-    function setMinListingBalance(uint256 amount) external onlyOwner {
-        minListingBalance = amount;
+    function setFarmStakeBps(uint256 bps) external onlyOwner {
+        require(bps <= 10000, 'Treasury: BPS_TOO_HIGH');
+        farmStakeBps = bps;
+        emit FarmStakeBpsSet(bps);
+    }
+
+    function setFarmLpBps(uint256 bps) external onlyOwner {
+        require(bps <= 10000, 'Treasury: BPS_TOO_HIGH');
+        farmLpBps = bps;
+        emit FarmLpBpsSet(bps);
     }
 
     // =========================================================================
@@ -467,20 +509,43 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         address pair = IFactory(dexFactory).getPair(rewardToken, weth);
         require(pair != address(0), 'Treasury: PAIR_NOT_FOUND');
 
-        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
+        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
         require(r0 > 0 && r1 > 0, 'Treasury: NO_LIQUIDITY');
 
         address t0 = IPair(pair).token0();
-        // Convert ETH value to token amount using spot price
-        uint256 tokenAmount = (t0 == weth)
+        // Convert ETH value to token amount using spot price; divide by 1e18 for human amount
+        // (mintToWallet scales internally — passing base units would double-scale)
+        uint256 tokenBaseUnits = (t0 == weth)
             ? (msg.value * uint256(r1)) / uint256(r0)   // r0=WETH, r1=token
             : (msg.value * uint256(r0)) / uint256(r1);  // r0=token, r1=WETH
+        uint256 tokenHuman = tokenBaseUnits / 1e18;
 
-        require(tokenAmount > 0, 'Treasury: ZERO_REWARD');
+        require(tokenHuman > 0, 'Treasury: ZERO_REWARD');
 
         // ETH stays in Treasury as permanent floor (not added to accumulatedFees)
-        IMintableToken(rewardToken).mintToWallet(to, tokenAmount);
-        emit LPRewardClaimed(to, rewardToken, msg.value, tokenAmount);
+        IMintableToken(rewardToken).mintToWallet(to, tokenHuman);
+        emit LPRewardClaimed(to, rewardToken, msg.value, tokenHuman);
+
+        // Governance reward — $FARM emitted at DEX spot price, proportional to LP reward ETH.
+        // Dormant until farmToken, farmLpBps, and the FARM/WETH pair are all configured.
+        if (farmToken != address(0) && farmLpBps > 0) {
+            address farmPair = IFactory(dexFactory).getPair(farmToken, weth);
+            if (farmPair != address(0)) {
+                (uint112 fr0, uint112 fr1,) = IPair(farmPair).getReserves();
+                if (fr0 > 0 && fr1 > 0) {
+                    uint256 ethForFarm = (msg.value * farmLpBps) / 10000;
+                    address ft0 = IPair(farmPair).token0();
+                    uint256 farmBaseUnits = (ft0 == weth)
+                        ? (ethForFarm * uint256(fr1)) / uint256(fr0)
+                        : (ethForFarm * uint256(fr0)) / uint256(fr1);
+                    uint256 farmHuman = farmBaseUnits / 1e18;
+                    if (farmHuman > 0) {
+                        IMintableToken(farmToken).mintToWallet(to, farmHuman);
+                        emit FarmLPReward(to, farmHuman, msg.value);
+                    }
+                }
+            }
+        }
     }
 
     function setWeth(address _weth) external onlyOwner {

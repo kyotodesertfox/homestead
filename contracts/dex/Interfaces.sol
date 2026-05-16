@@ -28,7 +28,7 @@ interface IFactory {
 interface IPair {
     function token0() external view returns (address);
     function token1() external view returns (address);
-    function getReserves() external view returns (uint112 reserve0, uint112 reserve1);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
     function totalSupply() external view returns (uint256);
     function mint(address to) external returns (uint256 liquidity);
     function burn(address to) external returns (uint256 amount0, uint256 amount1);
@@ -64,6 +64,7 @@ interface ITreasury {
     function dexExitFeeBps() external view returns (uint256);
     function lpRewardFeeBps() external view returns (uint256);
     function marketplaceFeeBps() external view returns (uint256);
+    function trustedRelay() external view returns (address);
     // Called by Marketplace when a brewer's listing is created
     function markListed(uint256 batchId, uint256 listingId) external;
     // Called by Marketplace when a physical bottle is redeemed
@@ -102,7 +103,7 @@ library HomesteadLibrary {
         (address token0,) = sortTokens(tokenA, tokenB);
         address pair = IFactory(factory).getPair(tokenA, tokenB);
         require(pair != address(0), 'Library: PAIR_NOT_FOUND');
-        (uint112 reserve0, uint112 reserve1) = IPair(pair).getReserves();
+        (uint112 reserve0, uint112 reserve1,) = IPair(pair).getReserves();
         (reserveA, reserveB) = tokenA == token0
             ? (uint256(reserve0), uint256(reserve1))
             : (uint256(reserve1), uint256(reserve0));

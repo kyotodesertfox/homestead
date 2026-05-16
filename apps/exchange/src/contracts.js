@@ -179,6 +179,7 @@ export const MARKETPLACE_ABI = [
       { name: 'paymentToken', type: 'address' },
       { name: 'price',        type: 'uint256' },
       { name: 'batchId',      type: 'uint256' },
+      { name: 'subsidyCount', type: 'uint256' },
     ],
     outputs: [{ name: 'listingId', type: 'uint256' }],
   },
@@ -200,6 +201,12 @@ export const MARKETPLACE_ABI = [
   { name: 'getInventory',     type: 'function', stateMutability: 'view',        inputs: [{ name: 'listingId', type: 'uint256' }], outputs: [{ type: 'uint256[]' }] },
   { name: 'depositInventory',  type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'tokenIds',  type: 'uint256[]' }], outputs: [] },
   { name: 'withdrawInventory', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'listingId', type: 'uint256' }, { name: 'count',     type: 'uint256'   }], outputs: [] },
+  {
+    name: 'getTokenListing', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: 'listingId', type: 'uint256' }, { name: 'batchId', type: 'uint256' }],
+  },
+  { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'nftContract', type: 'address' }, { name: 'tokenId', type: 'uint256' }], outputs: [] },
 ];
 
 export const NFT_ABI = [
@@ -214,6 +221,9 @@ export const NFT_ABI = [
   { name: 'mintBatch',        type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to', type: 'address' }, { name: 'cids', type: 'string[]' }], outputs: [{ name: 'startTokenId', type: 'uint256' }] },
   { name: 'isApprovedForAll', type: 'function', stateMutability: 'view',        inputs: [{ name: 'owner', type: 'address' }, { name: 'operator', type: 'address' }], outputs: [{ type: 'bool' }] },
   { name: 'setApprovalForAll', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'operator', type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
+  { name: 'balanceOf',           type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'tokenOfOwnerByIndex', type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }, { name: 'index', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'redeemed',            type: 'function', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
 ];
 
 export const TOKEN_DEPLOYER_ABI = [

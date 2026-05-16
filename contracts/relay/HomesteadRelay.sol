@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ITreasury {
@@ -10,7 +11,7 @@ interface ITreasury {
 }
 
 interface IBurnableToken {
-    function burn(uint256 amount) external;
+    function burnFrom(address account, uint256 amount) external;
 }
 
 interface IPair {
@@ -18,12 +19,16 @@ interface IPair {
     function token0() external view returns (address);
 }
 
-contract HomesteadRelay is Ownable {
+interface IMarketplace {
+    function chargeSubsidy(address nftContract, uint256 tokenId, uint256 fee) external returns (bool);
+}
 
-    uint8 public constant TIER_NONE     = 0;
-    uint8 public constant TIER_HOLDER   = 1;
-    uint8 public constant TIER_BREWER   = 2;
-    uint8 public constant TIER_VERIFIED = 3;
+contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
+
+    // =========================================================================
+    // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
+    // Add new variables above __gap, reducing gap size accordingly.
+    // =========================================================================
 
     address public treasury;
     address public feeToken;   // $BEER — burned on token path
@@ -51,6 +56,18 @@ contract HomesteadRelay is Ownable {
     mapping(uint256 => mapping(address => bool)) public isMember;
     mapping(address => mapping(uint256 => bool)) public redeemed;
 
+    // Marketplace address — used to check and charge quantum delivery message subsidies.
+    address public marketplace;
+
+    uint256[45] private __gap;
+
+    // =========================================================================
+
+    uint8 public constant TIER_NONE     = 0;
+    uint8 public constant TIER_HOLDER   = 1;
+    uint8 public constant TIER_BREWER   = 2;
+    uint8 public constant TIER_VERIFIED = 3;
+
     // Kyber-768 pubkey (1184 bytes) emitted once on registration — clients cache per recipient
     event KeyRegistered(address indexed wallet, bytes32 x25519Key, bytes kyberKey);
     event AttestationSet(address indexed wallet, uint8 tier);
@@ -70,11 +87,23 @@ contract HomesteadRelay is Ownable {
         _;
     }
 
-    constructor(address _treasury, address _feeToken, uint256 _quantumFee) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _treasury,
+        address _feeToken,
+        uint256 _quantumFee
+    ) initializer public {
+        __Ownable_init(msg.sender);
         treasury   = _treasury;
         feeToken   = _feeToken;
         quantumFee = _quantumFee;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // --- Key Registry ---
 
@@ -119,13 +148,37 @@ contract HomesteadRelay is Ownable {
             (bool ok,) = treasury.call{value: msg.value}("");
             require(ok, "Relay: ETH_FAILED");
         } else if (!exempt) {
-            // $BEER path — always 1 unit, burned from sender
-            IERC20(feeToken).transferFrom(msg.sender, address(this), quantumFee);
-            IBurnableToken(feeToken).burn(quantumFee);
+            // $BEER path — burned directly from sender (requires prior approval of this contract)
+            IBurnableToken(feeToken).burnFrom(msg.sender, quantumFee);
         }
     }
 
     // --- 1:1 Messaging ---
+
+    // Purchase coordination path — checks seller's subsidy before charging sender.
+    // Buyer provides the NFT context; if the listing has remaining subsidy the seller's
+    // pre-deposited $FARM is burned instead of charging the buyer.
+    function sendDeliveryMessage(
+        address to,
+        bytes calldata encryptedPayload,
+        bool quantumReady,
+        address nftContract,
+        uint256 tokenId
+    ) external payable {
+        require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
+        if (quantumReady && quantumFee > 0) {
+            bool subsidized = false;
+            if (marketplace != address(0)) {
+                try IMarketplace(marketplace).chargeSubsidy(nftContract, tokenId, quantumFee) returns (bool charged) {
+                    subsidized = charged;
+                } catch {}
+            }
+            if (!subsidized) {
+                _chargeQuantumFee(quantumFreeRecipient[to]);
+            }
+        }
+        emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
+    }
 
     function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external payable {
         require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
@@ -192,11 +245,10 @@ contract HomesteadRelay is Ownable {
 
     // --- Config ---
 
-    function setTreasury(address _treasury)                        external onlyOwner { treasury                        = _treasury; }
-    function setFeeToken(address _feeToken)                        external onlyOwner { feeToken                        = _feeToken; }
-    function setQuantumFee(uint256 _fee)                           external onlyOwner { quantumFee                      = _fee;      }
-    function setDexPair(address _dexPair)                          external onlyOwner { dexPair                         = _dexPair;  }
-    function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;    }
-
-    uint256[46] private __gap;
+    function setTreasury(address _treasury)                        external onlyOwner { treasury                        = _treasury;    }
+    function setFeeToken(address _feeToken)                        external onlyOwner { feeToken                        = _feeToken;    }
+    function setQuantumFee(uint256 _fee)                           external onlyOwner { quantumFee                      = _fee;         }
+    function setDexPair(address _dexPair)                          external onlyOwner { dexPair                         = _dexPair;     }
+    function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;       }
+    function setMarketplace(address _marketplace)                  external onlyOwner { marketplace                     = _marketplace; }
 }

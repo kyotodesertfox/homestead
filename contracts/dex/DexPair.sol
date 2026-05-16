@@ -120,9 +120,10 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // RESERVES
     // =========================================================================
 
-    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1) {
-        _reserve0 = reserve0;
-        _reserve1 = reserve1;
+    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
+        _reserve0           = reserve0;
+        _reserve1           = reserve1;
+        _blockTimestampLast = blockTimestampLast;
     }
 
     function _update(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
@@ -150,7 +151,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
         _updateReward(to);
-        (uint112 _reserve0, uint112 _reserve1) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
@@ -182,7 +183,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
-        (uint112 _reserve0, uint112 _reserve1) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
         uint256 balance0  = IERC20(token0).balanceOf(address(this));
         uint256 balance1  = IERC20(token1).balanceOf(address(this));
@@ -214,7 +215,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     function swap(uint256 amount0Out, uint256 amount1Out, address to) external nonReentrant {
         require(amount0Out > 0 || amount1Out > 0, 'DEXPair: INSUFFICIENT_OUTPUT_AMOUNT');
 
-        (uint112 _reserve0, uint112 _reserve1) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'DEXPair: INSUFFICIENT_LIQUIDITY');
         require(to != token0 && to != token1, 'DEXPair: INVALID_TO');
 

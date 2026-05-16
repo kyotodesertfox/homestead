@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
 import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI } from '../../contracts';
-import MessagesPanel from '../../components/MessagesPanel';
-import StakePanel    from '../../components/StakePanel';
+import MessagesPanel      from '../../components/MessagesPanel';
+import StakePanel         from '../../components/StakePanel';
+import OrderTrackingModal from '../../components/OrderTrackingModal';
 
 const HUB_CHAIN_ID = 167000;
 
@@ -134,8 +135,9 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <div className="flex-1 bg-white/5 rounded-2xl p-4 border border-white/10">
+          <div className="flex flex-col gap-4">
+            {/* Address — full width */}
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 w-full">
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Address</p>
               <div className="flex items-center gap-2">
                 <span className="font-black text-white text-base">{fmt(address)}</span>
@@ -154,21 +156,24 @@ export default function ProfilePage() {
                 </a>
               </div>
             </div>
-            <div className="bg-white/5 rounded-2xl p-4 min-w-[110px] border border-white/10">
-              <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
-              <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
-            </div>
-            <button
-              onClick={() => setShowStake(true)}
-              className="bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green rounded-2xl p-4 min-w-[110px] text-left transition-all group"
-            >
-              <p className="text-[10px] font-black uppercase tracking-widest text-hub-green mb-1">Stake</p>
-              <p className="font-black text-white text-2xl">{cumulativeStake != null ? fmtEth(cumulativeStake) : '—'}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Manage</span>
-                <ChevronRight size={10} className="text-white/30 group-hover:text-hub-green transition-colors" />
+            {/* ETH + Stake — side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
+                <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
               </div>
-            </button>
+              <button
+                onClick={() => setShowStake(true)}
+                className="bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green rounded-2xl p-4 text-left transition-all group"
+              >
+                <p className="text-[10px] font-black uppercase tracking-widest text-hub-green mb-1">Stake</p>
+                <p className="font-black text-white text-2xl">{cumulativeStake != null ? fmtEth(cumulativeStake) : '—'}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Manage</span>
+                  <ChevronRight size={10} className="text-white/30 group-hover:text-hub-green transition-colors" />
+                </div>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -185,6 +190,9 @@ export default function ProfilePage() {
 
         {/* NFT Listings */}
         <MyListingsSection address={address} />
+
+        {/* My Orders */}
+        <MyOrdersSection address={address} />
 
         {/* Quick actions */}
         <section>
@@ -215,6 +223,147 @@ export default function ProfilePage() {
 
       </div>
     </div>
+  );
+}
+
+// ─── My Orders ───────────────────────────────────────────────────────────────
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
+function MyOrdersSection({ address }) {
+  const [trackingToken, setTrackingToken] = useState(null);
+
+  const { data: nftBalance } = useReadContract({
+    address: ADDRESSES.BEER_NFT,
+    abi:     NFT_ABI,
+    functionName: 'balanceOf',
+    args:    [address ?? ZERO_ADDR],
+    query:   { enabled: !!address && !!ADDRESSES.BEER_NFT },
+  });
+
+  const indices = nftBalance != null
+    ? Array.from({ length: Number(nftBalance) }, (_, i) => BigInt(i))
+    : [];
+
+  const { data: tokenIdResults } = useReadContracts({
+    contracts: indices.map(i => ({
+      address:      ADDRESSES.BEER_NFT,
+      abi:          NFT_ABI,
+      functionName: 'tokenOfOwnerByIndex',
+      args:         [address, i],
+    })),
+    query: { enabled: indices.length > 0 },
+  });
+
+  const tokenIds = tokenIdResults?.map(r => r.result).filter(t => t != null) ?? [];
+
+  const { data: listingResults } = useReadContracts({
+    contracts: tokenIds.map(tokenId => ({
+      address:      ADDRESSES.MARKETPLACE,
+      abi:          MARKETPLACE_ABI,
+      functionName: 'getTokenListing',
+      args:         [tokenId],
+    })),
+    query: { enabled: tokenIds.length > 0 && !!ADDRESSES.MARKETPLACE },
+  });
+
+  // Only show tokens that were bought through a marketplace listing
+  const orderTokens = tokenIds.filter((_, i) => {
+    const res = listingResults?.[i]?.result;
+    if (!res) return false;
+    const [listingId, batchId] = res;
+    return listingId > 0n || batchId > 0n;
+  });
+
+  if (!address || orderTokens.length === 0) return null;
+
+  return (
+    <>
+      <section>
+        <h2 className="font-black uppercase tracking-tight text-gray-900 text-sm mb-4">My Orders</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {orderTokens.map(tokenId => (
+            <OrderCard
+              key={tokenId.toString()}
+              tokenId={tokenId}
+              onClick={() => setTrackingToken(tokenId)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {trackingToken != null && (
+        <OrderTrackingModal
+          tokenId={trackingToken}
+          nftContract={ADDRESSES.BEER_NFT}
+          onClose={() => setTrackingToken(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function OrderCard({ tokenId, onClick }) {
+  const [meta,   setMeta]   = useState(null);
+  const [imgErr, setImgErr] = useState(false);
+
+  const { data: tokenUri } = useReadContract({
+    address:      ADDRESSES.BEER_NFT,
+    abi:          NFT_ABI,
+    functionName: 'tokenURI',
+    args:         [tokenId],
+    query:        { enabled: tokenId != null },
+  });
+
+  const { data: redeemed } = useReadContract({
+    address:      ADDRESSES.BEER_NFT,
+    abi:          NFT_ABI,
+    functionName: 'redeemed',
+    args:         [tokenId],
+    query:        { enabled: tokenId != null },
+  });
+
+  useEffect(() => {
+    if (!tokenUri) return;
+    fetchNftMeta(tokenUri).then(m => m && setMeta(m));
+  }, [tokenUri]);
+
+  const statusLabel = redeemed ? 'Redeemed' : 'In Delivery';
+  const statusCls   = redeemed
+    ? 'bg-stone-700 text-stone-400'
+    : 'bg-hub-green text-white';
+
+  return (
+    <button
+      onClick={onClick}
+      className="bg-hub-dark border-2 border-white/10 hover:border-hub-green/50 rounded-2xl overflow-hidden text-left transition-all group"
+    >
+      <div className="relative aspect-square bg-black/30 overflow-hidden">
+        {meta?.image && !imgErr ? (
+          <img
+            src={meta.image}
+            alt={meta.name ?? 'NFT'}
+            onError={() => setImgErr(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <PackageOpen size={32} className="text-white/10" />
+          </div>
+        )}
+        <span className={`absolute top-2 left-2 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusCls}`}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="p-3">
+        <p className="text-white font-black text-sm truncate leading-tight">
+          {meta?.name ?? `Token #${tokenId}`}
+        </p>
+        <p className="text-stone-500 text-[9px] font-black uppercase tracking-widest mt-0.5">
+          #{tokenId.toString()} · Track order →
+        </p>
+      </div>
+    </button>
   );
 }
 
@@ -781,7 +930,7 @@ function LiquidityModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-7 pt-7 pb-4 shrink-0">

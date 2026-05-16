@@ -12,6 +12,11 @@ interface IBurnableToken {
     function burn(uint256 amount) external;
 }
 
+interface IRelay {
+    function recordRedemption(address redeemer, address token, uint256 tokenId) external;
+    function quantumFee() external view returns (uint256);
+}
+
 contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
     // =========================================================================
@@ -33,7 +38,16 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // $BEER held in escrow per token — burned on redemption to release brewer's stake
     mapping(uint256 => uint256) private _escrowedBeer;
 
-    uint256[42] private __gap;
+    // Attestation relay — best-effort call after economic settlement completes.
+    // A Relay failure never reverts the redemption; Treasury and producer are protected first.
+    address public relay;
+
+    // $FARM governance token — collected upfront as quantum messaging subsidy at listing creation.
+    address public farmToken;
+    // $FARM balance held in escrow per listing — burned per subsidized delivery message.
+    mapping(uint256 => uint256) private _subsidyBalance;
+
+    uint256[39] private __gap;
 
     // =========================================================================
 
@@ -46,6 +60,11 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         bool active;
     }
 
+    event RelaySet(address indexed relay);
+    event FarmTokenSet(address indexed farmToken);
+    event SubsidyDeposited(uint256 indexed listingId, address indexed seller, uint256 amount);
+    event SubsidyCharged(uint256 indexed listingId, uint256 fee, uint256 remaining);
+    event SubsidyReclaimed(uint256 indexed listingId, address indexed to, uint256 amount);
     event ListingCreated(uint256 indexed listingId, address indexed nftContract, address indexed paymentToken, address proceeds, uint256 price);
     event InventoryDeposited(uint256 indexed listingId, uint256 count, uint256 totalInventory);
     event InventoryWithdrawn(uint256 indexed listingId, uint256 count);
@@ -84,7 +103,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         address nftContract,
         address paymentToken,
         uint256 price,
-        uint256 batchId
+        uint256 batchId,
+        uint256 subsidyCount  // number of quantum delivery messages seller covers; 0 = no subsidy
     ) external whenNotPaused returns (uint256 listingId) {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
@@ -107,13 +127,27 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         listingId = nextListingId++;
         _listings[listingId].nftContract  = nftContract;
         _listings[listingId].paymentToken = paymentToken;
-        _listings[listingId].price        = price;
+        _listings[listingId].price        = price * 1e18;
         _listings[listingId].proceeds     = msg.sender;
         _listings[listingId].active       = true;
 
         if (batchId > 0) {
             _listingBatch[listingId] = batchId;
             ITreasury(feeCollector).markListed(batchId, listingId);
+        }
+
+        if (subsidyCount > 0) {
+            require(farmToken != address(0), 'Marketplace: FARM_NOT_SET');
+            require(relay != address(0),     'Marketplace: RELAY_NOT_SET');
+            uint256 fee = IRelay(relay).quantumFee();
+            require(fee > 0, 'Marketplace: QUANTUM_FEE_NOT_SET');
+            uint256 totalSubsidy = subsidyCount * fee;
+            require(
+                IERC20(farmToken).transferFrom(msg.sender, address(this), totalSubsidy),
+                'Marketplace: SUBSIDY_TRANSFER_FAILED'
+            );
+            _subsidyBalance[listingId] = totalSubsidy;
+            emit SubsidyDeposited(listingId, msg.sender, totalSubsidy);
         }
 
         emit ListingCreated(listingId, nftContract, paymentToken, msg.sender, price);
@@ -166,6 +200,16 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             'Marketplace: NOT_AUTHORIZED'
         );
         _listings[listingId].active = active;
+
+        // Auto-return unused subsidy when seller deactivates — natural "I'm done" signal.
+        if (!active && farmToken != address(0)) {
+            uint256 subBal = _subsidyBalance[listingId];
+            if (subBal > 0) {
+                _subsidyBalance[listingId] = 0;
+                IERC20(farmToken).transfer(_listings[listingId].proceeds, subBal);
+                emit SubsidyReclaimed(listingId, _listings[listingId].proceeds, subBal);
+            }
+        }
     }
 
     function updatePrice(uint256 listingId, uint256 newPrice) external {
@@ -174,7 +218,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             msg.sender == owner() || msg.sender == _listings[listingId].proceeds,
             'Marketplace: NOT_AUTHORIZED'
         );
-        _listings[listingId].price = newPrice;
+        _listings[listingId].price = newPrice * 1e18;
     }
 
     // =========================================================================
@@ -263,6 +307,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             }
         }
 
+        // Best-effort attestation — Relay failure never reverts economic settlement.
+        // Treasury and producer are protected first; Relay provides provenance on top.
+        if (relay != address(0)) {
+            try IRelay(relay).recordRedemption(msg.sender, nftContract, tokenId) {} catch {}
+        }
+
         emit Redeemed(nftContract, tokenId, msg.sender);
     }
 
@@ -293,12 +343,72 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         return _listings[listingId].inventory;
     }
 
+    // Returns the listingId and batchId for a given tokenId purchased via this marketplace.
+    // listingId is 0 when the token was never sold through a listing (minted directly, etc.).
+    function getTokenListing(uint256 tokenId) external view returns (uint256 listingId, uint256 batchId) {
+        uint256 stored = _tokenListingId[tokenId];
+        if (stored == 0) return (0, 0);
+        listingId = stored - 1;
+        batchId   = _listingBatch[listingId];
+    }
+
     // =========================================================================
     // ADMIN
     // =========================================================================
 
+    // Called by relay on a subsidized delivery message — burns $FARM from escrowed balance.
+    // Returns true if subsidy was applied; false if listing has no balance (buyer pays normally).
+    function chargeSubsidy(
+        address nftContract,
+        uint256 tokenId,
+        uint256 fee
+    ) external returns (bool) {
+        require(msg.sender == relay, 'Marketplace: NOT_RELAY');
+        uint256 storedId = _tokenListingId[tokenId];
+        if (storedId == 0) return false;
+        uint256 listingId = storedId - 1;
+        if (_listings[listingId].nftContract != nftContract) return false;
+        uint256 balance = _subsidyBalance[listingId];
+        if (balance < fee) return false;
+        _subsidyBalance[listingId] = balance - fee;
+        IBurnableToken(farmToken).burn(fee);
+        emit SubsidyCharged(listingId, fee, balance - fee);
+        return true;
+    }
+
+    // Seller (or owner) reclaims unused $FARM subsidy — call when listing is withdrawn or closed.
+    function reclaimSubsidy(uint256 listingId) external nonReentrant {
+        Listing storage listing = _listings[listingId];
+        require(
+            msg.sender == owner() || msg.sender == listing.proceeds,
+            'Marketplace: NOT_AUTHORIZED'
+        );
+        uint256 balance = _subsidyBalance[listingId];
+        require(balance > 0, 'Marketplace: NO_SUBSIDY');
+        _subsidyBalance[listingId] = 0;
+        require(
+            IERC20(farmToken).transfer(listing.proceeds, balance),
+            'Marketplace: RECLAIM_FAILED'
+        );
+        emit SubsidyReclaimed(listingId, listing.proceeds, balance);
+    }
+
+    function subsidyBalance(uint256 listingId) external view returns (uint256) {
+        return _subsidyBalance[listingId];
+    }
+
     function setFeeCollector(address _feeCollector) external onlyOwner {
         feeCollector = _feeCollector;
+    }
+
+    function setFarmToken(address _farmToken) external onlyOwner {
+        farmToken = _farmToken;
+        emit FarmTokenSet(_farmToken);
+    }
+
+    function setRelay(address _relay) external onlyOwner {
+        relay = _relay;
+        emit RelaySet(_relay);
     }
 
     function pause()   external onlyOwner { _pause(); }

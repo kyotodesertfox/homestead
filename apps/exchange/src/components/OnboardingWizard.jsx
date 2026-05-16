@@ -143,7 +143,7 @@ export default function OnboardingWizard({ onClose, skipInitial = false }) {
       address: ADDRESSES.TREASURY,
       abi:     TREASURY_ABI,
       functionName: 'postStake',
-      args:    [selectedToken, selectedNFT, cids, parseEther(tokenToEmit)],
+      args:    [selectedToken, selectedNFT, cids, BigInt(tokenToEmit)],
       value:   parseEther(ethAmount),
     });
   };
@@ -155,7 +155,7 @@ export default function OnboardingWizard({ onClose, skipInitial = false }) {
       address: ADDRESSES.MARKETPLACE,
       abi:     MARKETPLACE_ABI,
       functionName: 'createListing',
-      args:    [selectedNFT, selectedToken, parseEther(price), BigInt(batchId)],
+      args:    [selectedNFT, selectedToken, BigInt(price), BigInt(batchId), 0n],
     });
   };
 

@@ -6,10 +6,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20Pausable
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-interface IFarmDEX {
-    function onTokenMinted(uint256 amount) external;
-}
-
 contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgradeable, OwnableUpgradeable {
 
     // =========================================================================
@@ -89,9 +85,18 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
     }
 
     function mintToPool(address poolAddress, uint256 amount) external onlyMinter {
-        uint256 scaledAmount = amount * (10 ** uint256(decimals()));
-        _mint(poolAddress, scaledAmount);
-        IFarmDEX(poolAddress).onTokenMinted(scaledAmount);
+        _mint(poolAddress, amount * (10 ** uint256(decimals())));
+    }
+
+    // Standard burn — any holder may destroy their own tokens.
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+    }
+
+    // Approved spender may burn on behalf of an account (e.g. Marketplace, Relay).
+    function burnFrom(address account, uint256 amount) external {
+        _spendAllowance(account, msg.sender, amount);
+        _burn(account, amount);
     }
 
     // Emergency use only — burn tokens from any address to correct inventory parity.
