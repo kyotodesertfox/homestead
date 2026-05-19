@@ -93,6 +93,12 @@ contract nftTemplate is
         isMinter[minter] = approved;
     }
 
+    function burnToken(address from, uint256 tokenId) external {
+        require(isMinter[msg.sender] || msg.sender == owner(), 'nftTemplate: NOT_AUTHORIZED');
+        require(ownerOf(tokenId) == from, 'nftTemplate: NOT_OWNER');
+        _burn(tokenId);
+    }
+
     // =========================================================================
     // REDEMPTION — sets on-chain flag; NFT is NOT burned (becomes collectible).
     // Callable by: token holder, approved operator, or a trusted redemptionOperator
