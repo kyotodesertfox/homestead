@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
 import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI } from '../../contracts';
 import MessagesPanel      from '../../components/MessagesPanel';
@@ -388,7 +388,7 @@ function StakingPositionCards({ address }) {
   });
 
   const batchCount   = nextBatchId != null ? Number(nextBatchId) : 0;
-  const batchIndices = Array.from({ length: batchCount }, (_, i) => i);
+  const batchIndices = Array.from({ length: batchCount }, (_, i) => i + 1);
 
   // Read batch structs + claimable amounts in one shot
   const { data: batchResults, refetch: refetchBatches } = useReadContracts({
@@ -408,9 +408,8 @@ function StakingPositionCards({ address }) {
   const batchStructs  = batchResults?.slice(0, batchCount)?.map(r => r.result) ?? [];
   const claimableAmts = batchResults?.slice(batchCount)?.map(r => r.result ?? 0n) ?? [];
 
-  // Filter to batches owned by this wallet (brewer = index 0 in tuple)
   const myBatchIds = batchIndices.filter(
-    i => batchStructs[i]?.[0]?.toLowerCase() === address?.toLowerCase()
+    i => batchStructs[i]?.producer?.toLowerCase() === address?.toLowerCase()
   );
   const totalClaimable = myBatchIds.reduce((sum, i) => sum + (claimableAmts[i] ?? 0n), 0n);
 
@@ -659,6 +658,10 @@ function MyListingCard({ id, address, onSelect }) {
 }
 
 function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const { address } = useAccount();
+  const client = usePublicClient();
+
   const [imgErr, setImgErr] = useState(false);
   const [meta,   setMeta]   = useState(initialMeta ?? null);
 
@@ -694,9 +697,14 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
   }, [tokenUri]);
 
   const [withdrawCount, setWithdrawCount] = useState('');
+  const [depositCount,  setDepositCount]  = useState('');
+  const [depositError,  setDepositError]  = useState('');
+  const [depositing,    setDepositing]    = useState(false);
 
   const { writeContract, data: txHash, isPending, error: writeErr } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash, query: { enabled: !!txHash } });
+
+  const { writeContractAsync: writeDepositAsync } = useWriteContract();
 
   useEffect(() => {
     if (!isSuccess) return;
@@ -704,6 +712,69 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
     refetchListing();
     onUpdate?.();
   }, [isSuccess]);
+
+  // Derive nftContract before hooks (listing may be null; hooks guard with enabled)
+  const nftContract = listing?.[0] ?? ZERO;
+
+  const { data: walletNftBal } = useReadContract({
+    address: nftContract,
+    abi:     NFT_ABI,
+    functionName: 'balanceOf',
+    args:    [address ?? ZERO],
+    query:   { enabled: !!address && !!listing && nftContract !== ZERO },
+  });
+  const { data: isApproved, refetch: refetchApproval } = useReadContract({
+    address: nftContract,
+    abi:     NFT_ABI,
+    functionName: 'isApprovedForAll',
+    args:    [address ?? ZERO, ADDRESSES.MARKETPLACE ?? ZERO],
+    query:   { enabled: !!address && !!listing && !!ADDRESSES.MARKETPLACE && nftContract !== ZERO },
+  });
+
+  const maxDeposit = Number(walletNftBal ?? 0n);
+  const depositNum = parseInt(depositCount) || 0;
+  const canDeposit = depositNum > 0 && depositNum <= maxDeposit;
+
+  const handleDeposit = async () => {
+    if (!canDeposit || !address || !client) return;
+    setDepositError('');
+    setDepositing(true);
+    try {
+      const tokenIds = await Promise.all(
+        Array.from({ length: depositNum }, (_, i) =>
+          client.readContract({
+            address: nftContract,
+            abi:     NFT_ABI,
+            functionName: 'tokenOfOwnerByIndex',
+            args:    [address, BigInt(i)],
+          })
+        )
+      );
+      if (!isApproved) {
+        const approveHash = await writeDepositAsync({
+          address:      nftContract,
+          abi:          NFT_ABI,
+          functionName: 'setApprovalForAll',
+          args:         [ADDRESSES.MARKETPLACE, true],
+        });
+        await client.waitForTransactionReceipt({ hash: approveHash });
+        refetchApproval();
+      }
+      await writeDepositAsync({
+        address:      ADDRESSES.MARKETPLACE,
+        abi:          MARKETPLACE_ABI,
+        functionName: 'depositInventory',
+        args:         [BigInt(id), tokenIds],
+      });
+      setDepositCount('');
+      refetchListing();
+      onUpdate?.();
+    } catch (e) {
+      setDepositError(e.shortMessage ?? e.message ?? 'Failed');
+    } finally {
+      setDepositing(false);
+    }
+  };
 
   if (!listing) return null;
 
@@ -844,6 +915,40 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
               </div>
               <p className="text-gray-400 text-[10px] font-medium">
                 NFTs return to your wallet; listing stays active with reduced stock.
+              </p>
+            </div>
+          )}
+
+          {/* Deposit from wallet */}
+          {maxDeposit > 0 && (
+            <div className="space-y-2">
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">
+                Deposit from Wallet
+                <span className="ml-2 text-gray-300 normal-case font-medium">{maxDeposit} available</span>
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={`1 – ${maxDeposit}`}
+                  value={depositCount}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '' || /^\d+$/.test(v)) setDepositCount(v);
+                  }}
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 font-black text-sm outline-none focus:border-hub-green transition-colors"
+                />
+                <button
+                  onClick={handleDeposit}
+                  disabled={!canDeposit || depositing}
+                  className="px-5 py-2.5 rounded-xl bg-hub-green hover:brightness-110 text-white font-black uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 whitespace-nowrap"
+                >
+                  {depositing ? '…' : isApproved ? 'Deposit' : 'Approve & Deposit'}
+                </button>
+              </div>
+              {depositError && <p className="text-red-400 text-xs font-medium">{depositError}</p>}
+              <p className="text-gray-400 text-[10px] font-medium">
+                {!isApproved ? 'Two txs: approve Marketplace, then deposit.' : 'NFTs move from your wallet into the listing.'}
               </p>
             </div>
           )}

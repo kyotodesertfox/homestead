@@ -50,23 +50,26 @@ export default function StakePanel({ onClose }) {
     if (!address || !client) return;
     setLoadingIds(true);
 
-    // ── Treasury batches — independent, failures don't affect listings ──
+    // ── Treasury batches — filter LotOpened events by producer address ──
     if (ADDRESSES.TREASURY) {
       try {
-        const nextBatchId = await client.readContract({
-          address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'nextBatchId',
+        const lotOpenedAbi = TREASURY_ABI.find(x => x.name === 'LotOpened' && x.type === 'event');
+        const logs = await client.getLogs({
+          address:   ADDRESSES.TREASURY,
+          event:     lotOpenedAbi,
+          args:      { producer: address },
+          fromBlock: 0n,
         });
-        const batchTotal = Number(nextBatchId);
-        if (batchTotal > 0) {
+        if (logs.length > 0) {
           const results = await Promise.all(
-            Array.from({ length: batchTotal }, (_, i) => i + 1).map(id =>
+            logs.map(({ args }) =>
               client.readContract({
                 address: ADDRESSES.TREASURY, abi: TREASURY_ABI,
-                functionName: 'batches', args: [BigInt(id)],
-              }).then(b => ({ id, ...b })).catch(() => null)
+                functionName: 'batches', args: [args.batchId],
+              }).then(b => ({ id: Number(args.batchId), ...b })).catch(() => null)
             )
           );
-          const mine = results.filter(b => b && b.brewer.toLowerCase() === address.toLowerCase());
+          const mine = results.filter(Boolean);
           setBatches(mine);
           const claimPairs = await Promise.all(
             mine.map(b =>
@@ -132,11 +135,28 @@ export default function StakePanel({ onClose }) {
   const { writeContract, data: claimHash, isPending: claiming } = useWriteContract();
   const { isSuccess: claimSuccess } = useWaitForTransactionReceipt({ hash: claimHash, query: { enabled: !!claimHash } });
 
+  const { writeContract: writeWithdraw, data: withdrawHash, isPending: withdrawing } = useWriteContract();
+  const { isSuccess: withdrawSuccess } = useWaitForTransactionReceipt({ hash: withdrawHash, query: { enabled: !!withdrawHash } });
+
   useEffect(() => {
     if (!claimSuccess) return;
     refetchCumulative();
     loadBatches();
   }, [claimSuccess]);
+
+  useEffect(() => {
+    if (!withdrawSuccess) return;
+    loadBatches();
+  }, [withdrawSuccess]);
+
+  const handleWithdraw = (listingId, count) => {
+    writeWithdraw({
+      address:      ADDRESSES.MARKETPLACE,
+      abi:          MARKETPLACE_ABI,
+      functionName: 'withdrawInventory',
+      args:         [BigInt(listingId), BigInt(count)],
+    });
+  };
 
   const handleClaim = (batchId) => {
     writeContract({
@@ -263,12 +283,25 @@ export default function StakePanel({ onClose }) {
                         {listing.active ? 'Active' : 'Inactive'}
                       </span>
                     </div>
-                    <p className="text-stone-500 text-[10px] font-medium">
-                      {Number(listing.inventoryCount)} in inventory
-                    </p>
-                    <p className="text-stone-600 text-[9px] font-mono mt-0.5 truncate">
-                      {listing.nftContract.slice(0, 10)}…{listing.nftContract.slice(-6)}
-                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <div>
+                        <p className="text-stone-500 text-[10px] font-medium">
+                          {Number(listing.inventoryCount)} in inventory
+                        </p>
+                        <p className="text-stone-600 text-[9px] font-mono mt-0.5 truncate">
+                          {listing.nftContract.slice(0, 10)}…{listing.nftContract.slice(-6)}
+                        </p>
+                      </div>
+                      {Number(listing.inventoryCount) > 0 && (
+                        <button
+                          onClick={() => handleWithdraw(listing.id, Number(listing.inventoryCount))}
+                          disabled={withdrawing}
+                          className="shrink-0 text-[9px] font-black uppercase tracking-widest border border-stone-500/30 text-stone-400 hover:border-white/30 hover:text-white disabled:opacity-40 px-3 py-1.5 rounded-xl transition-all"
+                        >
+                          {withdrawing ? <Loader size={10} className="animate-spin" /> : 'Withdraw All'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -292,7 +325,7 @@ export default function StakePanel({ onClose }) {
     </div>
 
     {wizardOpen && (
-      <OnboardingWizard skipInitial onClose={() => setWizardOpen(false)} />
+      <OnboardingWizard onClose={() => setWizardOpen(false)} />
     )}
     </>
   );
