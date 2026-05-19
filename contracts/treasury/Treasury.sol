@@ -5,7 +5,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../dex/Interfaces.sol";
 
 interface IProductionToken {
@@ -97,9 +96,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
     error UnregisteredNFT();
     error UnregisteredToken();
-    error PriceNotSet();
-    error InsufficientPayment();
-    error RefundFailed();
     error FeeTooHigh();
     error InsufficientFees();
     error WithdrawFailed();
@@ -116,7 +112,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     error NoNfts();
     error NothingToClaim();
     error ClaimFailed();
-    error BpsTooHigh();
     error InvalidTier();
     error WethNotSet();
     error PairNotFound();
@@ -131,9 +126,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     error TokenNotInBatch();
     error ZeroAmount();
 
-    event NFTPriceSet(address indexed nftContract, uint256 priceWei);
-    event InventoryNFTPurchased(address indexed producer, address indexed nftContract, uint256 indexed tokenId, uint256 ethPaid);
-    event LaborMinted(address indexed to, address indexed token, uint256 amount);
+    event TokensIssued(address indexed to, address indexed token, uint256 amount);
     event DexEntryFeeUpdated(uint256 feeBps);
     event DexExitFeeUpdated(uint256 feeBps);
     event MarketplaceFeeUpdated(uint256 feeBps);
@@ -152,11 +145,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event LPRewardClaimed(address indexed to, address indexed token, uint256 ethIn, uint256 tokenOut);
     event WethSet(address indexed weth);
     event LpRewardFeeBpsUpdated(uint256 feeBps);
-    event FarmTokenSet(address indexed farmToken);
-    event FarmStakeBpsSet(uint256 bps);
-    event FarmLpBpsSet(uint256 bps);
-    event FarmStakeReward(address indexed to, uint256 farmAmount, uint256 ethValue);
-    event FarmLPReward(address indexed to, uint256 farmAmount, uint256 ethIn);
     event StkHomesteadSet(address indexed stk);
     event CollateralRatioSet(uint256 bps);
 
@@ -202,40 +190,13 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     }
 
     // =========================================================================
-    // NFT VENDING
-    // =========================================================================
-
-    function setNFTPrice(address nftContract, uint256 priceWei) external onlyOwner {
-        if (!INFTDeployer(nftDeployer).isRegistered(nftContract)) revert UnregisteredNFT();
-        nftPrices[nftContract] = priceWei;
-        emit NFTPriceSet(nftContract, priceWei);
-    }
-
-    function purchaseInventoryNFT(address nftContract, uint256 tokenId) external payable nonReentrant whenNotPaused {
-        if (!INFTDeployer(nftDeployer).isRegistered(nftContract)) revert UnregisteredNFT();
-        uint256 price = nftPrices[nftContract];
-        if (price == 0)        revert PriceNotSet();
-        if (msg.value < price) revert InsufficientPayment();
-
-        IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
-
-        uint256 excess = msg.value - price;
-        if (excess > 0) {
-            (bool ok, ) = msg.sender.call{value: excess}("");
-            if (!ok) revert RefundFailed();
-        }
-
-        emit InventoryNFTPurchased(msg.sender, nftContract, tokenId, price);
-    }
-
-    // =========================================================================
     // LABOR MINTING
     // =========================================================================
 
-    function mintLaborReward(address token, address to, uint256 amount) external onlyOwner {
+    function issueTokens(address token, address to, uint256 amount) external onlyOwner {
         if (!ITokenDeployer(tokenDeployer).isRegistered(token)) revert UnregisteredToken();
         IProductionToken(token).mintToWallet(to, amount);
-        emit LaborMinted(to, token, amount);
+        emit TokensIssued(to, token, amount);
     }
 
     // =========================================================================
@@ -369,25 +330,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         usedCollateral[msg.sender] += collateralRequired;
 
         IProductionToken(token).mintToWallet(msg.sender, amount);
-
-        if (farmToken != address(0) && farmStakeBps > 0) {
-            address farmPair = IFactory(dexFactory).getPair(farmToken, weth);
-            if (farmPair != address(0)) {
-                (uint112 fr0, uint112 fr1,) = IPair(farmPair).getReserves();
-                if (fr0 > 0 && fr1 > 0) {
-                    uint256 ethForFarm = (ethValueWei * farmStakeBps) / 10000;
-                    address ft0 = IPair(farmPair).token0();
-                    uint256 farmBaseUnits = (ft0 == weth)
-                        ? (ethForFarm * uint256(fr1)) / uint256(fr0)
-                        : (ethForFarm * uint256(fr0)) / uint256(fr1);
-                    uint256 farmHuman = farmBaseUnits / 1e18;
-                    if (farmHuman > 0) {
-                        IProductionToken(farmToken).mintToWallet(msg.sender, farmHuman);
-                        emit FarmStakeReward(msg.sender, farmHuman, ethValueWei);
-                    }
-                }
-            }
-        }
 
         batchId = ++nextBatchId;
         batches[batchId] = Batch({
@@ -626,24 +568,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         emit CollateralRatioSet(bps);
     }
 
-    function setFarmToken(address _farmToken) external onlyOwner {
-        if (_farmToken != address(0) && !ITokenDeployer(tokenDeployer).isRegistered(_farmToken)) revert UnregisteredToken();
-        farmToken = _farmToken;
-        emit FarmTokenSet(_farmToken);
-    }
-
-    function setFarmStakeBps(uint256 bps) external onlyOwner {
-        if (bps > 10000) revert BpsTooHigh();
-        farmStakeBps = bps;
-        emit FarmStakeBpsSet(bps);
-    }
-
-    function setFarmLpBps(uint256 bps) external onlyOwner {
-        if (bps > 10000) revert BpsTooHigh();
-        farmLpBps = bps;
-        emit FarmLpBpsSet(bps);
-    }
-
     // =========================================================================
     // STAKE READ
     // =========================================================================
@@ -705,25 +629,6 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
         IProductionToken(rewardToken).mintToWallet(to, tokenHuman);
         emit LPRewardClaimed(to, rewardToken, msg.value, tokenHuman);
-
-        if (farmToken != address(0) && farmLpBps > 0) {
-            address farmPair = IFactory(dexFactory).getPair(farmToken, weth);
-            if (farmPair != address(0)) {
-                (uint112 fr0, uint112 fr1,) = IPair(farmPair).getReserves();
-                if (fr0 > 0 && fr1 > 0) {
-                    uint256 ethForFarm = (msg.value * farmLpBps) / 10000;
-                    address ft0 = IPair(farmPair).token0();
-                    uint256 farmBaseUnits = (ft0 == weth)
-                        ? (ethForFarm * uint256(fr1)) / uint256(fr0)
-                        : (ethForFarm * uint256(fr0)) / uint256(fr1);
-                    uint256 farmHuman = farmBaseUnits / 1e18;
-                    if (farmHuman > 0) {
-                        IProductionToken(farmToken).mintToWallet(to, farmHuman);
-                        emit FarmLPReward(to, farmHuman, msg.value);
-                    }
-                }
-            }
-        }
     }
 
     function setWeth(address _weth) external onlyOwner {
