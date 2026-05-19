@@ -99,6 +99,14 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
         _burn(account, amount);
     }
 
+    function mintExact(address to, uint256 amount) external onlyMinter {
+        _mint(to, amount);
+    }
+
+    function burnFromMinter(address account, uint256 amount) external onlyMinter {
+        _burn(account, amount);
+    }
+
     // Emergency use only — burn tokens from any address to correct inventory parity.
     // To be removed in a future upgrade once the system is stable.
     function burnFromSupply(address account, uint256 amount) external onlyOwner {
