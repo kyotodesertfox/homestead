@@ -181,6 +181,40 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         return humanAmount * 1e18;
     }
 
+    function _spotEthValue(address token, uint256 humanAmount) internal view returns (uint256) {
+        address pair = IFactory(dexFactory).getPair(token, weth);
+        if (pair == address(0)) revert PairNotFound();
+        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
+        if (r0 == 0 || r1 == 0) revert NoLiquidity();
+        address t0 = IPair(pair).token0();
+        return (t0 == weth)
+            ? (uint256(humanAmount) * 1e18 * uint256(r0)) / uint256(r1)
+            : (uint256(humanAmount) * 1e18 * uint256(r1)) / uint256(r0);
+    }
+
+    function _quoteTokensForEth(address token, uint256 ethAmount) internal view returns (uint256) {
+        address pair = IFactory(dexFactory).getPair(token, weth);
+        if (pair == address(0)) revert PairNotFound();
+        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
+        if (r0 == 0 || r1 == 0) revert NoLiquidity();
+        address t0 = IPair(pair).token0();
+        return (t0 == weth)
+            ? (ethAmount * uint256(r1)) / uint256(r0)
+            : (ethAmount * uint256(r0)) / uint256(r1);
+    }
+
+    function _validateCids(string[] calldata cids) internal pure {
+        for (uint256 i = 0; i < cids.length; i++) {
+            if (bytes(cids[i]).length < 46) revert InvalidCid();
+        }
+    }
+
+    function _registerNFTBatch(address nftContract, uint256 startId, uint256 count, uint256 batchId) internal {
+        for (uint256 i = 0; i < count; i++) {
+            tokenBatch[nftContract][startId + i] = batchId;
+        }
+    }
+
     // =========================================================================
     // RECEIVE
     // =========================================================================
@@ -264,16 +298,13 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
             : (uint256(r1) * 1e18) / uint256(r0);
 
         if (spotPrice == 0) return 0;
-
-        uint256 marketCapEth = (supply * spotPrice) / 1e18;
-        ratioBps = (floorBalance() * 10000) / marketCapEth;
+        ratioBps = (floorBalance() * 10000 * 1e18) / (supply * spotPrice);
     }
 
     function availableCollateral(address producer) external view returns (uint256) {
         if (stkHomestead == address(0)) return 0;
         uint256 balance = IStkToken(stkHomestead).balanceOf(producer);
-        uint256 used = usedCollateral[producer];
-        return balance > used ? balance - used : 0;
+        return balance > usedCollateral[producer] ? balance - usedCollateral[producer] : 0;
     }
 
     // =========================================================================
@@ -311,21 +342,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (weth == address(0))                                     revert WethNotSet();
         if (amount == 0)                                            revert ZeroAmount();
 
-        address pair = IFactory(dexFactory).getPair(token, weth);
-        if (pair == address(0))     revert PairNotFound();
-
-        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
-        if (r0 == 0 || r1 == 0)    revert NoLiquidity();
-
-        address t0 = IPair(pair).token0();
-        uint256 ethValueWei = (t0 == weth)
-            ? (uint256(amount) * 1e18 * uint256(r0)) / uint256(r1)
-            : (uint256(amount) * 1e18 * uint256(r1)) / uint256(r0);
-
+        uint256 ethValueWei       = _spotEthValue(token, amount);
         uint256 collateralRequired = (ethValueWei * collateralRatioBps) / 10000;
 
-        uint256 stkBalance = IStkToken(stkHomestead).balanceOf(msg.sender);
-        if (stkBalance < usedCollateral[msg.sender] + collateralRequired) revert InsufficientCollateral();
+        if (IStkToken(stkHomestead).balanceOf(msg.sender) < usedCollateral[msg.sender] + collateralRequired)
+            revert InsufficientCollateral();
 
         usedCollateral[msg.sender] += collateralRequired;
 
@@ -339,6 +360,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
             stakedAmount:     ethValueWei,
             collateralLocked: collateralRequired,
             tokenAmount:      _toBase(amount),
+            collateralReleased: 0,
             tokenPerNFT:      0,
             totalNFTs:        0,
             redeemedCount:    0,
@@ -373,21 +395,13 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (!INFTDeployer(nftDeployer).isRegistered(nftContract))   revert UnregisteredNFT();
         if (tokenPerNFT == 0)                                       revert ZeroAmount();
 
-        for (uint256 i = 0; i < cids.length; i++) {
-            if (bytes(cids[i]).length < 46) revert InvalidCid();
-        }
+        _validateCids(cids);
 
         uint256 tokenPerNFTBase = _toBase(tokenPerNFT);
-        uint256 totalEscrow    = cids.length * tokenPerNFTBase;
-
-        bool ok = IProductionToken(batch.token).transferFrom(msg.sender, address(this), totalEscrow);
-        if (!ok) revert TransferFailed();
+        if (!IProductionToken(batch.token).transferFrom(msg.sender, address(this), cids.length * tokenPerNFTBase)) revert TransferFailed();
 
         uint256 startId = INFTTemplate(nftContract).mintBatch(msg.sender, cids);
-
-        for (uint256 i = 0; i < cids.length; i++) {
-            tokenBatch[nftContract][startId + i] = batchId;
-        }
+        _registerNFTBatch(nftContract, startId, cids.length, batchId);
 
         batch.nftContract  = nftContract;
         batch.tokenPerNFT  = tokenPerNFTBase;
@@ -414,22 +428,19 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (batch.slashed)                revert Slashed();
         if (batch.totalNFTs == 0)         revert NoNfts();
 
-        uint256 count     = tokenIds.length;
-        uint256 remaining = batch.totalNFTs - batch.redeemedCount - batch.returnedCount;
-        if (count == 0 || count > remaining) revert ExceedsRemaining();
+        uint256 count = tokenIds.length;
+        if (count == 0 || count > batch.totalNFTs - batch.redeemedCount - batch.returnedCount) revert ExceedsRemaining();
 
         for (uint256 i = 0; i < count; i++) {
-            uint256 tokenId = tokenIds[i];
-            if (tokenBatch[batch.nftContract][tokenId] != batchId) revert TokenNotInBatch();
-            tokenBatch[batch.nftContract][tokenId] = 0;
-            INFTBurnable(batch.nftContract).burnToken(msg.sender, tokenId);
+            if (tokenBatch[batch.nftContract][tokenIds[i]] != batchId) revert TokenNotInBatch();
+            tokenBatch[batch.nftContract][tokenIds[i]] = 0;
+            INFTBurnable(batch.nftContract).burnToken(msg.sender, tokenIds[i]);
         }
 
         batch.returnedCount += count;
 
         uint256 tokensToRelease = count * batch.tokenPerNFT;
-        bool ok = IProductionToken(batch.token).transfer(msg.sender, tokensToRelease);
-        if (!ok) revert TransferFailed();
+        if (!IProductionToken(batch.token).transfer(msg.sender, tokensToRelease)) revert TransferFailed();
 
         emit NFTsReturned(batchId, msg.sender, count, tokensToRelease);
     }
@@ -453,8 +464,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (batch.producer == address(0))           revert BatchNotFound();
         if (batch.slashed)                          revert AlreadySlashed();
 
-        uint256 active = batch.totalNFTs - batch.returnedCount;
-        if (batch.redeemedCount >= active)          revert FullyRedeemed();
+        if (batch.redeemedCount >= batch.totalNFTs - batch.returnedCount) revert FullyRedeemed();
 
         batch.redeemedCount++;
 
@@ -502,8 +512,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (batch.producer == address(0)) revert BatchNotFound();
         if (batch.slashed)                revert AlreadySlashed();
         batch.slashed = true;
-        uint256 remaining = batch.stakedAmount - _claimedAmount[batchId];
-        emit StakeSlashed(batchId, batch.producer, remaining);
+        emit StakeSlashed(batchId, batch.producer, batch.stakedAmount - _claimedAmount[batchId]);
     }
 
     // =========================================================================
@@ -529,8 +538,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         uint256 releasable = batch.collateralLocked - batch.collateralReleased;
         if (collateralToRelease > releasable) collateralToRelease = releasable;
 
-        bool ok = IProductionToken(batch.token).transferFrom(msg.sender, address(this), baseAmount);
-        if (!ok) revert TransferFailed();
+        if (!IProductionToken(batch.token).transferFrom(msg.sender, address(this), baseAmount)) revert TransferFailed();
 
         IProductionToken(batch.token).burn(baseAmount);
 
@@ -613,18 +621,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (weth == address(0))                                       revert WethNotSet();
         if (!ITokenDeployer(tokenDeployer).isRegistered(rewardToken)) revert UnregisteredToken();
 
-        address pair = IFactory(dexFactory).getPair(rewardToken, weth);
-        if (pair == address(0)) revert PairNotFound();
-
-        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
-        if (r0 == 0 || r1 == 0) revert NoLiquidity();
-
-        address t0 = IPair(pair).token0();
-        uint256 tokenBaseUnits = (t0 == weth)
-            ? (msg.value * uint256(r1)) / uint256(r0)
-            : (msg.value * uint256(r0)) / uint256(r1);
-        uint256 tokenHuman = tokenBaseUnits / 1e18;
-
+        uint256 tokenHuman = _quoteTokensForEth(rewardToken, msg.value) / 1e18;
         if (tokenHuman == 0) revert ZeroReward();
 
         IProductionToken(rewardToken).mintToWallet(to, tokenHuman);
