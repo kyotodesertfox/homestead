@@ -35,7 +35,7 @@ export default function ProvidersPage() {
           <BenefitCard
             icon={<Sparkles size={22} className="text-spa-purple" />}
             title="No Middleman"
-            desc="The protocol connects you to clients directly. Zero platform cut on every booking."
+            desc="The protocol connects you to clients directly. A small on-chain fee funds the ecosystem — no silent percentage going to a platform."
           />
         </div>
 

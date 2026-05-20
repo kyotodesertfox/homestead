@@ -48,8 +48,8 @@ export default function AboutPage() {
           />
           <PrincipleCard
             icon={<Coins size={22} className="text-spa-purple" />}
-            title="Zero Rent"
-            desc="The protocol takes nothing. No platform fee, no subscription, no percentage of your earnings."
+            title="Transparent Fees"
+            desc="Protocol fees are fixed, on-chain, and flow back to the ecosystem — not a corporate middleman taking a cut behind the scenes."
           />
         </div>
 
