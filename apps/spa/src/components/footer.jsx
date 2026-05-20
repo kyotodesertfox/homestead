@@ -10,11 +10,11 @@ export default function Footer() {
           <Sparkles size={14} className="text-spa-accent" />
         </div>
         <p className="text-gray-400 text-sm font-medium">
-          Licensed estheticians. Verified services. On-chain vouchers.
+          Verified providers. On-chain vouchers. No gatekeepers.
         </p>
       </div>
       <div className="max-w-5xl mx-auto px-4 mt-6 pt-4 border-t border-spa-purple/20 text-center text-gray-500 text-xs font-semibold uppercase tracking-widest">
-        © {new Date().getFullYear()} SPA Exchange · Powered by Homestead · Taiko L2
+        © {new Date().getFullYear()} SPA Exchange · Powered by Homestead
       </div>
     </footer>
   );

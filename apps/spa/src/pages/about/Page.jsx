@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Sparkles, ShieldCheck, Coins, Zap } from 'lucide-react';
+import { Sparkles, ShieldCheck, Users, Zap } from 'lucide-react';
 
 export default function AboutPage() {
   return (
@@ -9,7 +9,7 @@ export default function AboutPage() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-spa-soft border border-spa-accent/40 rounded-full px-4 py-1.5 text-sm font-semibold text-spa-purple mb-4 tracking-widest uppercase">
             <Sparkles size={13} />
-            The Protocol
+            The Platform
           </div>
           <h1 className="font-display text-4xl md:text-5xl font-black text-gray-900 mb-4">
             What Is <span className="text-spa-purple">SPA Exchange?</span>
@@ -19,50 +19,50 @@ export default function AboutPage() {
         <div className="bg-white border-l-4 border-spa-purple shadow-xl rounded-r-2xl p-8 md:p-12 mb-10">
           <div className="space-y-4 text-gray-600 text-lg leading-relaxed">
             <p>
-              SPA Exchange is an on-chain marketplace for professional estheticians — built on Taiko L2
-              and powered by the $SPA token. It removes every layer between a skilled provider and their clients:
-              no booking platforms, no payment processors, no percentage skimmed on every session.
+              SPA Exchange is a curated network of skilled estheticians — built on trust, backed on-chain.
+              It exists to remove the layers between a talented professional and the clients who need them:
+              no booking platforms taking a cut, no opaque review systems, no middleman deciding who gets seen.
             </p>
             <p>
-              Providers stake $SPA to register their services. Clients purchase session vouchers as NFTs.
-              When the service is performed, the voucher is redeemed on-chain and the provider claims their tokens.
-              The entire flow is trustless, transparent, and settled on Ethereum.
+              Every provider on the platform earned their place through peer referral.
+              Every service voucher is issued on blockchain — verifiable, yours until you're ready to use it,
+              and redeemable directly with the person who performed your service.
             </p>
             <p>
-              This isn't a startup. It's infrastructure — open, ownerless, and built to last.
-              Any licensed esthetician can list. Any client with a wallet can book. No intermediary required.
+              This isn't a directory. It's a network. The difference is accountability —
+              everyone here is known by someone who already is.
             </p>
           </div>
         </div>
 
         <div className="grid sm:grid-cols-3 gap-6 mb-10">
           <PrincipleCard
-            icon={<Zap size={22} className="text-spa-purple" />}
-            title="Permissionless"
-            desc="No application. No approval process. Stake $SPA, list your service, start taking bookings."
+            icon={<Users size={22} className="text-spa-purple" />}
+            title="Referral-Based"
+            desc="Providers join because someone in the community vouched for their work. Quality is maintained by the people in it."
           />
           <PrincipleCard
             icon={<ShieldCheck size={22} className="text-spa-purple" />}
-            title="Trustless"
-            desc="Every voucher is locked on Taiko L2. Clients are protected. Providers are paid automatically on redemption."
+            title="On-Chain Vouchers"
+            desc="Service vouchers are issued on blockchain — verifiable, transferable, and redeemable directly with your provider."
           />
           <PrincipleCard
-            icon={<Coins size={22} className="text-spa-purple" />}
-            title="Transparent Fees"
-            desc="Protocol fees are fixed, on-chain, and flow back to the ecosystem — not a corporate middleman taking a cut behind the scenes."
+            icon={<Zap size={22} className="text-spa-purple" />}
+            title="No Gatekeepers"
+            desc="Competence is the only credential. The network decides who belongs — not a board, not a form, not a fee."
           />
         </div>
 
         <div className="bg-spa-soft rounded-2xl p-8 border border-spa-accent/30">
-          <h3 className="font-display text-xl font-bold text-spa-deep mb-3">Built on Homestead</h3>
+          <h3 className="font-display text-xl font-bold text-spa-deep mb-3">Part of Homestead</h3>
           <p className="text-gray-600 text-sm leading-relaxed mb-4">
-            SPA Exchange is part of the Homestead ecosystem — a suite of on-chain producer marketplaces
-            connecting real-world goods and services to verifiable on-chain vouchers.
-            The same infrastructure that backs physical products powers service-based economies.
+            SPA Exchange is part of the Homestead ecosystem — a suite of producer marketplaces
+            connecting real-world skills and goods to verifiable on-chain vouchers.
+            Same infrastructure. Different craft.
           </p>
           <Link to="/providers"
             className="inline-block bg-spa-purple text-white font-black py-2.5 px-7 rounded-full uppercase tracking-widest hover:bg-spa-deep transition-all shadow-md text-xs active:scale-95">
-            Become a Provider
+            Join as a Provider
           </Link>
         </div>
 

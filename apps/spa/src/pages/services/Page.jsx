@@ -77,11 +77,11 @@ export default function ServicesPage() {
           <ShoppingBag size={30} className="text-spa-accent mx-auto mb-4" />
           <h3 className="font-display text-2xl font-bold mb-3">Purchase a Service Voucher</h3>
           <p className="text-gray-300 text-sm leading-relaxed max-w-md mx-auto mb-4">
-            Service NFT vouchers are live on Taiko L2. Connect your wallet to browse available listings
+            Service NFT vouchers are live on blockchain. Connect your wallet to browse available listings
             from verified providers and purchase a session on-chain.
           </p>
           <p className="text-spa-accent text-xs font-bold uppercase tracking-widest">
-            $SPA Token · Homestead Treasury · Taiko L2
+            $SPA Token · Homestead Treasury · blockchain
           </p>
         </div>
 
