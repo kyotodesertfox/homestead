@@ -110,11 +110,48 @@ function CopyAddr({ address, full = false }) {
   const display = full ? address : `${address.slice(0, 10)}…${address.slice(-8)}`;
   return (
     <span className="inline-flex items-center gap-1 min-w-0">
-      <span className="font-mono text-xs text-gray-400 truncate">{display}</span>
+      <span className="font-mono text-xs text-gray-600 truncate">{display}</span>
       <button onClick={copy} className="text-gray-300 hover:text-hub-green transition-colors shrink-0">
         {copied ? <CheckCheck size={12} className="text-hub-green" /> : <Copy size={12} />}
       </button>
     </span>
+  );
+}
+
+// ── Tooltip hint ─────────────────────────────────────────────────────────────
+function Hint({ text }) {
+  return (
+    <span className="relative group inline-flex shrink-0">
+      <span className="w-3.5 h-3.5 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 text-[9px] font-black flex items-center justify-center cursor-help transition-colors select-none">?</span>
+      <span className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 text-white text-xs font-medium rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed shadow-xl normal-case tracking-normal">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+// ── Known-role status row ─────────────────────────────────────────────────────
+function RoleStatusRow({ contract, abi, fn, target, label, refetchKey }) {
+  const { data, isLoading, isError, refetch } = useReadContract({
+    address: contract, abi, functionName: fn, args: [target],
+    query: { enabled: !!contract && !!target },
+  });
+  useEffect(() => { if (refetchKey) refetch(); }, [refetchKey]);
+  const loading = isLoading || (data === undefined && !isError);
+  const isSet   = Boolean(data);
+
+  const dot   = loading ? 'bg-gray-300' : isError ? 'bg-amber-400' : isSet ? 'bg-hub-green' : 'bg-red-400';
+  const text  = loading ? 'text-gray-300' : isError ? 'text-amber-400' : isSet ? 'text-hub-green' : 'text-red-400';
+  const label2 = loading ? '…' : isError ? 'Error' : isSet ? 'Set' : 'Not set';
+
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+        {label2}
+      </span>
+    </div>
   );
 }
 
@@ -137,7 +174,10 @@ function CollectionsTab() {
   const [tokens, setTokens]           = useState({});
   const [contractCidInputs, setContractCidInputs] = useState({});
   const [tokenCidInputs, setTokenCidInputs]       = useState({});
+  const [refetchKey, setRefetchKey]               = useState(0);
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  useEffect(() => { if (isConfirmed) setRefetchKey(k => k + 1); }, [isConfirmed]);
 
   const { data: allContracts, refetch } = useReadContract({
     address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'getAllContracts',
@@ -194,10 +234,10 @@ function CollectionsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400 font-medium">{collections.length} collection{collections.length !== 1 ? 's' : ''} registered</p>
-        <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
+        <button onClick={() => { refetch(); setRefetchKey(k => k + 1); }} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
       </div>
       {collections.map(col => (
-        <div key={col.address} className="border border-gray-100 rounded-xl overflow-hidden">
+        <div key={col.address} className="border border-gray-100 rounded-xl">
           <div
             onClick={() => toggleExpand(col.address, col.totalSupply)}
             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -211,7 +251,7 @@ function CollectionsTab() {
           </div>
 
           {expanded === col.address && (
-            <div className="border-t border-gray-100 p-4 space-y-4 bg-gray-50">
+            <div className="border-t border-gray-100 p-4 space-y-4 bg-gray-50 rounded-b-xl">
               {/* Collection URI */}
               <div>
                 <Label>Collection URI (contractCID)</Label>
@@ -253,14 +293,26 @@ function CollectionsTab() {
                 )}
               </div>
 
-              {/* Roles */}
-              <div className="grid grid-cols-2 gap-3">
-                <RoleInput label="Set Minter" buttonLabel="Grant" onSubmit={(addr, bool) =>
-                  writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setMinter', args: [addr, bool] })
-                } />
-                <RoleInput label="Redemption Operator" buttonLabel="Grant" onSubmit={(addr, bool) =>
-                  writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setRedemptionOperator', args: [addr, bool] })
-                } />
+              {/* Role Status */}
+              <div>
+                <Label>Role Status</Label>
+                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-3">
+                  <RoleStatusRow contract={col.address} abi={NFT_ABI} fn="isMinter"             target={ADDRESSES.TREASURY}    label="Minter → Treasury"           refetchKey={refetchKey} />
+                  <RoleStatusRow contract={col.address} abi={NFT_ABI} fn="redemptionOperator"  target={ADDRESSES.MARKETPLACE} label="Redemption Op → Marketplace" refetchKey={refetchKey} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <RoleInput label="Set Minter" buttonLabel="Grant" onSubmit={(addr, bool) =>
+                    writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setMinter', args: [addr, bool] })
+                  } />
+                  <RoleInput
+                    label="Redemption Operator"
+                    buttonLabel="Grant"
+                    hint="Grants an address the right to call redeem() on behalf of NFT holders. Must be set to the Marketplace proxy address before buyers can redeem through the platform. Required once per collection at deploy time — if missing, all redemptions will revert."
+                    onSubmit={(addr, bool) =>
+                      writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setRedemptionOperator', args: [addr, bool] })
+                    }
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -270,12 +322,15 @@ function CollectionsTab() {
   );
 }
 
-function RoleInput({ label, buttonLabel, onSubmit }) {
+function RoleInput({ label, buttonLabel, onSubmit, hint }) {
   const [addr, setAddr] = useState('');
   const [approved, setApproved] = useState(true);
   return (
     <div className="border border-gray-100 rounded-lg p-3">
-      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5 mb-1">
+        <p className="text-xs font-black uppercase tracking-widest text-gray-400">{label}</p>
+        {hint && <Hint text={hint} />}
+      </div>
       <Input value={addr} onChange={setAddr} placeholder="0x…" className="mb-2" />
       <div className="flex items-center gap-2">
         <select value={approved} onChange={e => setApproved(e.target.value === 'true')}
@@ -283,7 +338,7 @@ function RoleInput({ label, buttonLabel, onSubmit }) {
           <option value="true">Grant</option>
           <option value="false">Revoke</option>
         </select>
-        <Btn onClick={() => onSubmit(addr, approved)} disabled={!addr}>{buttonLabel}</Btn>
+        <Btn onClick={() => onSubmit(addr, approved)} disabled={!addr} variant={approved ? 'primary' : 'danger'}>{approved ? 'Grant' : 'Revoke'}</Btn>
       </div>
     </div>
   );
@@ -335,7 +390,7 @@ function TokensTab() {
         <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
       </div>
       {tokenList.map(tok => (
-        <div key={tok.address} className="border border-gray-100 rounded-xl overflow-hidden">
+        <div key={tok.address} className="border border-gray-100 rounded-xl">
           <div
             onClick={() => setExpanded(expanded === tok.address ? null : tok.address)}
             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -349,10 +404,16 @@ function TokensTab() {
           </div>
 
           {expanded === tok.address && (
-            <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
+            <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50 rounded-b-xl">
               <div>
                 <Label>Owner</Label>
                 <CopyAddr address={tok.owner} full />
+              </div>
+              <div>
+                <Label>Minter Status</Label>
+                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
+                  <RoleStatusRow contract={tok.address} abi={BEER_TOKEN_ABI} fn="isMinter" target={ADDRESSES.TREASURY} label="Minter → Treasury" />
+                </div>
               </div>
               <div>
                 <Label>Minter Management</Label>
@@ -720,20 +781,32 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-4xl mx-auto">
 
-        <div className="flex items-center gap-3 mb-8">
-          <Shield size={28} className="text-hub-green" />
-          <div>
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Shield size={28} className="text-hub-green" />
             <h1 className="text-2xl font-black uppercase tracking-tighter text-gray-900">Admin Console</h1>
-            <div className="flex flex-col gap-0.5 mt-0.5">
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 w-16">Wallet</span>
-                <CopyAddr address={address} full />
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 w-16">Treasury</span>
-                <CopyAddr address={ADDRESSES.TREASURY} full />
-              </div>
-            </div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-xl p-4 grid gap-x-6 gap-y-2"
+               style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+            {[
+              ['Wallet',         address],
+              ['Treasury',       ADDRESSES.TREASURY],
+              ['Marketplace',    ADDRESSES.MARKETPLACE],
+              ['Beer Token',     ADDRESSES.BEER_TOKEN],
+              ['Beer NFT',       ADDRESSES.BEER_NFT],
+              ['stkHomestead',   ADDRESSES.STK_HOMESTEAD],
+              ['Router',         ADDRESSES.ROUTER],
+              ['DEX Factory',    ADDRESSES.FACTORY],
+              ['Beer/WETH Pair', ADDRESSES.BEER_WETH_PAIR],
+              ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER],
+              ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER],
+              ['WETH',           ADDRESSES.WETH],
+            ].map(([label, addr]) => (
+              <React.Fragment key={label}>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center">{label}</span>
+                <div className="min-w-0 self-center"><CopyAddr address={addr} /></div>
+              </React.Fragment>
+            ))}
           </div>
         </div>
 
