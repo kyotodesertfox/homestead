@@ -177,7 +177,7 @@ function CollectionsTab() {
   const [refetchKey, setRefetchKey]               = useState(0);
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
 
-  useEffect(() => { if (isConfirmed) setRefetchKey(k => k + 1); }, [isConfirmed]);
+  useEffect(() => { if (isConfirmed) setTimeout(() => setRefetchKey(k => k + 1), 2000); }, [isConfirmed]);
 
   const { data: allContracts, refetch } = useReadContract({
     address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'getAllContracts',
