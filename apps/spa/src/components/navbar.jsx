@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Wallet, LayoutDashboard, Sparkles } from 'lucide-react';
+import { Menu, X, Wallet, LayoutDashboard, Sparkles, House } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
 
@@ -30,6 +30,9 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
+            <a href="/" className="flex items-center gap-2 text-gray-300 hover:text-spa-accent transition-colors font-semibold text-sm">
+              <House size={18} /> Homestead
+            </a>
             <NavLink to="/services" label="Services" />
             <NavLink to="/providers" label="Providers" />
             <NavLink to="/about" label="About" />
@@ -58,6 +61,10 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden bg-spa-dark border-t border-spa-purple/20">
           <div className="px-4 pt-2 pb-6 space-y-1">
+            <a href="/" onClick={close}
+              className="flex items-center gap-4 text-gray-300 hover:text-spa-accent p-3 rounded-lg font-bold text-lg transition-colors">
+              <House size={20} className="text-spa-accent" /> Homestead
+            </a>
             <MobileNavLink to="/services"  label="Services"  onClick={close} />
             <MobileNavLink to="/providers" label="Providers" onClick={close} />
             <MobileNavLink to="/about"     label="About"     onClick={close} />
