@@ -118,7 +118,33 @@ export const PAIR_ABI = [
 ];
 
 export const TREASURY_ABI = [
+  // ── view ──
+  { name: 'owner',               type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'paused',              type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool'    }] },
+  { name: 'dexEntryFeeBps',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'dexExitFeeBps',       type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'marketplaceFeeBps',   type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'lpRewardFeeBps',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'collateralRatioBps',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'stkHomestead',        type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'trustedRelay',        type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'weth',                type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'isTrustedCaller',     type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  // ── admin setters ──
+  { name: 'setDexEntryFee',       type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
+  { name: 'setDexExitFee',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
+  { name: 'setMarketplaceFee',    type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
+  { name: 'setLpRewardFeeBps',    type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'bps',      type: 'uint256' }], outputs: [] },
+  { name: 'setCollateralRatioBps',type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'bps',      type: 'uint256' }], outputs: [] },
+  { name: 'setTierThreshold',     type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'tier',     type: 'uint8'   }, { name: 'ethAmount', type: 'uint256' }], outputs: [] },
+  { name: 'setStkHomestead',      type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'stk',      type: 'address' }], outputs: [] },
+  { name: 'setTrustedRelay',      type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'relay',    type: 'address' }], outputs: [] },
+  { name: 'setTrustedCaller',     type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'caller',   type: 'address' }, { name: 'trusted', type: 'bool' }], outputs: [] },
+  { name: 'setWeth',              type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_weth',    type: 'address' }], outputs: [] },
+  { name: 'withdrawFees',         type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to',       type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'slashStake',           type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'batchId',  type: 'uint256' }], outputs: [] },
+  { name: 'pause',                type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'unpause',              type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
   { name: 'cumulativeStake',     type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet',   type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'attestationTier',     type: 'function', stateMutability: 'view', inputs: [{ name: 'wallet',   type: 'address' }], outputs: [{ type: 'uint8'   }] },
   { name: 'tierThreshold',       type: 'function', stateMutability: 'view', inputs: [{ name: 'tier',     type: 'uint8'   }], outputs: [{ type: 'uint256' }] },
@@ -221,9 +247,12 @@ export const TREASURY_ABI = [
 
 export const BEER_TOKEN_ABI = [
   ...ERC20_ABI,
-  { name: 'isMinter',     type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
-  { name: 'mintToWallet', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'wallet', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'owner',        type: 'function', stateMutability: 'view',        inputs: [],                                                                           outputs: [{ type: 'address' }] },
+  { name: 'isMinter',     type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                              outputs: [{ type: 'bool'    }] },
+  { name: 'mintToWallet', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'wallet',      type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { name: 'mintToPool',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'mintExact',    type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to',          type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'setMinter',    type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'minter',      type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
 ];
 
 export const MARKETPLACE_ABI = [
@@ -280,7 +309,15 @@ export const NFT_ABI = [
   { name: 'setApprovalForAll', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'operator', type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
   { name: 'balanceOf',           type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'tokenOfOwnerByIndex', type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }, { name: 'index', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
-  { name: 'redeemed',            type: 'function', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'redeemed',               type: 'function', stateMutability: 'view',        inputs: [{ name: 'tokenId',  type: 'uint256'  }], outputs: [{ type: 'bool'    }] },
+  { name: 'owner',                  type: 'function', stateMutability: 'view',        inputs: [],                                     outputs: [{ type: 'address' }] },
+  { name: 'contractURI',            type: 'function', stateMutability: 'view',        inputs: [],                                     outputs: [{ type: 'string'  }] },
+  { name: 'isMinter',               type: 'function', stateMutability: 'view',        inputs: [{ name: '',         type: 'address'  }], outputs: [{ type: 'bool'    }] },
+  { name: 'isRedemptionOperator',   type: 'function', stateMutability: 'view',        inputs: [{ name: '',         type: 'address'  }], outputs: [{ type: 'bool'    }] },
+  { name: 'setTokenCID',            type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'tokenId',  type: 'uint256'  }, { name: 'newCID',   type: 'string'  }], outputs: [] },
+  { name: 'setContractCID',         type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'newCID',   type: 'string'   }],                                        outputs: [] },
+  { name: 'setMinter',              type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'minter',   type: 'address'  }, { name: 'approved', type: 'bool'    }], outputs: [] },
+  { name: 'setRedemptionOperator',  type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'operator', type: 'address'  }, { name: 'approved', type: 'bool'    }], outputs: [] },
 ];
 
 export const TOKEN_DEPLOYER_ABI = [
