@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
+import TreasuryHealth from '../../components/TreasuryHealth';
 
 const portals = [
   {
@@ -44,10 +45,13 @@ const features = [
   },
 ];
 
+const TABS = ['Exchange', 'Portals'];
+
 export default function HomePage() {
   const { open }                  = useAppKit();
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();
+  const [activeTab, setActiveTab] = useState('Exchange');
 
   const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -94,49 +98,65 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* HUB FEATURES */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-6 border-b-4 border-hub-green pb-3">
-            Exchange Features
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {features.map((f) => (
-              <Link key={f.title} to={f.to}
-                className="group bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-hub-green transition-all"
+        {/* TABBED CARD */}
+        <section className="mb-4 bg-white shadow-md rounded-2xl overflow-hidden">
+          <div className="flex border-b border-gray-100">
+            {TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-4 text-sm font-black uppercase tracking-widest transition-all border-b-4 ${
+                  activeTab === tab
+                    ? 'border-hub-green text-hub-green bg-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-white'
+                }`}
               >
-                <div className="text-hub-green mb-4 group-hover:scale-110 transition-transform inline-block">
-                  {f.icon}
-                </div>
-                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">{f.text}</p>
-              </Link>
+                {tab}
+              </button>
             ))}
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'Exchange' && (
+              <div className="grid md:grid-cols-3 gap-4">
+                {features.map((f) => (
+                  <Link key={f.title} to={f.to}
+                    className="group border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-hub-green transition-all"
+                  >
+                    <div className="text-hub-green mb-3 group-hover:scale-110 transition-transform inline-block">
+                      {f.icon}
+                    </div>
+                    <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">{f.title}</h3>
+                    <p className="text-gray-500 text-sm font-medium leading-relaxed">{f.text}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {activeTab === 'Portals' && (
+              <div className="grid md:grid-cols-2 gap-4">
+                {portals.map((p) => (
+                  <a key={p.name} href={p.href} target="_blank" rel="noopener noreferrer"
+                    className={`group border-2 ${p.color.split(' ')[0]} rounded-xl p-5 hover:shadow-md transition-all`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${p.dot}`} />
+                      <span className="font-black uppercase tracking-widest text-sm text-gray-900">{p.name}</span>
+                      <ExternalLink size={14} className="ml-auto text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    </div>
+                    <p className="text-gray-500 text-sm font-medium leading-relaxed">{p.description}</p>
+                    <div className={`mt-3 text-xs font-black uppercase tracking-widest ${p.color.split(' ')[1]}`}>
+                      {p.token} →
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
-        {/* PRODUCT PORTALS */}
-        <section>
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-6 border-b-4 border-hub-green pb-3">
-            Product Portals
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {portals.map((p) => (
-              <a key={p.name} href={p.href} target="_blank" rel="noopener noreferrer"
-                className={`group bg-white border-2 ${p.color} rounded-2xl p-6 shadow-sm hover:shadow-md transition-all`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-2.5 h-2.5 rounded-full ${p.dot}`} />
-                  <span className="font-black uppercase tracking-widest text-sm text-gray-900">{p.name}</span>
-                  <ExternalLink size={14} className="ml-auto text-gray-400 group-hover:text-gray-600 transition-colors" />
-                </div>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">{p.description}</p>
-                <div className={`mt-3 text-xs font-black uppercase tracking-widest ${p.color.split(' ')[1]}`}>
-                  {p.token} →
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
+        {/* TREASURY HEALTH */}
+        <TreasuryHealth />
 
       </div>
     </div>
