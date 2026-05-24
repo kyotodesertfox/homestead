@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen, Settings } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
@@ -55,6 +55,13 @@ export default function ProfilePage() {
     args: [address ?? '0x0000000000000000000000000000000000000000'],
     query: { enabled: !!address && !!ADDRESSES.BEER_TOKEN },
   });
+  const { data: treasuryOwner } = useReadContract({
+    address: ADDRESSES.TREASURY,
+    abi: TREASURY_ABI,
+    functionName: 'owner',
+    query: { enabled: !!ADDRESSES.TREASURY },
+  });
+  const isOwner = !!address && !!treasuryOwner && address.toLowerCase() === treasuryOwner.toLowerCase();
 
   // --- Copy ---
   const copyAddress = () => {
@@ -104,13 +111,24 @@ export default function ProfilePage() {
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900">
             Your <span className="text-hub-green">Dashboard</span>
           </h1>
-          <button
-            onClick={() => setShowMessages(true)}
-            className="flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-hub-green hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md shrink-0"
-          >
-            <Lock size={14} />
-            Messages
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {isOwner && (
+              <a
+                href="/admin"
+                className="hidden md:flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md"
+              >
+                <Settings size={14} />
+                Admin
+              </a>
+            )}
+            <button
+              onClick={() => setShowMessages(true)}
+              className="flex items-center gap-2 py-2.5 px-5 rounded-2xl bg-hub-green hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-md"
+            >
+              <Lock size={14} />
+              Messages
+            </button>
+          </div>
         </header>
 
         {showMessages && <MessagesPanel onClose={() => setShowMessages(false)} />}

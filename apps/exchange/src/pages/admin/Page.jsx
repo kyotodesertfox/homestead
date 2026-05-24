@@ -85,6 +85,39 @@ function TxStatus({ hash, isConfirming, isConfirmed, error }) {
   return null;
 }
 
+// ── Copy address helper ───────────────────────────────────────────────────────
+function CopyAddr({ address, full = false }) {
+  const [copied, setCopied] = useState(false);
+  if (!address) return <span className="text-xs font-mono text-gray-400">…</span>;
+  const copy = async (e) => {
+    e.stopPropagation();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(address);
+      } else {
+        const el = document.createElement('input');
+        el.value = address;
+        el.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { }
+  };
+  const display = full ? address : `${address.slice(0, 10)}…${address.slice(-8)}`;
+  return (
+    <span className="inline-flex items-center gap-1 min-w-0">
+      <span className="font-mono text-xs text-gray-400 truncate">{display}</span>
+      <button onClick={copy} className="text-gray-300 hover:text-hub-green transition-colors shrink-0">
+        {copied ? <CheckCheck size={12} className="text-hub-green" /> : <Copy size={12} />}
+      </button>
+    </span>
+  );
+}
+
 // ── Write hook wrapper ────────────────────────────────────────────────────────
 function useWrite() {
   const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
@@ -171,7 +204,7 @@ function CollectionsTab() {
           >
             <div className="flex-1 min-w-0">
               <p className="font-black text-gray-900 text-sm">{col.name} <span className="text-gray-400 font-mono text-xs">({col.symbol})</span></p>
-              <p className="text-xs text-gray-400 font-mono truncate">{col.address}</p>
+              <CopyAddr address={col.address} />
             </div>
             <p className="text-xs text-gray-400 font-medium">{col.totalSupply?.toString()} tokens</p>
             {expanded === col.address ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
@@ -309,7 +342,7 @@ function TokensTab() {
           >
             <div className="flex-1 min-w-0">
               <p className="font-black text-gray-900 text-sm">{tok.name} <span className="text-gray-400 font-mono text-xs">({tok.symbol})</span></p>
-              <p className="text-xs text-gray-400 font-mono truncate">{tok.address}</p>
+              <CopyAddr address={tok.address} />
             </div>
             <p className="text-xs text-gray-400">{parseFloat(formatUnits(tok.totalSupply, 18)).toLocaleString()} supply</p>
             {expanded === tok.address ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
@@ -319,7 +352,7 @@ function TokensTab() {
             <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
               <div>
                 <Label>Owner</Label>
-                <p className="text-xs font-mono text-gray-600">{tok.owner}</p>
+                <CopyAddr address={tok.owner} full />
               </div>
               <div>
                 <Label>Minter Management</Label>
@@ -452,7 +485,7 @@ function TreasuryTab() {
           {addrRows.map(row => (
             <div key={row.key} className="flex items-center gap-3">
               <span className="text-xs text-gray-500 w-28 shrink-0">{row.label}</span>
-              <span className="text-xs font-mono text-gray-400 truncate w-32">{row.current ? `${row.current.slice(0,8)}…` : '…'}</span>
+              <div className="w-36 shrink-0 min-w-0"><CopyAddr address={row.current} /></div>
               <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="0x…" className="flex-1" />
               <Btn onClick={() => write(row.fn, [inputs[row.key]])} disabled={!inputs[row.key] || isPending || isConfirming}>Set</Btn>
             </div>
@@ -691,7 +724,16 @@ export default function AdminPage() {
           <Shield size={28} className="text-hub-green" />
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-gray-900">Admin Console</h1>
-            <p className="text-xs font-mono text-gray-400">{address}</p>
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 w-16">Wallet</span>
+                <CopyAddr address={address} full />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 w-16">Treasury</span>
+                <CopyAddr address={ADDRESSES.TREASURY} full />
+              </div>
+            </div>
           </div>
         </div>
 
