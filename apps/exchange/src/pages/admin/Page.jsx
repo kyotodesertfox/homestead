@@ -1,0 +1,726 @@
+import React, { useState, useEffect } from 'react';
+import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
+import { formatUnits, parseEther } from 'viem';
+import {
+  ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
+  NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI,
+} from '../../contracts';
+
+// ── Pinata ────────────────────────────────────────────────────────────────────
+const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
+
+function toPng(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error('PNG conversion failed'));
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' }));
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Could not load image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function pinFile(file) {
+  const png  = await toPng(file);
+  const form = new FormData();
+  form.append('file', png);
+  form.append('pinataMetadata', JSON.stringify({ name: png.name }));
+  const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+    method: 'POST', headers: { Authorization: `Bearer ${PINATA_JWT}` }, body: form,
+  });
+  if (!res.ok) throw new Error(`Image pin failed: ${res.statusText}`);
+  return (await res.json()).IpfsHash;
+}
+
+async function pinJson(obj, name) {
+  const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${PINATA_JWT}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinataContent: obj, pinataMetadata: { name } }),
+  });
+  if (!res.ok) throw new Error(`JSON pin failed: ${res.statusText}`);
+  return (await res.json()).IpfsHash;
+}
+
+// ── Shared UI helpers ─────────────────────────────────────────────────────────
+function Label({ children }) {
+  return <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">{children}</p>;
+}
+function Input({ value, onChange, placeholder, className = '' }) {
+  return (
+    <input
+      value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-hub-green transition-colors ${className}`}
+    />
+  );
+}
+function Btn({ onClick, disabled, children, variant = 'primary', size = 'sm' }) {
+  const base = 'font-black uppercase tracking-widest rounded transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed';
+  const sizes = { sm: 'px-4 py-2 text-xs', md: 'px-6 py-2.5 text-xs' };
+  const variants = {
+    primary:  'bg-hub-green hover:bg-green-700 text-white',
+    danger:   'bg-red-600 hover:bg-red-700 text-white',
+    ghost:    'border border-gray-200 hover:border-hub-green text-gray-700 hover:text-hub-green',
+  };
+  return <button onClick={onClick} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]}`}>{children}</button>;
+}
+function TxStatus({ hash, isConfirming, isConfirmed, error }) {
+  if (error)       return <p className="text-xs text-red-500 mt-1 font-mono">{error.shortMessage ?? error.message}</p>;
+  if (isConfirming) return <p className="text-xs text-amber-500 mt-1">Confirming…</p>;
+  if (isConfirmed && hash) return (
+    <a href={`https://taikoscan.io/tx/${hash}`} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-hub-green mt-1 hover:underline">
+      Confirmed <ExternalLink size={10} />
+    </a>
+  );
+  return null;
+}
+
+// ── Write hook wrapper ────────────────────────────────────────────────────────
+function useWrite() {
+  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
+}
+
+const TABS = ['Collections', 'Tokens', 'Treasury', 'Upload'];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLLECTIONS TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function CollectionsTab() {
+  const publicClient = usePublicClient();
+  const [collections, setCollections] = useState([]);
+  const [expanded, setExpanded]       = useState(null);
+  const [tokens, setTokens]           = useState({});
+  const [contractCidInputs, setContractCidInputs] = useState({});
+  const [tokenCidInputs, setTokenCidInputs]       = useState({});
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  const { data: allContracts, refetch } = useReadContract({
+    address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'getAllContracts',
+  });
+
+  useEffect(() => {
+    if (!allContracts || !publicClient) return;
+    const calls = allContracts.flatMap(addr => [
+      { address: addr, abi: NFT_ABI, functionName: 'name'         },
+      { address: addr, abi: NFT_ABI, functionName: 'symbol'       },
+      { address: addr, abi: NFT_ABI, functionName: 'totalSupply'  },
+      { address: addr, abi: NFT_ABI, functionName: 'contractURI'  },
+    ]);
+    publicClient.multicall({ contracts: calls }).then(res => {
+      const built = allContracts.map((addr, i) => ({
+        address: addr,
+        name:         res[i * 4 + 0]?.result ?? addr,
+        symbol:       res[i * 4 + 1]?.result ?? '?',
+        totalSupply:  res[i * 4 + 2]?.result ?? 0n,
+        contractURI:  res[i * 4 + 3]?.result ?? '',
+      }));
+      setCollections(built);
+    });
+  }, [allContracts, publicClient]);
+
+  const loadTokens = async (addr, supply) => {
+    if (!publicClient || supply === 0n) { setTokens(t => ({ ...t, [addr]: [] })); return; }
+    const count = Number(supply);
+    const calls = Array.from({ length: count }, (_, i) => ({
+      address: addr, abi: NFT_ABI, functionName: 'tokenURI', args: [BigInt(i)],
+    }));
+    const res = await publicClient.multicall({ contracts: calls });
+    setTokens(t => ({ ...t, [addr]: res.map((r, i) => ({ id: i, uri: r.result ?? '' })) }));
+  };
+
+  const toggleExpand = (addr, supply) => {
+    if (expanded === addr) { setExpanded(null); return; }
+    setExpanded(addr);
+    if (!tokens[addr]) loadTokens(addr, supply);
+  };
+
+  const setContractCid = (addr) => {
+    const cid = contractCidInputs[addr]?.trim().replace(/^ipfs:\/\//, '');
+    if (!cid) return;
+    writeContract({ address: addr, abi: NFT_ABI, functionName: 'setContractCID', args: [cid] });
+  };
+  const setTokenCid = (addr, tokenId) => {
+    const cid = tokenCidInputs[`${addr}-${tokenId}`]?.trim().replace(/^ipfs:\/\//, '');
+    if (!cid) return;
+    writeContract({ address: addr, abi: NFT_ABI, functionName: 'setTokenCID', args: [BigInt(tokenId), cid] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400 font-medium">{collections.length} collection{collections.length !== 1 ? 's' : ''} registered</p>
+        <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
+      </div>
+      {collections.map(col => (
+        <div key={col.address} className="border border-gray-100 rounded-xl overflow-hidden">
+          <div
+            onClick={() => toggleExpand(col.address, col.totalSupply)}
+            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-gray-900 text-sm">{col.name} <span className="text-gray-400 font-mono text-xs">({col.symbol})</span></p>
+              <p className="text-xs text-gray-400 font-mono truncate">{col.address}</p>
+            </div>
+            <p className="text-xs text-gray-400 font-medium">{col.totalSupply?.toString()} tokens</p>
+            {expanded === col.address ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </div>
+
+          {expanded === col.address && (
+            <div className="border-t border-gray-100 p-4 space-y-4 bg-gray-50">
+              {/* Collection URI */}
+              <div>
+                <Label>Collection URI (contractCID)</Label>
+                <p className="text-xs text-gray-400 font-mono mb-2 truncate">{col.contractURI || 'not set'}</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={contractCidInputs[col.address] ?? ''}
+                    onChange={v => setContractCidInputs(c => ({ ...c, [col.address]: v }))}
+                    placeholder="CID or ipfs://..."
+                    className="flex-1"
+                  />
+                  <Btn onClick={() => setContractCid(col.address)} disabled={isPending || isConfirming}>Set</Btn>
+                </div>
+                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+
+              {/* Per-token CIDs */}
+              <div>
+                <Label>Token Metadata CIDs</Label>
+                {!tokens[col.address] ? (
+                  <p className="text-xs text-gray-400">Loading tokens…</p>
+                ) : tokens[col.address].length === 0 ? (
+                  <p className="text-xs text-gray-400">No tokens minted yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {tokens[col.address].map(tok => (
+                      <div key={tok.id} className="flex items-center gap-2">
+                        <span className="text-xs font-black text-gray-500 w-8 shrink-0">#{tok.id}</span>
+                        <Input
+                          value={tokenCidInputs[`${col.address}-${tok.id}`] ?? ''}
+                          onChange={v => setTokenCidInputs(c => ({ ...c, [`${col.address}-${tok.id}`]: v }))}
+                          placeholder={tok.uri ? tok.uri.replace('ipfs://', '') : 'CID…'}
+                          className="flex-1 text-xs"
+                        />
+                        <Btn onClick={() => setTokenCid(col.address, tok.id)} disabled={isPending || isConfirming}>Set</Btn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Roles */}
+              <div className="grid grid-cols-2 gap-3">
+                <RoleInput label="Set Minter" buttonLabel="Grant" onSubmit={(addr, bool) =>
+                  writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setMinter', args: [addr, bool] })
+                } />
+                <RoleInput label="Redemption Operator" buttonLabel="Grant" onSubmit={(addr, bool) =>
+                  writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setRedemptionOperator', args: [addr, bool] })
+                } />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RoleInput({ label, buttonLabel, onSubmit }) {
+  const [addr, setAddr] = useState('');
+  const [approved, setApproved] = useState(true);
+  return (
+    <div className="border border-gray-100 rounded-lg p-3">
+      <Label>{label}</Label>
+      <Input value={addr} onChange={setAddr} placeholder="0x…" className="mb-2" />
+      <div className="flex items-center gap-2">
+        <select value={approved} onChange={e => setApproved(e.target.value === 'true')}
+          className="border border-gray-200 rounded px-2 py-1 text-xs font-medium flex-1">
+          <option value="true">Grant</option>
+          <option value="false">Revoke</option>
+        </select>
+        <Btn onClick={() => onSubmit(addr, approved)} disabled={!addr}>{buttonLabel}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOKENS TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function TokensTab() {
+  const publicClient = usePublicClient();
+  const [tokenList, setTokenList] = useState([]);
+  const [expanded, setExpanded]   = useState(null);
+  const [minterAddr, setMinterAddr] = useState({});
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  const { data: allTokens, refetch } = useReadContract({
+    address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI, functionName: 'getAllTokens',
+  });
+
+  useEffect(() => {
+    if (!allTokens || !publicClient) return;
+    const calls = allTokens.flatMap(addr => [
+      { address: addr, abi: ERC20_ABI, functionName: 'name'        },
+      { address: addr, abi: ERC20_ABI, functionName: 'symbol'      },
+      { address: addr, abi: ERC20_ABI, functionName: 'totalSupply' },
+      { address: addr, abi: BEER_TOKEN_ABI, functionName: 'owner'  },
+    ]);
+    publicClient.multicall({ contracts: calls }).then(res => {
+      setTokenList(allTokens.map((addr, i) => ({
+        address:     addr,
+        name:        res[i * 4 + 0]?.result ?? addr,
+        symbol:      res[i * 4 + 1]?.result ?? '?',
+        totalSupply: res[i * 4 + 2]?.result ?? 0n,
+        owner:       res[i * 4 + 3]?.result ?? '',
+      })));
+    });
+  }, [allTokens, publicClient]);
+
+  const setMinter = (tokenAddr, approved) => {
+    const addr = minterAddr[tokenAddr]?.trim();
+    if (!addr) return;
+    writeContract({ address: tokenAddr, abi: BEER_TOKEN_ABI, functionName: 'setMinter', args: [addr, approved] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400 font-medium">{tokenList.length} token{tokenList.length !== 1 ? 's' : ''} registered</p>
+        <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
+      </div>
+      {tokenList.map(tok => (
+        <div key={tok.address} className="border border-gray-100 rounded-xl overflow-hidden">
+          <div
+            onClick={() => setExpanded(expanded === tok.address ? null : tok.address)}
+            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-gray-900 text-sm">{tok.name} <span className="text-gray-400 font-mono text-xs">({tok.symbol})</span></p>
+              <p className="text-xs text-gray-400 font-mono truncate">{tok.address}</p>
+            </div>
+            <p className="text-xs text-gray-400">{parseFloat(formatUnits(tok.totalSupply, 18)).toLocaleString()} supply</p>
+            {expanded === tok.address ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </div>
+
+          {expanded === tok.address && (
+            <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
+              <div>
+                <Label>Owner</Label>
+                <p className="text-xs font-mono text-gray-600">{tok.owner}</p>
+              </div>
+              <div>
+                <Label>Minter Management</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={minterAddr[tok.address] ?? ''}
+                    onChange={v => setMinterAddr(m => ({ ...m, [tok.address]: v }))}
+                    placeholder="0x…"
+                    className="flex-1"
+                  />
+                  <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
+                  <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
+                </div>
+                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TREASURY TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function TreasuryTab() {
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+  const [inputs, setInputs] = useState({});
+  const set = (key, val) => setInputs(i => ({ ...i, [key]: val }));
+
+  const { data, refetch } = useReadContracts({
+    contracts: [
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'dexEntryFeeBps'     },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'dexExitFeeBps'      },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'marketplaceFeeBps'  },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'lpRewardFeeBps'     },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'collateralRatioBps' },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'stkHomestead'       },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'trustedRelay'       },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'weth'               },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'accumulatedFees'    },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'paused'             },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [1] },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [2] },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [3] },
+    ],
+  });
+
+  const [dexEntryBps, dexExitBps, marketBps, lpBps, collBps, stkAddr, relayAddr, wethAddr, accFees, paused, tier1, tier2, tier3] =
+    data?.map(d => d?.result) ?? [];
+
+  const write = (fn, args) => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: fn, args });
+
+  const feeRows = [
+    { label: 'DEX Entry Fee',       key: 'dexEntry',   current: dexEntryBps,  fn: 'setDexEntryFee'     },
+    { label: 'DEX Exit Fee',        key: 'dexExit',    current: dexExitBps,   fn: 'setDexExitFee'      },
+    { label: 'Marketplace Fee',     key: 'market',     current: marketBps,    fn: 'setMarketplaceFee'  },
+    { label: 'LP Reward Fee',       key: 'lpReward',   current: lpBps,        fn: 'setLpRewardFeeBps'  },
+    { label: 'Collateral Ratio',    key: 'collateral', current: collBps,      fn: 'setCollateralRatioBps' },
+  ];
+  const tierRows = [
+    { label: 'Tier 1 Threshold (ETH)', key: 'tier1', current: tier1, tier: 1 },
+    { label: 'Tier 2 Threshold (ETH)', key: 'tier2', current: tier2, tier: 2 },
+    { label: 'Tier 3 Threshold (ETH)', key: 'tier3', current: tier3, tier: 3 },
+  ];
+  const addrRows = [
+    { label: 'stkHomestead',   key: 'stk',   current: stkAddr,   fn: 'setStkHomestead' },
+    { label: 'Trusted Relay',  key: 'relay', current: relayAddr, fn: 'setTrustedRelay' },
+    { label: 'WETH',           key: 'weth',  current: wethAddr,  fn: 'setWeth'         },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${paused ? 'bg-red-400' : 'bg-hub-green'}`} />
+          <span className="text-xs font-medium text-gray-500">{paused ? 'Paused' : 'Active'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => refetch()} variant="ghost"><RefreshCw size={12} /></Btn>
+          <Btn onClick={() => write(paused ? 'unpause' : 'pause', [])} variant={paused ? 'primary' : 'danger'}>
+            {paused ? 'Unpause' : 'Pause'}
+          </Btn>
+        </div>
+      </div>
+
+      {/* Fees / BPS */}
+      <div>
+        <Label>Fees & Ratios (bps)</Label>
+        <div className="space-y-2">
+          {feeRows.map(row => (
+            <div key={row.key} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-40 shrink-0">{row.label}</span>
+              <span className="text-xs font-mono text-gray-400 w-16">{row.current?.toString() ?? '…'}</span>
+              <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="bps" className="flex-1" />
+              <Btn
+                onClick={() => write(row.fn, [BigInt(inputs[row.key] ?? 0)])}
+                disabled={!inputs[row.key] || isPending || isConfirming}
+              >Set</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tier Thresholds */}
+      <div>
+        <Label>Attestation Tier Thresholds</Label>
+        <div className="space-y-2">
+          {tierRows.map(row => (
+            <div key={row.key} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-40 shrink-0">{row.label}</span>
+              <span className="text-xs font-mono text-gray-400 w-16">
+                {row.current !== undefined ? parseFloat(formatUnits(row.current, 18)).toFixed(4) : '…'} ETH
+              </span>
+              <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="ETH amount" className="flex-1" />
+              <Btn
+                onClick={() => write('setTierThreshold', [row.tier, parseEther(inputs[row.key] ?? '0')])}
+                disabled={!inputs[row.key] || isPending || isConfirming}
+              >Set</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Addresses */}
+      <div>
+        <Label>Contract Addresses</Label>
+        <div className="space-y-2">
+          {addrRows.map(row => (
+            <div key={row.key} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-28 shrink-0">{row.label}</span>
+              <span className="text-xs font-mono text-gray-400 truncate w-32">{row.current ? `${row.current.slice(0,8)}…` : '…'}</span>
+              <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="0x…" className="flex-1" />
+              <Btn onClick={() => write(row.fn, [inputs[row.key]])} disabled={!inputs[row.key] || isPending || isConfirming}>Set</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trusted Caller */}
+      <div>
+        <Label>Trusted Caller</Label>
+        <div className="flex gap-2">
+          <Input value={inputs.trustedCaller ?? ''} onChange={v => set('trustedCaller', v)} placeholder="0x…" className="flex-1" />
+          <Btn onClick={() => write('setTrustedCaller', [inputs.trustedCaller, true])}  disabled={!inputs.trustedCaller || isPending || isConfirming}>Grant</Btn>
+          <Btn onClick={() => write('setTrustedCaller', [inputs.trustedCaller, false])} disabled={!inputs.trustedCaller || isPending || isConfirming} variant="danger">Revoke</Btn>
+        </div>
+      </div>
+
+      {/* Fee Withdrawal */}
+      <div>
+        <Label>Withdraw Fees — Accumulated: {accFees ? parseFloat(formatUnits(accFees, 18)).toFixed(6) : '…'} ETH</Label>
+        <div className="flex gap-2">
+          <Input value={inputs.withdrawTo ?? ''} onChange={v => set('withdrawTo', v)} placeholder="to address (0x…)" className="flex-1" />
+          <Input value={inputs.withdrawAmt ?? ''} onChange={v => set('withdrawAmt', v)} placeholder="ETH amount" className="w-32" />
+          <Btn
+            onClick={() => write('withdrawFees', [inputs.withdrawTo, parseEther(inputs.withdrawAmt ?? '0')])}
+            disabled={!inputs.withdrawTo || !inputs.withdrawAmt || isPending || isConfirming}
+            variant="danger"
+          >Withdraw</Btn>
+        </div>
+      </div>
+
+      <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPLOAD TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function UploadTab() {
+  const [image, setImage]       = useState(null);
+  const [preview, setPreview]   = useState(null);
+  const [meta, setMeta]         = useState({ name: '', description: '', style: '', abv: '', ibu: '' });
+  const [imageCid, setImageCid] = useState('');
+  const [metaCid, setMetaCid]   = useState('');
+  const [status, setStatus]     = useState('idle');
+  const [error, setError]       = useState('');
+  const [copied, setCopied]     = useState('');
+
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImage(f);
+    setPreview(URL.createObjectURL(f));
+    setImageCid('');
+    setMetaCid('');
+  };
+
+  const upload = async () => {
+    try {
+      setError('');
+      setStatus('image');
+      const iCid = await pinFile(image);
+      setImageCid(iCid);
+      setStatus('meta');
+      const obj = {
+        name:        meta.name,
+        description: meta.description,
+        image:       `ipfs://${iCid}`,
+        attributes:  [
+          { trait_type: 'Style', value: meta.style },
+          ...(meta.abv ? [{ trait_type: 'ABV', value: parseFloat(meta.abv), display_type: 'number' }] : []),
+          ...(meta.ibu ? [{ trait_type: 'IBU', value: parseInt(meta.ibu),   display_type: 'number' }] : []),
+        ].filter(a => a.value !== '' && a.value !== undefined),
+      };
+      const mCid = await pinJson(obj, meta.name);
+      setMetaCid(mCid);
+      setStatus('done');
+    } catch (e) {
+      setError(e.message);
+      setStatus('idle');
+    }
+  };
+
+  const copy = (val, key) => {
+    navigator.clipboard?.writeText(val).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(''), 2000);
+  };
+
+  const canUpload = image && meta.name.trim() && PINATA_JWT && status !== 'image' && status !== 'meta';
+
+  return (
+    <div className="space-y-5">
+      {!PINATA_JWT && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 font-medium">
+          VITE_PINATA_JWT not set — uploads will fail.
+        </div>
+      )}
+
+      {/* Image */}
+      <div>
+        <Label>Image (converted to PNG on upload)</Label>
+        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-6 cursor-pointer hover:border-hub-green transition-colors">
+          {preview
+            ? <img src={preview} alt="preview" className="max-h-32 rounded-lg object-contain mb-2" />
+            : <ImagePlus size={32} className="text-gray-300 mb-2" />
+          }
+          <span className="text-xs text-gray-400 font-medium">{image?.name ?? 'Click to select image'}</span>
+          <input type="file" accept="image/*" onChange={onFile} className="hidden" />
+        </label>
+      </div>
+
+      {/* Metadata fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="md:col-span-2">
+          <Label>Name</Label>
+          <Input value={meta.name} onChange={v => setMeta(m => ({ ...m, name: v }))} placeholder="Bavarian Hefeweizen" />
+        </div>
+        <div className="md:col-span-2">
+          <Label>Description</Label>
+          <textarea
+            value={meta.description}
+            onChange={e => setMeta(m => ({ ...m, description: e.target.value }))}
+            placeholder="A traditional unfiltered German wheat beer…"
+            rows={2}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-hub-green transition-colors resize-none"
+          />
+        </div>
+        <div>
+          <Label>Style</Label>
+          <Input value={meta.style} onChange={v => setMeta(m => ({ ...m, style: v }))} placeholder="Hefeweizen" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label>ABV %</Label>
+            <Input value={meta.abv} onChange={v => setMeta(m => ({ ...m, abv: v }))} placeholder="5.5" />
+          </div>
+          <div>
+            <Label>IBU</Label>
+            <Input value={meta.ibu} onChange={v => setMeta(m => ({ ...m, ibu: v }))} placeholder="12" />
+          </div>
+        </div>
+      </div>
+
+      <Btn onClick={upload} disabled={!canUpload} size="md">
+        {status === 'image' ? 'Uploading image…' : status === 'meta' ? 'Pinning metadata…' : 'Upload & Pin'}
+      </Btn>
+
+      {error && <p className="text-xs text-red-500 font-mono">{error}</p>}
+
+      {/* Results */}
+      {(imageCid || metaCid) && (
+        <div className="space-y-3 border-t border-gray-100 pt-4">
+          {imageCid && (
+            <div>
+              <Label>Image CID</Label>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-mono text-gray-600 flex-1 truncate bg-gray-50 px-2 py-1 rounded">{imageCid}</code>
+                <button onClick={() => copy(imageCid, 'img')} className="text-gray-400 hover:text-hub-green transition-colors">
+                  {copied === 'img' ? <CheckCheck size={14} className="text-hub-green" /> : <Copy size={14} />}
+                </button>
+              </div>
+            </div>
+          )}
+          {metaCid && (
+            <div>
+              <Label>Metadata CID — use this in setTokenCID / setContractCID</Label>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-mono text-gray-600 flex-1 truncate bg-gray-50 px-2 py-1 rounded">{metaCid}</code>
+                <button onClick={() => copy(metaCid, 'meta')} className="text-gray-400 hover:text-hub-green transition-colors">
+                  {copied === 'meta' ? <CheckCheck size={14} className="text-hub-green" /> : <Copy size={14} />}
+                </button>
+                <a href={`https://ipfs.io/ipfs/${metaCid}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-hub-green transition-colors">
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+export default function AdminPage() {
+  const { open }               = useAppKit();
+  const { isConnected, address } = useAccount();
+  const [activeTab, setActiveTab] = useState('Collections');
+
+  const { data: owner } = useReadContract({
+    address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'owner',
+    query: { enabled: !!isConnected },
+  });
+
+  const isOwner = owner && address && owner.toLowerCase() === address.toLowerCase();
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Shield size={48} className="mx-auto text-hub-green mb-4" />
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-2">Admin Console</h2>
+          <p className="text-gray-500 text-sm mb-6">Connect owner wallet to continue.</p>
+          <button onClick={() => open()} className="bg-hub-green text-white font-black px-8 py-3 rounded uppercase tracking-widest text-sm">
+            Connect Wallet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isOwner === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Shield size={48} className="mx-auto text-red-400 mb-4" />
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-500 text-sm font-mono">{address}</p>
+          <p className="text-gray-400 text-xs mt-2">This wallet is not the Treasury owner.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Upload: <Upload size={14} /> };
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
+      <div className="max-w-4xl mx-auto">
+
+        <div className="flex items-center gap-3 mb-8">
+          <Shield size={28} className="text-hub-green" />
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-gray-900">Admin Console</h1>
+            <p className="text-xs font-mono text-gray-400">{address}</p>
+          </div>
+        </div>
+
+        <div className="bg-white shadow-md rounded-2xl overflow-hidden">
+          <div className="flex border-b border-gray-100">
+            {TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-3 flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
+                  activeTab === tab
+                    ? 'border-hub-green text-hub-green bg-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-white'
+                }`}
+              >
+                {tabIcons[tab]} {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'Collections' && <CollectionsTab />}
+            {activeTab === 'Tokens'      && <TokensTab />}
+            {activeTab === 'Treasury'    && <TreasuryTab />}
+            {activeTab === 'Upload'      && <UploadTab />}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
