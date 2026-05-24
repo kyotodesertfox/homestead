@@ -57,6 +57,8 @@ export default function TreasuryHealth() {
       { address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,           functionName: 'getReserves'     }, // 5
       { address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI, functionName: 'totalTokens'     }, // 6
       { address: ADDRESSES.NFT_DEPLOYER,   abi: NFT_DEPLOYER_ABI,   functionName: 'totalContracts'  }, // 7
+      { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,           functionName: 'symbol'          }, // 8
+      { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,           functionName: 'symbol'          }, // 9
     ],
     query: { refetchInterval: 30_000 },
   });
@@ -69,6 +71,8 @@ export default function TreasuryHealth() {
   const reserves     = data?.[5]?.result;
   const totalTokens  = data?.[6]?.result;
   const totalNFTCols = data?.[7]?.result;
+  const beerSymbol   = data?.[8]?.result;
+  const stkSymbol    = data?.[9]?.result;
 
   // r0 = BEER, r1 = WETH
   const beerSpot = reserves?.[0] && reserves[0] > 0n
@@ -181,9 +185,9 @@ export default function TreasuryHealth() {
 
             {activeTab === 'Tokens' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard label="$BEER Supply"   value={`${fmtToken(beerSupply)} $BEER`}              sub="Tokens in circulation"     accent="amber" />
-                <StatCard label="stkHOME Supply" value={`${fmtToken(stkSupply)} stkHOME`}             sub="Staked credentials issued" accent="green" />
-                <StatCard label="$BEER Spot"     value={beerSpot ? `${beerSpot.toFixed(6)} ETH` : '—'} sub="Per $BEER — live DEX price" accent="sky"  />
+                <StatCard label={`${beerSymbol ?? '…'} Supply`}  value={`${fmtToken(beerSupply)} ${beerSymbol ?? '…'}`}  sub="Tokens in circulation"                              accent="amber" />
+                <StatCard label={`${stkSymbol ?? '…'} Supply`}  value={`${fmtToken(stkSupply)} ${stkSymbol ?? '…'}`}   sub="Staked credentials issued"                          accent="green" />
+                <StatCard label={`${beerSymbol ?? '…'} Spot`}   value={beerSpot ? `${beerSpot.toFixed(6)} ETH` : '—'}  sub={`Per ${beerSymbol ?? '…'} — live DEX price`}         accent="sky"   />
               </div>
             )}
 
