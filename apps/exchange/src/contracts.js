@@ -313,7 +313,7 @@ export const NFT_ABI = [
   { name: 'owner',                  type: 'function', stateMutability: 'view',        inputs: [],                                     outputs: [{ type: 'address' }] },
   { name: 'contractURI',            type: 'function', stateMutability: 'view',        inputs: [],                                     outputs: [{ type: 'string'  }] },
   { name: 'isMinter',               type: 'function', stateMutability: 'view',        inputs: [{ name: '',         type: 'address'  }], outputs: [{ type: 'bool'    }] },
-  { name: 'isRedemptionOperator',   type: 'function', stateMutability: 'view',        inputs: [{ name: '',         type: 'address'  }], outputs: [{ type: 'bool'    }] },
+  { name: 'redemptionOperator',      type: 'function', stateMutability: 'view',        inputs: [{ name: '',         type: 'address'  }], outputs: [{ type: 'bool'    }] },
   { name: 'setTokenCID',            type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'tokenId',  type: 'uint256'  }, { name: 'newCID',   type: 'string'  }], outputs: [] },
   { name: 'setContractCID',         type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'newCID',   type: 'string'   }],                                        outputs: [] },
   { name: 'setMinter',              type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'minter',   type: 'address'  }, { name: 'approved', type: 'bool'    }], outputs: [] },
