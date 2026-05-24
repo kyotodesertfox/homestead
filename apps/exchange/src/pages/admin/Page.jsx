@@ -5,7 +5,7 @@ import { useAppKit } from '@reown/appkit/react';
 import { formatUnits, parseEther } from 'viem';
 import {
   ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
-  NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI,
+  NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
 } from '../../contracts';
 
 // ── Pinata ────────────────────────────────────────────────────────────────────
@@ -428,6 +428,126 @@ function TokensTab() {
                   <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
                 </div>
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <DEXPairsSection />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEX PAIRS SECTION (inside Tokens tab)
+// ─────────────────────────────────────────────────────────────────────────────
+function DEXPairsSection() {
+  const publicClient = usePublicClient();
+  const [pairs, setPairs]       = useState([]);
+  const [expanded, setExpanded] = useState(null);
+  const [loading, setLoading]   = useState(false);
+
+  const { data: pairLength, refetch } = useReadContract({
+    address: ADDRESSES.FACTORY, abi: FACTORY_ABI, functionName: 'allPairsLength',
+    query: { enabled: !!ADDRESSES.FACTORY },
+  });
+
+  useEffect(() => {
+    if (!pairLength || !publicClient) return;
+    const count = Number(pairLength);
+    if (count === 0) { setPairs([]); return; }
+    setLoading(true);
+
+    const indexCalls = Array.from({ length: count }, (_, i) => ({
+      address: ADDRESSES.FACTORY, abi: FACTORY_ABI, functionName: 'allPairs', args: [BigInt(i)],
+    }));
+
+    publicClient.multicall({ contracts: indexCalls }).then(async addrRes => {
+      const addrs = addrRes.map(r => r.result).filter(Boolean);
+
+      const dataCalls = addrs.flatMap(addr => [
+        { address: addr, abi: PAIR_ABI, functionName: 'token0'      },
+        { address: addr, abi: PAIR_ABI, functionName: 'token1'      },
+        { address: addr, abi: PAIR_ABI, functionName: 'totalSupply' },
+        { address: addr, abi: PAIR_ABI, functionName: 'getReserves' },
+      ]);
+      const dataRes = await publicClient.multicall({ contracts: dataCalls });
+
+      const base = addrs.map((addr, i) => ({
+        address:   addr,
+        token0:    dataRes[i * 4 + 0]?.result,
+        token1:    dataRes[i * 4 + 1]?.result,
+        lpSupply:  dataRes[i * 4 + 2]?.result ?? 0n,
+        reserve0:  dataRes[i * 4 + 3]?.result?.[0] ?? 0n,
+        reserve1:  dataRes[i * 4 + 3]?.result?.[1] ?? 0n,
+      }));
+
+      const symCalls = base.flatMap(p => [
+        { address: p.token0, abi: ERC20_ABI, functionName: 'symbol' },
+        { address: p.token1, abi: ERC20_ABI, functionName: 'symbol' },
+      ]);
+      const symRes = await publicClient.multicall({ contracts: symCalls });
+
+      setPairs(base.map((p, i) => ({
+        ...p,
+        symbol0: symRes[i * 2 + 0]?.result ?? '?',
+        symbol1: symRes[i * 2 + 1]?.result ?? '?',
+      })));
+      setLoading(false);
+    });
+  }, [pairLength, publicClient]);
+
+  const fmt18 = (v) => v != null ? parseFloat(formatUnits(v, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div className="flex items-center justify-between border-t border-gray-100 pt-6">
+        <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+          DEX Pairs — {loading ? '…' : `${pairs.length} pair${pairs.length !== 1 ? 's' : ''}`}
+        </p>
+        <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
+      </div>
+
+      {pairs.map(pair => (
+        <div key={pair.address} className="border border-gray-100 rounded-xl">
+          <div
+            onClick={() => setExpanded(expanded === pair.address ? null : pair.address)}
+            className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-gray-900 text-sm">{pair.symbol0}/{pair.symbol1} <span className="text-gray-400 font-mono text-xs">LP</span></p>
+              <CopyAddr address={pair.address} />
+            </div>
+            <p className="text-xs text-gray-400 shrink-0">{fmt18(pair.lpSupply)} LP supply</p>
+            {expanded === pair.address ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </div>
+
+          {expanded === pair.address && (
+            <div className="border-t border-gray-100 p-4 bg-gray-50 rounded-b-xl space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>{pair.symbol0} Reserve</Label>
+                  <p className="text-sm font-black text-gray-700">{fmt18(pair.reserve0)}</p>
+                  <CopyAddr address={pair.token0} />
+                </div>
+                <div>
+                  <Label>{pair.symbol1} Reserve</Label>
+                  <p className="text-sm font-black text-gray-700">{fmt18(pair.reserve1)}</p>
+                  <CopyAddr address={pair.token1} />
+                </div>
+              </div>
+              <div>
+                <Label>Price</Label>
+                <p className="text-sm font-black text-gray-700">
+                  {pair.reserve0 > 0n && pair.reserve1 > 0n
+                    ? `${(Number(formatUnits(pair.reserve1, 18)) / Number(formatUnits(pair.reserve0, 18))).toFixed(8)} ${pair.symbol1} per ${pair.symbol0}`
+                    : 'No liquidity'}
+                </p>
+              </div>
+              <div>
+                <Label>LP Total Supply</Label>
+                <p className="text-sm font-black text-gray-700">{fmt18(pair.lpSupply)}</p>
               </div>
             </div>
           )}

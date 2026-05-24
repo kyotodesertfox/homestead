@@ -115,6 +115,16 @@ export const PAIR_ABI = [
     inputs: [],
     outputs: [{ type: 'uint256' }],
   },
+  { name: 'token0',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'token1',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'totalSupply', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'balanceOf',   type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
+];
+
+export const FACTORY_ABI = [
+  { name: 'allPairsLength', type: 'function', stateMutability: 'view', inputs: [],                                  outputs: [{ type: 'uint256' }] },
+  { name: 'allPairs',       type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'uint256' }],     outputs: [{ type: 'address' }] },
+  { name: 'getPair',        type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }, { name: '', type: 'address' }], outputs: [{ type: 'address' }] },
 ];
 
 export const TREASURY_ABI = [
