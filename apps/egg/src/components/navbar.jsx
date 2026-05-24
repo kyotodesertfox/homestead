@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Egg, Menu, X, Sprout, BookOpen, Repeat, Wallet, ExternalLink, ShoppingBag } from 'lucide-react';
+import { Egg, Menu, X, Sprout, BookOpen, Repeat, Wallet, ExternalLink, ShoppingBag, House } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
@@ -33,6 +33,10 @@ export default function Navbar() {
 
           {/* NAV LINKS (DESKTOP) */}
           <div className="hidden md:flex items-center gap-8">
+            <a href="/"
+              className="flex items-center gap-2 text-gray-300 hover:text-egg-yolk transition-colors font-semibold text-sm">
+              <House size={18} /> Homestead
+            </a>
             <NavLink to="/our-process"   icon={<Sprout size={18} />}      label="Our Process"  />
             <NavLink to="/how-it-works"  icon={<BookOpen size={18} />}    label="How It Works" />
             <NavLink to="/marketplace"   icon={<ShoppingBag size={18} />} label="Market"       />
@@ -65,6 +69,11 @@ export default function Navbar() {
       {/* MOBILE MENU DROPDOWN */}
       <div className={`${isOpen ? 'block' : 'hidden'} md:hidden bg-homestead-header border-t border-egg-yolk/20`}>
         <div className="px-4 pt-2 pb-6 space-y-1">
+          <a href="/" onClick={closeMenu}
+            className="flex items-center gap-4 text-gray-300 hover:text-egg-yolk p-3 rounded-lg font-bold text-lg">
+            <div className="text-egg-yolk"><House size={20} /></div>
+            Homestead
+          </a>
           <MobileNavLink to="/our-process"  icon={<Sprout size={20} />}      label="Our Process"  onClick={closeMenu} />
           <MobileNavLink to="/how-it-works" icon={<BookOpen size={20} />}    label="How It Works" onClick={closeMenu} />
           <MobileNavLink to="/marketplace"  icon={<ShoppingBag size={20} />} label="Market"       onClick={closeMenu} />

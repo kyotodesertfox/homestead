@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Beer, Menu, X, FlaskConical, Wallet, Repeat, Store, ExternalLink, LayoutDashboard } from 'lucide-react';
+import { Beer, Menu, X, FlaskConical, Wallet, Repeat, Store, ExternalLink, LayoutDashboard, House } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
@@ -36,6 +36,10 @@ export default function Navbar() {
 
         {/* NAV LINKS (DESKTOP) */}
         <div className="hidden md:flex items-center gap-8">
+        <a href="/"
+          className="flex items-center gap-2 text-gray-300 hover:text-beer-gold transition-colors font-semibold text-sm">
+          <House size={18} /> Homestead
+        </a>
         <NavLink to="/recipes" icon={<FlaskConical size={18}/>} label="Recipes" />
         <NavLink to="/marketplace" icon={<Store size={18}/>} label="Market" />
         <a href="/swap" target="_blank" rel="noopener noreferrer"
@@ -77,6 +81,11 @@ export default function Navbar() {
         {/* MOBILE MENU DROPDOWN */}
         <div className={`${isOpen ? 'block' : 'hidden'} md:hidden bg-beer-dark border-t border-beer-amber/20`}>
         <div className="px-4 pt-2 pb-6 space-y-1">
+        <a href="/" onClick={closeMenu}
+          className="flex items-center gap-4 text-gray-300 hover:text-beer-gold p-3 rounded-lg font-bold text-lg">
+          <div className="text-beer-gold"><House size={20} /></div>
+          Homestead
+        </a>
         <MobileNavLink to="/recipes" icon={<FlaskConical size={20} />} label="Recipes" onClick={closeMenu} />
         <MobileNavLink to="/marketplace" icon={<Store size={20} />} label="Market" onClick={closeMenu} />
         <a href="/swap" target="_blank" rel="noopener noreferrer" onClick={closeMenu}
