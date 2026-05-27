@@ -181,6 +181,8 @@ export const TREASURY_ABI = [
       { name: 'slashed',            type: 'bool'    },
     ],
   },
+  { name: 'accumulatedFees', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'floorBalance',   type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'claimableStake', type: 'function', stateMutability: 'view',        inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
   { name: 'claimStake',     type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [] },
   { name: 'postStake',      type: 'function', stateMutability: 'payable',     inputs: [], outputs: [] },
