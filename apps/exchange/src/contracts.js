@@ -97,6 +97,23 @@ export const ROUTER_ABI = [
     ],
     outputs: [{ name: 'amounts', type: 'uint256[]' }],
   },
+  {
+    name: 'getFeeSchedule',
+    type: 'function', stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      {
+        name: 's', type: 'tuple',
+        components: [
+          { name: 'ammFeeBps',   type: 'uint256' },
+          { name: 'entryFeeBps', type: 'uint256' },
+          { name: 'exitFeeBps',  type: 'uint256' },
+          { name: 'lpRewardBps', type: 'uint256' },
+          { name: 'treasuryBps', type: 'uint256' },
+        ],
+      },
+    ],
+  },
 ];
 
 export const PAIR_ABI = [

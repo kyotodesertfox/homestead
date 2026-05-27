@@ -2,30 +2,83 @@
 pragma solidity ^0.8.20;
 
 import "./Interfaces.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Router {
+/**
+ * @title  Router
+ * @notice Thin executor — owns no policy. All fee decisions are delegated to
+ *         Treasury at call time. Upgrade via UUPS; policy changes via Treasury.
+ *
+ * Fee model (all values live in Treasury, readable via getFeeSchedule):
+ *   AMM fee   — 0.30% baked into HomesteadLibrary quote math (constant)
+ *   Entry fee — dexEntryFeeBps  → Treasury  (on ETH → Token)
+ *   Exit fee  — dexExitFeeBps   total (on Token → ETH), split:
+ *                 lpRewardFeeBps  → exit pair (accrues to LP holders)
+ *                 remainder       → Treasury
+ */
+contract Router is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
-    address public immutable factory;
-    address public immutable WETH;
-    address public immutable treasury;
+    address public factory;
+    address public WETH;
+    address public treasury;
+
+    // Mirrors the 9970/10000 constant in HomesteadLibrary — exposed for UI
+    uint256 public constant AMM_FEE_BPS = 30;
 
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, 'Router: EXPIRED');
         _;
     }
 
-    constructor(address _factory, address _WETH, address _treasury) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _factory,
+        address _WETH,
+        address _treasury,
+        address _owner
+    ) external initializer {
+        __Ownable_init(_owner);
+        __UUPSUpgradeable_init();
         factory  = _factory;
         WETH     = _WETH;
         treasury = _treasury;
     }
 
     receive() external payable {
+        // Only WETH may push ETH to this contract (via withdraw during swaps)
         assert(msg.sender == WETH);
     }
 
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
     // =========================================================================
-    // ENTRY — ETH → Token (free platform fee)
+    // FEE SCHEDULE — single call, all values from Treasury + AMM constant
+    // =========================================================================
+
+    struct FeeSchedule {
+        uint256 ammFeeBps;     // AMM pair fee — baked into every quote (constant 30)
+        uint256 entryFeeBps;   // platform fee on ETH → Token
+        uint256 exitFeeBps;    // total platform fee on Token → ETH
+        uint256 lpRewardBps;   // LP reward share of exitFeeBps → exit pair
+        uint256 treasuryBps;   // Treasury share of exitFeeBps (exitFeeBps - lpRewardBps)
+    }
+
+    function getFeeSchedule() external view returns (FeeSchedule memory s) {
+        s.ammFeeBps   = AMM_FEE_BPS;
+        s.entryFeeBps = ITreasury(treasury).dexEntryFeeBps();
+        s.exitFeeBps  = ITreasury(treasury).dexExitFeeBps();
+        s.lpRewardBps = ITreasury(treasury).lpRewardFeeBps();
+        s.treasuryBps = s.exitFeeBps > s.lpRewardBps ? s.exitFeeBps - s.lpRewardBps : 0;
+    }
+
+    // =========================================================================
+    // ENTRY — ETH → Token
     // =========================================================================
 
     function swapExactETHForTokens(
@@ -36,17 +89,28 @@ contract Router {
     ) external payable ensure(deadline) returns (uint256[] memory amounts) {
         require(path[0] == WETH, 'Router: INVALID_PATH');
 
-        amounts = HomesteadLibrary.getAmountsOut(factory, msg.value, path);
+        // Ask Treasury for current entry fee; deduct before quote so user
+        // receives exactly what the quote says
+        uint256 entryFeeBps = ITreasury(treasury).dexEntryFeeBps();
+        uint256 entryFee    = (msg.value * entryFeeBps) / 10000;
+        uint256 swapValue   = msg.value - entryFee;
+
+        amounts = HomesteadLibrary.getAmountsOut(factory, swapValue, path);
         require(amounts[amounts.length - 1] >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
 
-        IWETH(WETH).deposit{value: amounts[0]}();
+        IWETH(WETH).deposit{value: swapValue}();
         address firstPair = IFactory(factory).getPair(path[0], path[1]);
         assert(IWETH(WETH).transfer(firstPair, amounts[0]));
         _swap(amounts, path, to);
+
+        if (entryFee > 0) {
+            (bool ok,) = treasury.call{value: entryFee}("");
+            require(ok, 'Router: ENTRY_FEE_FAILED');
+        }
     }
 
     // =========================================================================
-    // EXIT — Token → ETH (3% platform fee → Treasury, 2% LP rewards → pair)
+    // EXIT — Token → ETH
     // =========================================================================
 
     function swapExactTokensForETH(
@@ -63,24 +127,23 @@ contract Router {
 
         address firstPair = IFactory(factory).getPair(path[0], path[1]);
         IERC20(path[0]).transferFrom(msg.sender, firstPair, amounts[0]);
-
-        // Router receives WETH, unwraps, splits platform fee between Treasury and LP rewards
         _swap(amounts, path, address(this));
 
-        uint256 ethOut = amounts[amounts.length - 1];
+        uint256 ethOut      = amounts[amounts.length - 1];
         IWETH(WETH).withdraw(ethOut);
 
-        uint256 totalFeeBps  = ITreasury(treasury).dexExitFeeBps();
-        uint256 lpFeeBps     = ITreasury(treasury).lpRewardFeeBps();
-        uint256 lpReward     = (ethOut * lpFeeBps) / 10000;
-        uint256 treasuryFee  = (ethOut * totalFeeBps) / 10000 - lpReward;
-        uint256 userProceeds = ethOut - lpReward - treasuryFee;
+        // All fee policy lives in Treasury — read at execution time
+        uint256 exitFeeBps  = ITreasury(treasury).dexExitFeeBps();
+        uint256 lpBps       = ITreasury(treasury).lpRewardFeeBps();
+        uint256 totalFee    = (ethOut * exitFeeBps) / 10000;
+        uint256 lpReward    = (ethOut * lpBps)      / 10000;
+        uint256 treasuryFee = totalFee > lpReward ? totalFee - lpReward : 0;
+        uint256 userOut     = ethOut - totalFee;
 
-        // Send LP reward share to the exit pair
         if (lpReward > 0) {
             address exitPair = IFactory(factory).getPair(path[path.length - 2], path[path.length - 1]);
-            (bool rewardOk,) = exitPair.call{value: lpReward}("");
-            require(rewardOk, 'Router: REWARD_TRANSFER_FAILED');
+            (bool lpOk,) = exitPair.call{value: lpReward}("");
+            require(lpOk, 'Router: LP_REWARD_FAILED');
         }
 
         if (treasuryFee > 0) {
@@ -88,8 +151,8 @@ contract Router {
             require(feeOk, 'Router: FEE_TRANSFER_FAILED');
         }
 
-        (bool success,) = to.call{value: userProceeds}("");
-        require(success, 'Router: ETH_TRANSFER_FAILED');
+        (bool ok,) = to.call{value: userOut}("");
+        require(ok, 'Router: ETH_TRANSFER_FAILED');
     }
 
     // =========================================================================
@@ -129,8 +192,8 @@ contract Router {
         liquidity = IPair(pair).mint(to);
 
         if (msg.value > amountETH) {
-            (bool success,) = msg.sender.call{value: msg.value - amountETH}("");
-            require(success, 'Router: REFUND_FAILED');
+            (bool ok,) = msg.sender.call{value: msg.value - amountETH}("");
+            require(ok, 'Router: REFUND_FAILED');
         }
     }
 
@@ -145,7 +208,7 @@ contract Router {
         address pair = IFactory(factory).getPair(token, WETH);
         require(pair != address(0), 'Router: PAIR_NOT_FOUND');
 
-        // Auto-claim LP rewards before LP balance drops to zero
+        // Auto-claim accrued LP rewards before position is reduced
         IDEXPair(pair).claimRewards(msg.sender);
 
         IPair(pair).transferFrom(msg.sender, pair, liquidity);
@@ -159,8 +222,8 @@ contract Router {
 
         IERC20(token).transfer(to, amountToken);
         IWETH(WETH).withdraw(amountETH);
-        (bool success,) = to.call{value: amountETH}("");
-        require(success, 'Router: ETH_TRANSFER_FAILED');
+        (bool ok,) = to.call{value: amountETH}("");
+        require(ok, 'Router: ETH_TRANSFER_FAILED');
     }
 
     // =========================================================================
@@ -168,15 +231,24 @@ contract Router {
     // =========================================================================
 
     function getAmountsOut(uint256 amountIn, address[] calldata path)
-        external view returns (uint256[] memory amounts)
+        external view returns (uint256[] memory)
     {
         return HomesteadLibrary.getAmountsOut(factory, amountIn, path);
     }
 
     function getAmountsIn(uint256 amountOut, address[] calldata path)
-        external view returns (uint256[] memory amounts)
+        external view returns (uint256[] memory)
     {
         return HomesteadLibrary.getAmountsIn(factory, amountOut, path);
+    }
+
+    // =========================================================================
+    // ADMIN
+    // =========================================================================
+
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), 'Router: ZERO_ADDRESS');
+        treasury = _treasury;
     }
 
     // =========================================================================

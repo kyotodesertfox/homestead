@@ -111,9 +111,18 @@ function CopyAddr({ address, full = false }) {
   return (
     <span className="inline-flex items-center gap-1 min-w-0">
       <span className="font-mono text-xs text-gray-600 truncate">{display}</span>
-      <button onClick={copy} className="text-gray-300 hover:text-hub-green transition-colors shrink-0">
+      <button onClick={copy} className="text-gray-500 hover:text-hub-green transition-colors shrink-0">
         {copied ? <CheckCheck size={12} className="text-hub-green" /> : <Copy size={12} />}
       </button>
+      <a
+        href={`https://taikoscan.io/address/${address}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        className="text-gray-500 hover:text-hub-green transition-colors shrink-0"
+      >
+        <ExternalLink size={12} />
+      </a>
     </span>
   );
 }
