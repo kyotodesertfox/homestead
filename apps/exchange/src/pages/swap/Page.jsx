@@ -224,6 +224,12 @@ export default function SwapPage() {
   const handleToggle  = () => { setIsSelling(s => !s); setTokenAmount(''); };
   // Floor to whole units — BEER/EGG are whole-unit tokens
   const handleMax     = () => { if (isSelling && tokenBal) setTokenAmount((tokenBal.value / (10n ** 18n)).toString()); };
+  const handlePercent = (pct) => {
+    if (pct === 0) { setTokenAmount(''); return; }
+    if (!tokenBal) return;
+    const whole = tokenBal.value / (10n ** 18n);
+    setTokenAmount(((whole * BigInt(pct)) / 100n).toString());
+  };
   const handleApprove = () => writeApprove({
     address: ADDRESSES.BEER_TOKEN, abi: ERC20_ABI,
     functionName: 'approve', args: [ADDRESSES.ROUTER, tokenAmountBig],
@@ -344,10 +350,16 @@ export default function SwapPage() {
                   />
                 </div>
                 {isSelling && (
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleMax}
-                      className="bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 px-4 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
+                  <div className="flex gap-1.5 justify-end">
+                    {[0, 25, 50, 75].map(pct => (
+                      <button key={pct} onClick={() => handlePercent(pct)}
+                        className="bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 px-3 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
+                      >
+                        {pct === 0 ? '0' : `${pct}%`}
+                      </button>
+                    ))}
+                    <button onClick={handleMax}
+                      className="bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 px-3 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
                     >
                       Max
                     </button>
@@ -387,34 +399,48 @@ export default function SwapPage() {
               </div>
 
               {/* TRADE DETAILS */}
-              {tokenAmountBig > 0n && !!path && netEthAmount > 0n && (
-                <div className="bg-black/20 rounded-2xl p-4 text-[10px] font-black uppercase tracking-widest text-stone-400 flex flex-col gap-2 border border-white/5">
-                  {rateDisplay !== null && (
-                    <div className="flex justify-between">
-                      <span>Rate</span>
-                      <span className="text-white">1 {selectedToken} = {rateDisplay.toFixed(6)} ETH</span>
-                    </div>
-                  )}
-                  {priceImpact !== null && (
-                    <div className="flex justify-between">
-                      <span>Price Impact</span>
-                      <span className={parseFloat(priceImpact) > 2 ? 'text-rose-500' : 'text-emerald-500'}>{priceImpact}%</span>
-                    </div>
-                  )}
+              {!!path && (
+                <div className="bg-black/20 rounded-2xl p-4 text-[10px] font-black uppercase tracking-widest text-stone-400 flex flex-col gap-2.5 border border-white/5">
+
+                  <div className="flex justify-between">
+                    <span>Rate</span>
+                    <span className={rateDisplay !== null ? 'text-white' : 'text-stone-600'}>
+                      {rateDisplay !== null ? `1 ${selectedToken} = ${rateDisplay.toFixed(6)} ETH` : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span>Price Impact</span>
+                    {priceImpact !== null
+                      ? <span className={parseFloat(priceImpact) > 2 ? 'text-rose-500' : 'text-emerald-500'}>{priceImpact}%</span>
+                      : <span className="text-stone-600">—</span>
+                    }
+                  </div>
+
                   <div className="flex justify-between">
                     <span>Market Fee ({lpFeePercent}%)</span>
-                    <span className="text-white">{lpFeeDisplay} {lpFeeCurrency}</span>
+                    <span className={tokenAmountBig > 0n ? 'text-white' : 'text-stone-600'}>
+                      {tokenAmountBig > 0n ? `${lpFeeDisplay} ${lpFeeCurrency}` : `${lpFeePercent}% of input`}
+                    </span>
                   </div>
-                  {exitFeeDisplay !== null && (
-                    <div className="flex justify-between">
-                      <span>Community Fee ({exitFeePercent}%)</span>
-                      <span className="text-white">{exitFeeDisplay} ETH</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t border-white/5 pt-2">
+
+                  <div className="flex justify-between">
+                    <span>Community Fee ({exitFeePercent}%)</span>
+                    {isSelling
+                      ? <span className={exitFeeDisplay ? 'text-white' : 'text-stone-600'}>
+                          {exitFeeDisplay ? `${exitFeeDisplay} ETH` : `${exitFeePercent}% of proceeds`}
+                        </span>
+                      : <span className="text-emerald-500">Free on buys</span>
+                    }
+                  </div>
+
+                  <div className="flex justify-between border-t border-white/5 pt-2.5">
                     <span>Minimum Received</span>
-                    <span className="text-white">{minReceivedDisplay}</span>
+                    <span className={netEthAmount > 0n ? 'text-white' : 'text-stone-600'}>
+                      {netEthAmount > 0n ? minReceivedDisplay : '—'}
+                    </span>
                   </div>
+
                 </div>
               )}
 
@@ -431,12 +457,24 @@ export default function SwapPage() {
             <div className="text-hub-green mt-1 shrink-0">
               <Info size={24} strokeWidth={3} />
             </div>
-            <div>
-              <h4 className="text-gray-900 font-black text-sm uppercase tracking-tight">About the Swap</h4>
-              <p className="text-gray-500 text-xs mt-1 leading-relaxed font-medium">
-                Trade $BEER and other Homestead tokens instantly.
-                Buying is free — selling carries a small fee that goes back to the community.
-                Your order is protected against up to 0.5% price movement while it confirms.
+            <div className="w-full">
+              <h4 className="text-gray-900 font-black text-sm uppercase tracking-tight mb-2">Fee Schedule</h4>
+              <div className="flex flex-col gap-1.5 text-xs font-medium">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Market Fee (both directions)</span>
+                  <span className="font-black text-gray-900">{lpFeePercent}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Community Fee (sells only)</span>
+                  <span className="font-black text-gray-900">{exitFeePercent}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Slippage Tolerance</span>
+                  <span className="font-black text-gray-900">0.5%</span>
+                </div>
+              </div>
+              <p className="text-gray-400 text-xs mt-3 leading-relaxed">
+                Market fee goes to liquidity providers. Community fee is routed to the Treasury on sells.
               </p>
             </div>
           </section>
