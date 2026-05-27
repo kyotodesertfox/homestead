@@ -175,11 +175,10 @@ export default function TreasuryHealth() {
         ) : (
           <>
             {activeTab === 'Treasury' && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="ETH Floor"     value={`${fmtEth(floor)} ETH`}                        sub="Permanent. Never withdrawable." accent="green"  />
-                <StatCard label="Platform Fees" value={`${fmtEth(fees)} ETH`}                         sub="Accumulated revenue"           accent="amber"  />
-                <StatCard label="Active Stake"  value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral"    accent="sky"    />
-                <StatCard label="Claimable"     value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"     accent="violet" />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatCard label="ETH Floor"    value={`${fmtEth(floor)} ETH`}                        sub="Permanent. Never withdrawable." accent="green"  />
+                <StatCard label="Active Stake" value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral"    accent="sky"    />
+                <StatCard label="Claimable"    value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"     accent="violet" />
               </div>
             )}
 
