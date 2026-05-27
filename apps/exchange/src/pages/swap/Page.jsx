@@ -13,7 +13,8 @@ const HUB_CHAIN_ID = 167000;
 // Product tokens only — ETH is always the other side and is never selectable
 const TOKENS = [
   { symbol: '$BEER', address: ADDRESSES.BEER_TOKEN, decimals: 18, color: 'bg-amber-400' },
-  { symbol: '$EGG',  address: null,                 decimals: 18, color: 'bg-yellow-400' },
+  { symbol: '$EGG',  address: null,                 decimals: 18, color: 'bg-sky-400'    },
+  { symbol: '$SPA',  address: null,                 decimals: 18, color: 'bg-purple-400' },
 ];
 
 function buildPath(tokenSymbol, isSelling) {
