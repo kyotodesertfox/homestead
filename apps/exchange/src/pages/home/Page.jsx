@@ -19,8 +19,16 @@ const portals = [
     token: '$EGG',
     description: 'Pasture-raised eggs from a private homestead. One token, one egg.',
     href: '/egg/',
-    color: 'border-yellow-400 text-yellow-500',
-    dot: 'bg-yellow-400',
+    color: 'border-sky-400 text-sky-500',
+    dot: 'bg-sky-400',
+  },
+  {
+    name: 'Spa Exchange',
+    token: '$SPA',
+    description: 'Handcrafted spa goods from the homestead. Each token redeemable for a real product.',
+    href: '/spa/',
+    color: 'border-purple-400 text-purple-500',
+    dot: 'bg-purple-400',
   },
 ];
 
@@ -134,7 +142,7 @@ export default function HomePage() {
             )}
 
             {activeTab === 'Portals' && (
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 {portals.map((p) => (
                   <a key={p.name} href={p.href} target="_blank" rel="noopener noreferrer"
                     className={`group border-2 ${p.color.split(' ')[0]} rounded-xl p-5 hover:shadow-md transition-all`}

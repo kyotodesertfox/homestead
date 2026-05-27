@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, ExternalLink, LayoutDashboard, Radio } from 'lucide-react';
+import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, LayoutDashboard, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useDisconnect } from 'wagmi';
@@ -36,17 +36,6 @@ export default function Navbar() {
             <NavLink to="/market"  icon={<ShoppingBag size={18} />} label="Market" />
             <NavLink to="/swap"    icon={<Repeat size={18} />}       label="Swap" />
             <NavLink to="/bridge"  icon={<ArrowLeftRight size={18} />} label="Bridge" />
-
-            <div className="w-px h-6 bg-white/10" />
-
-            <a href="/beer/" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition-colors font-semibold text-xs uppercase tracking-widest">
-              Beer <ExternalLink size={12} />
-            </a>
-            <a href="/egg/" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-yellow-400 hover:text-yellow-300 transition-colors font-semibold text-xs uppercase tracking-widest">
-              Egg <ExternalLink size={12} />
-            </a>
 
             {isConnected ? (
               <Link
