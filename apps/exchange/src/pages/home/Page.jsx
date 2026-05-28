@@ -264,11 +264,34 @@ export default function HomePage() {
             and their place in line is provable on-chain. The cash buyer pays today's market price
             and gets whatever's left. That's not a punishment — that's how real demand works.
           </p>
-          <p className="text-white/70 font-medium leading-relaxed max-w-2xl">
+          <p className="text-white/70 font-medium leading-relaxed mb-4 max-w-2xl">
             For the producer, outstanding tokens are visible backlog — proof of real demand before
             the next batch even starts. No guessing. No overproducing for a distributor who might
             not take it. The market tells you exactly what to grow next.
           </p>
+          <p className="text-white font-black leading-relaxed max-w-2xl text-lg">
+            The token price is the floor. Cash works when it beats it.
+            For the first time, the producer has leverage.
+          </p>
+        </section>
+
+        {/* ── BECOME THE SUPPLY ─────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="bg-white border border-gray-100 rounded-2xl p-8 shadow-sm">
+            <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-3">
+              Buyers become producers.<br />That's how the market grows.
+            </h2>
+            <p className="text-gray-500 font-medium leading-relaxed max-w-2xl">
+              The neighbor who buys your eggs today could be selling you tomatoes next season.
+              Every producer who joins brings new supply. Every buyer who holds a token signals
+              real demand. The more people who participate — on either side — the less anyone
+              depends on a supply chain that was never built for them.
+            </p>
+            <p className="text-gray-500 font-medium leading-relaxed max-w-2xl mt-3">
+              You don't have to grow at scale. You don't need a commercial kitchen or a distributor
+              relationship. If you produce more than you consume, Homestead is your market.
+            </p>
+          </div>
         </section>
 
         {/* ── PRODUCER CTA ──────────────────────────────────────────────── */}
