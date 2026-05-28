@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, Menu, X, ShoppingBag, Repeat, ArrowLeftRight, Wallet, LayoutDashboard, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useDisconnect } from 'wagmi';
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen]       = useState(false);
+  const [scrollPct, setScrollPct] = useState(0);
   const { open } = useAppKit();
+
+  useEffect(() => {
+    const onScroll = () => {
+      const el  = document.documentElement;
+      const pct = el.scrollHeight <= el.clientHeight
+        ? 0
+        : (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+      setScrollPct(pct);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const { isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
 
@@ -18,7 +31,10 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-hub-dark border-b-2 border-hub-green shadow-2xl">
+    <nav className="fixed top-0 inset-x-0 z-50 bg-hub-dark shadow-2xl">
+      {/* Scroll progress bar */}
+      <div className="absolute bottom-0 left-0 h-[4px] bg-hub-green transition-[width] duration-75 ease-linear z-10"
+           style={{ width: `${scrollPct}%` }} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
 
