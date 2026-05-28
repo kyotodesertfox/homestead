@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Info, Plus, X, ImagePlus, Copy, CheckCheck, Upload, ArrowRight, PackagePlus } from 'lucide-react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI } from '../../contracts';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
 
 // ─── IPFS ────────────────────────────────────────────────────────────────────
 const IPFS_GW    = 'https://ipfs.io/ipfs/';
@@ -107,11 +107,15 @@ async function pinJson(obj, name) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const ZERO = '0x0000000000000000000000000000000000000000';
-const tokenLabel = (addr) => {
-  if (!addr) return '?';
-  if (addr.toLowerCase() === ADDRESSES.BEER_TOKEN?.toLowerCase()) return 'BEER';
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+const tokenLabel = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '?';
+
+// Schema config keyed by on-chain ERC20 symbol — controls custom metadata fields.
+// Tokens without an entry get DEFAULT_SCHEMA (photo + name only).
+const NFT_SCHEMAS = {
+  BEER: { imageLabel: 'Label Image', namePlaceholder: 'Homestead West Coast IPA', descPlaceholder: 'Tasting notes, ingredients, story…', hasStyle: true,  hasBrewFields: true,  hasEggFields: false },
+  EGG:  { imageLabel: 'Photo',       namePlaceholder: 'Homestead Farm Fresh Eggs', descPlaceholder: 'Farm details, freshness, quantity…',  hasStyle: false, hasBrewFields: false, hasEggFields: true  },
 };
+const DEFAULT_SCHEMA = { imageLabel: 'Photo', namePlaceholder: 'Product Name', descPlaceholder: 'Description…', hasStyle: false, hasBrewFields: false, hasEggFields: false };
 
 // ─── Unified Create Listing Modal (two-step) ──────────────────────────────────
 // Step 0 — metadata builder (shown when no styles exist, or user wants a new one)
@@ -119,10 +123,37 @@ const tokenLabel = (addr) => {
 function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }) {
   const { address } = useAccount();
 
-  const [collection, setCollection] = useState('BEER');
-  const nftAddress   = collection === 'EGG' ? ADDRESSES.EGG_NFT   : ADDRESSES.BEER_NFT;
-  const tokenAddress = collection === 'EGG' ? ADDRESSES.EGG_TOKEN  : ADDRESSES.BEER_TOKEN;
-  const tokenSymbol  = collection === 'EGG' ? 'EGG' : 'BEER';
+  // ── Collections from TOKEN_DEPLOYER ──────────────────────────────────────
+  const { data: allTokenAddrs } = useReadContract({
+    address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI,
+    functionName: 'getAllTokens',
+    query: { enabled: !!ADDRESSES.TOKEN_DEPLOYER },
+  });
+  const candidateTokens = (allTokenAddrs ?? []).filter(a =>
+    a.toLowerCase() !== ADDRESSES.STK_HOMESTEAD?.toLowerCase()
+  );
+  const { data: symResults } = useReadContracts({
+    contracts: candidateTokens.map(a => ({ address: a, abi: BEER_TOKEN_ABI, functionName: 'symbol' })),
+    query: { enabled: candidateTokens.length > 0 },
+  });
+  const collections = candidateTokens.map((addr, i) => {
+    const sym = symResults?.[i]?.result;
+    if (!sym) return null;
+    const nftAddr = ADDRESSES[`${sym}NFT`];
+    if (!nftAddr) return null;
+    return { tokenAddress: addr, nftAddress: nftAddr, symbol: sym };
+  }).filter(Boolean);
+
+  const [collectionAddr, setCollectionAddr] = useState(null);
+  useEffect(() => {
+    if (!collectionAddr && collections.length > 0) setCollectionAddr(collections[0].tokenAddress);
+  }, [collections.length]);
+
+  const currentCol   = collections.find(c => c.tokenAddress === collectionAddr) ?? collections[0] ?? null;
+  const nftAddress   = currentCol?.nftAddress ?? null;
+  const tokenAddress = currentCol?.tokenAddress ?? null;
+  const tokenSymbol  = currentCol?.symbol ?? null;
+  const schema       = NFT_SCHEMAS[tokenSymbol] ?? DEFAULT_SCHEMA;
 
   const [step, setStep] = useState(knownStyles.length === 0 ? 0 : 1);
 
@@ -170,21 +201,21 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
 
   const handleUpload = async () => {
     if (!image || !name.trim()) return;
-    if (collection === 'BEER' && !style.trim()) return;
+    if (schema.hasStyle && !style.trim()) return;
     setUpErr('');
     try {
       setUpStatus('image');
       const imageCid = await pinFile(image);
       setUpStatus('meta');
 
-      const attributes = collection === 'EGG'
+      const attributes = schema.hasEggFields
         ? [
             ...(grade   ? [{ trait_type: 'Grade', value: grade }]        : []),
             ...(eggSize ? [{ trait_type: 'Size',  value: eggSize }]      : []),
             ...(eggType ? [{ trait_type: 'Type',  value: eggType }]      : []),
           ]
         : [
-            { trait_type: 'Style', value: style.trim() },
+            ...(schema.hasStyle ? [{ trait_type: 'Style', value: style.trim() }] : []),
             ...(abv ? [{ trait_type: 'ABV', value: parseFloat(abv), display_type: 'number' }] : []),
             ...(ibu ? [{ trait_type: 'IBU', value: parseInt(ibu),   display_type: 'number' }] : []),
           ];
@@ -193,7 +224,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
       const metaCid  = await pinJson(metadata, `${name.trim().replace(/\s+/g, '-').toLowerCase()}.json`);
       setIpfsUri(`ipfs://${metaCid}`);
       setUpStatus('done');
-      if (collection === 'BEER') { onStyleResolved?.(style.trim()); setListingStyle(style.trim()); }
+      if (schema.hasStyle) { onStyleResolved?.(style.trim()); setListingStyle(style.trim()); }
     } catch (e) {
       setUpErr(e.message);
       setUpStatus('error');
@@ -208,11 +239,11 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
 
   const uploadBusy  = upStatus === 'image' || upStatus === 'meta';
   const uploadLabel = upStatus === 'image' ? 'Uploading image…' : upStatus === 'meta' ? 'Pinning metadata…' : 'Upload to IPFS';
-  const uploadDisabled = !image || !name.trim() || (collection === 'BEER' && !style.trim()) || !PINATA_JWT || uploadBusy;
+  const uploadDisabled = !image || !name.trim() || (schema.hasStyle && !style.trim()) || !PINATA_JWT || uploadBusy;
 
   const handleCreate = () => {
     if (!address) return;
-    if (collection === 'BEER' && !listingStyle.trim()) return;
+    if (schema.hasStyle && !listingStyle.trim()) return;
     writeContract({
       address: ADDRESSES.MARKETPLACE,
       abi:     MARKETPLACE_ABI,
@@ -233,7 +264,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
             {steps.map((label, i) => (
               <React.Fragment key={i}>
                 <button
-                  onClick={() => { if (i === 1 && (collection === 'EGG' || allStyles.length > 0)) setStep(1); if (i === 0) setStep(0); }}
+                  onClick={() => { if (i === 1 && (!schema.hasStyle || allStyles.length > 0)) setStep(1); if (i === 0) setStep(0); }}
                   className={`text-xs font-black uppercase tracking-widest transition-colors ${step === i ? 'text-hub-green' : 'text-white/30 hover:text-white/60'}`}
                 >
                   {label}
@@ -249,14 +280,16 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
         <div className="overflow-y-auto px-8 pb-8 flex-1">
 
           {/* Collection picker */}
-          <div className="flex rounded-xl overflow-hidden border border-white/10 mb-5">
-            {['BEER', 'EGG'].map(c => (
-              <button key={c} onClick={() => { setCollection(c); setStep(0); setUpStatus(null); setIpfsUri(''); }}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest transition-colors ${collection === c ? 'bg-hub-green text-white' : 'bg-white/5 text-white/40 hover:text-white/70'}`}>
-                ${c}
-              </button>
-            ))}
-          </div>
+          {collections.length > 1 && (
+            <div className="flex rounded-xl overflow-hidden border border-white/10 mb-5">
+              {collections.map(c => (
+                <button key={c.tokenAddress} onClick={() => { setCollectionAddr(c.tokenAddress); setStep(0); setUpStatus(null); setIpfsUri(''); }}
+                  className={`flex-1 py-2 text-xs font-black uppercase tracking-widest transition-colors ${collectionAddr === c.tokenAddress ? 'bg-hub-green text-white' : 'bg-white/5 text-white/40 hover:text-white/70'}`}>
+                  ${c.symbol}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* ── Step 0: Metadata Builder ─────────────────────────────────── */}
           {step === 0 && (
@@ -271,7 +304,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               {/* Image */}
               <div>
                 <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">
-                  {collection === 'EGG' ? 'Photo' : 'Label Image'}
+                  {schema.imageLabel}
                 </label>
                 <div onClick={() => fileRef.current?.click()}
                   className="relative w-full h-40 rounded-xl border-2 border-dashed border-white/20 hover:border-hub-green flex items-center justify-center cursor-pointer overflow-hidden transition-colors group">
@@ -289,13 +322,13 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               <div>
                 <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Name</label>
                 <input type="text" value={name}
-                  placeholder={collection === 'EGG' ? 'Homestead Farm Fresh Eggs' : 'Homestead West Coast IPA'}
+                  placeholder={schema.namePlaceholder}
                   onChange={e => setName(e.target.value)}
                   className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30" />
               </div>
 
-              {/* BEER-specific fields */}
-              {collection === 'BEER' && (
+              {/* Token-specific brew fields */}
+              {schema.hasBrewFields && (
                 <>
                   <div className="relative">
                     <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Style</label>
@@ -330,8 +363,8 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                 </>
               )}
 
-              {/* EGG-specific fields */}
-              {collection === 'EGG' && (
+              {/* Token-specific egg fields */}
+              {schema.hasEggFields && (
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Grade</label>
@@ -372,7 +405,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               <div>
                 <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Description</label>
                 <textarea value={desc} onChange={e => setDesc(e.target.value)}
-                  placeholder={collection === 'EGG' ? 'Farm details, freshness, quantity…' : 'Tasting notes, ingredients, story…'}
+                  placeholder={schema.descPlaceholder}
                   rows={3}
                   className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-hub-green resize-none placeholder:text-white/30" />
               </div>
@@ -397,7 +430,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                   <Upload size={15} strokeWidth={3} />
                   {uploadLabel}
                 </button>
-                {(collection === 'EGG' || allStyles.length > 0) && (
+                {(!schema.hasStyle || allStyles.length > 0) && (
                   <button onClick={() => setStep(1)}
                     className="px-4 py-3.5 rounded-xl border border-white/20 text-white/60 hover:text-white hover:border-white/40 font-black uppercase tracking-widest text-xs transition-all flex items-center gap-1.5">
                     Skip <ArrowRight size={13} strokeWidth={3} />
@@ -418,7 +451,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
           {step === 1 && (
             <div className="space-y-4">
 
-              {collection === 'BEER' && (
+              {schema.hasStyle && (
                 <div className="relative">
                   <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Beer Style</label>
                   <input type="text" value={listingStyle} placeholder="e.g. West Coast IPA"
@@ -459,7 +492,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               {txError && <p className="text-red-400 text-xs font-medium">{txError.shortMessage ?? txError.message}</p>}
 
               <button onClick={handleCreate}
-                disabled={(collection === 'BEER' && !listingStyle.trim()) || isPending}
+                disabled={(schema.hasStyle && !listingStyle.trim()) || isPending}
                 className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all">
                 {isPending ? 'Creating…' : 'Create Listing'}
               </button>
@@ -485,14 +518,14 @@ function StockModal({ listingId, onClose, onStocked }) {
 
   // Read nextTokenId before minting so we can derive IDs after
   const { data: nextTokenId, refetch: refetchNextId } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'nextTokenId',
-    query:   { enabled: !!ADDRESSES.BEER_NFT },
+    query:   { enabled: !!ADDRESSES.BEERNFT },
   });
 
   const { data: isApproved, refetch: refetchApproval } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'isApprovedForAll',
     args:    [address ?? ZERO, ADDRESSES.MARKETPLACE],
@@ -536,7 +569,7 @@ function StockModal({ listingId, onClose, onStocked }) {
     await refetchNextId(); // snapshot before writing
     const cids = Array(count).fill(rawCid);
     writeContract({
-      address: ADDRESSES.BEER_NFT,
+      address: ADDRESSES.BEERNFT,
       abi:     NFT_ABI,
       functionName: 'mintBatch',
       args:    [address, cids],
@@ -545,7 +578,7 @@ function StockModal({ listingId, onClose, onStocked }) {
 
   const handleApprove = () => {
     writeContract({
-      address: ADDRESSES.BEER_NFT,
+      address: ADDRESSES.BEERNFT,
       abi:     NFT_ABI,
       functionName: 'setApprovalForAll',
       args:    [ADDRESSES.MARKETPLACE, true],
@@ -667,17 +700,25 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
   const inStock  = inventoryCount != null && inventoryCount > 0n;
   const priceStr = price != null ? formatUnits(price, 18) : '—';
 
+  const { data: rawSymbol } = useReadContract({
+    address: paymentToken,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'symbol',
+    query: { enabled: !!paymentToken },
+  });
+  const tokenSymbol = rawSymbol ? `$${rawSymbol}` : null;
+
   const ethUsd       = useEthUsd();
   const tokenEthRate = useTokenEthRate(paymentToken);
   const usdValue     = ethUsd && tokenEthRate && priceStr !== '—'
     ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   const { data: allowance, refetch: refetchAllow } = useReadContract({
-    address: ADDRESSES.BEER_TOKEN,
+    address: paymentToken,
     abi:     BEER_TOKEN_ABI,
     functionName: 'allowance',
     args:    [address ?? ZERO, ADDRESSES.MARKETPLACE],
-    query:   { enabled: !!address },
+    query:   { enabled: !!address && !!paymentToken },
   });
 
   const { writeContract, data: txHash, isPending, error: writeErr } = useWriteContract();
@@ -698,7 +739,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
 
   const handleBuy = () => {
     if (!approved) {
-      writeContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.MARKETPLACE, price] });
+      writeContract({ address: paymentToken, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.MARKETPLACE, price] });
     } else {
       writeContract({ address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'buy', args: [BigInt(id)] });
     }
@@ -790,7 +831,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
               <div>
                 <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Price</p>
                 <p className="text-gray-900 font-black text-xl">
-                  {priceStr} BEER
+                  {priceStr} {tokenSymbol}
                   {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-sm ml-1">(≈ ${usdValue})</span>}
                 </p>
               </div>
@@ -823,7 +864,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
               <div className="space-y-3">
                 {needsApprove && (
                   <p className="text-gray-400 text-xs font-medium">
-                    First approve the Marketplace to spend <span className="text-gray-700 font-black">1 BEER</span>, then confirm the purchase.
+                    First approve the Marketplace to spend <span className="text-gray-700 font-black">{priceStr} {tokenSymbol ?? 'token'}</span>, then confirm the purchase.
                   </p>
                 )}
                 {writeErr && (
@@ -836,11 +877,11 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                 >
                   {!inStock      ? 'Sold Out'
                    : isPending   ? 'Pending…'
-                   : needsApprove ? 'Step 1 — Approve BEER'
+                   : needsApprove ? `Step 1 — Approve ${tokenSymbol ?? 'token'}`
                    :               'Buy Now 🍺'}
                 </button>
                 {!needsApprove && inStock && (
-                  <p className="text-gray-400 text-[10px] text-center font-medium">BEER already approved — one click to buy</p>
+                  <p className="text-gray-400 text-[10px] text-center font-medium">{tokenSymbol ?? 'Token'} approved — one click to buy</p>
                 )}
               </div>
             ) : (
@@ -917,7 +958,7 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
 
   const firstTokenId = inventory?.[0];
   const { data: tokenUri } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'tokenURI',
     args:    [firstTokenId],
@@ -936,6 +977,13 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
   const ethUsd = useEthUsd();
   const paymentToken = listing?.[1];
   const tokenEthRate = useTokenEthRate(paymentToken);
+  const { data: rawSymbol } = useReadContract({
+    address: paymentToken,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'symbol',
+    query: { enabled: !!paymentToken },
+  });
+  const tokenSymbol = rawSymbol ? `$${rawSymbol}` : null;
 
   if (!listing) return null;
   const [, , price, proceeds, inventoryCount, active] = listing;
@@ -1030,7 +1078,7 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
             <div>
               <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
               <p className="text-gray-900 font-black text-base">
-                {priceStr} BEER
+                {priceStr} {tokenSymbol}
                 {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
               </p>
             </div>
@@ -1072,7 +1120,6 @@ const EGG_PLACEHOLDERS = [
     name:        'Single Farm Egg',
     tag:         'Grade AA · Free-Range',
     description: 'One farm-fresh egg from Homestead. Redeemable at pickup.',
-    price:       '1 EGG',
     priceAmount: 1,
   },
   {
@@ -1080,7 +1127,6 @@ const EGG_PLACEHOLDERS = [
     name:        'Half Dozen Farm Eggs',
     tag:         'Grade AA · Free-Range',
     description: 'Six farm-fresh eggs from Homestead. Redeemable at pickup.',
-    price:       '6 EGG',
     priceAmount: 6,
     image:       <SixEggsSvg />,
   },
@@ -1132,8 +1178,9 @@ function SixEggsSvg() {
   );
 }
 
-function PlaceholderListingCard({ name, tag, description, price, priceAmount, usdPerToken, image }) {
-  const usdValue = usdPerToken && priceAmount ? (priceAmount * usdPerToken).toFixed(2) : null;
+function PlaceholderListingCard({ name, tag, description, priceAmount, tokenSymbol, usdPerToken, image }) {
+  const usdValue   = usdPerToken && priceAmount ? (priceAmount * usdPerToken).toFixed(2) : null;
+  const priceLabel = tokenSymbol ? `${priceAmount} ${tokenSymbol}` : null;
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
       <div className="relative w-full aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
@@ -1154,7 +1201,7 @@ function PlaceholderListingCard({ name, tag, description, price, priceAmount, us
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
             <p className="text-gray-900 font-black text-base">
-              {price}
+              {priceLabel ?? '—'}
               {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
             </p>
           </div>
@@ -1175,6 +1222,13 @@ export default function MarketPage() {
   const eggEthRate = useTokenEthRate(ADDRESSES.EGG_TOKEN);
   const ethUsdMkt  = useEthUsd();
   const eggUsdRate = eggEthRate && ethUsdMkt ? eggEthRate * ethUsdMkt : null;
+  const { data: eggRawSymbol } = useReadContract({
+    address: ADDRESSES.EGG_TOKEN,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'symbol',
+    query: { enabled: !!ADDRESSES.EGG_TOKEN },
+  });
+  const eggSymbol = eggRawSymbol ? `$${eggRawSymbol}` : null;
 
   const { data: ownerAddr } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
@@ -1223,7 +1277,7 @@ export default function MarketPage() {
             <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
           ))}
           {EGG_PLACEHOLDERS.map(p => (
-            <PlaceholderListingCard key={p.key} {...p} usdPerToken={eggUsdRate} />
+            <PlaceholderListingCard key={p.key} {...p} tokenSymbol={eggSymbol} usdPerToken={eggUsdRate} />
           ))}
         </div>
 

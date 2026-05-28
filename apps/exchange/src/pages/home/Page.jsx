@@ -41,9 +41,17 @@ function FeaturedListingCard({ id }) {
     query:   { enabled: !!ADDRESSES.MARKETPLACE },
   });
 
+  const paymentToken = listing?.[1];
+  const { data: rawSymbol } = useReadContract({
+    address: paymentToken,
+    abi:     ERC20_ABI,
+    functionName: 'symbol',
+    query:   { enabled: !!paymentToken },
+  });
+
   const firstTokenId = inventory?.[0];
   const { data: tokenUri } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'tokenURI',
     args:    [firstTokenId],
@@ -59,8 +67,9 @@ function FeaturedListingCard({ id }) {
   const [,, price,, inventoryCount, active] = listing;
   if (!active) return null;
 
-  const inStock  = inventoryCount != null && inventoryCount > 0n;
-  const priceStr = price != null ? formatUnits(price, 18) : '—';
+  const inStock     = inventoryCount != null && inventoryCount > 0n;
+  const priceStr    = price != null ? formatUnits(price, 18) : '—';
+  const tokenSymbol = rawSymbol ? `$${rawSymbol}` : null;
 
   return (
     <Link
@@ -96,7 +105,7 @@ function FeaturedListingCard({ id }) {
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
-            <p className="text-gray-900 font-black">{priceStr} BEER</p>
+            <p className="text-gray-900 font-black">{priceStr}{tokenSymbol ? ` ${tokenSymbol}` : ''}</p>
           </div>
           <span className="text-hub-green text-xs font-black uppercase tracking-widest">
             View →
@@ -153,7 +162,8 @@ function SixEggsSvg() {
   );
 }
 
-function EggFeaturedPlaceholder({ name, price, image }) {
+function EggFeaturedPlaceholder({ name, priceAmount, tokenSymbol, image }) {
+  const priceLabel = tokenSymbol ? `${priceAmount} ${tokenSymbol}` : null;
   return (
     <Link
       to="/market"
@@ -171,7 +181,7 @@ function EggFeaturedPlaceholder({ name, price, image }) {
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
-            <p className="text-gray-900 font-black">{price}</p>
+            <p className="text-gray-900 font-black">{priceLabel ?? '—'}</p>
           </div>
           <span className="text-hub-green text-xs font-black uppercase tracking-widest">View →</span>
         </div>
@@ -188,6 +198,14 @@ function FeaturedListings() {
     query:   { enabled: !!ADDRESSES.MARKETPLACE },
   });
 
+  const { data: eggRawSymbol } = useReadContract({
+    address: ADDRESSES.EGG_TOKEN,
+    abi:     ERC20_ABI,
+    functionName: 'symbol',
+    query:   { enabled: !!ADDRESSES.EGG_TOKEN },
+  });
+  const eggSymbol = eggRawSymbol ? `$${eggRawSymbol}` : null;
+
   const listingIds = nextId != null
     ? Array.from({ length: Math.min(Number(nextId), 3) }, (_, i) => i)
     : [];
@@ -197,8 +215,8 @@ function FeaturedListings() {
       {listingIds.map(id => (
         <FeaturedListingCard key={id} id={id} />
       ))}
-      <EggFeaturedPlaceholder name="Single Farm Egg" price="1 EGG" />
-      <EggFeaturedPlaceholder name="Half Dozen Farm Eggs" price="6 EGG" image={<SixEggsSvg />} />
+      <EggFeaturedPlaceholder name="Single Farm Egg"     priceAmount={1} tokenSymbol={eggSymbol} />
+      <EggFeaturedPlaceholder name="Half Dozen Farm Eggs" priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />} />
     </div>
   );
 }

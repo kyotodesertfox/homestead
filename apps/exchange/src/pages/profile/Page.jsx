@@ -12,7 +12,7 @@ const HUB_CHAIN_ID = 167000;
 
 function fmt(addr)    { return `${addr.slice(0, 6)}...${addr.slice(-4)}`; }
 function fmtEth(wei)  { return parseFloat(formatUnits(wei, 18)).toFixed(4); }
-function fmtBeer(wei) { const n = parseFloat(formatUnits(wei, 18)); return n % 1 === 0 ? n.toFixed(0) : n.toFixed(4); }
+function fmtToken(wei) { const n = parseFloat(formatUnits(wei, 18)); return n % 1 === 0 ? n.toFixed(0) : n.toFixed(4); }
 
 const IPFS_GW = 'https://ipfs.io/ipfs/';
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
@@ -249,11 +249,11 @@ function MyOrdersSection({ address }) {
   const [trackingToken, setTrackingToken] = useState(null);
 
   const { data: nftBalance } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'balanceOf',
     args:    [address ?? ZERO_ADDR],
-    query:   { enabled: !!address && !!ADDRESSES.BEER_NFT },
+    query:   { enabled: !!address && !!ADDRESSES.BEERNFT },
   });
 
   const indices = nftBalance != null
@@ -262,7 +262,7 @@ function MyOrdersSection({ address }) {
 
   const { data: tokenIdResults } = useReadContracts({
     contracts: indices.map(i => ({
-      address:      ADDRESSES.BEER_NFT,
+      address:      ADDRESSES.BEERNFT,
       abi:          NFT_ABI,
       functionName: 'tokenOfOwnerByIndex',
       args:         [address, i],
@@ -310,7 +310,7 @@ function MyOrdersSection({ address }) {
       {trackingToken != null && (
         <OrderTrackingModal
           tokenId={trackingToken}
-          nftContract={ADDRESSES.BEER_NFT}
+          nftContract={ADDRESSES.BEERNFT}
           onClose={() => setTrackingToken(null)}
         />
       )}
@@ -323,7 +323,7 @@ function OrderCard({ tokenId, onClick }) {
   const [imgErr, setImgErr] = useState(false);
 
   const { data: tokenUri } = useReadContract({
-    address:      ADDRESSES.BEER_NFT,
+    address:      ADDRESSES.BEERNFT,
     abi:          NFT_ABI,
     functionName: 'tokenURI',
     args:         [tokenId],
@@ -331,7 +331,7 @@ function OrderCard({ tokenId, onClick }) {
   });
 
   const { data: redeemed } = useReadContract({
-    address:      ADDRESSES.BEER_NFT,
+    address:      ADDRESSES.BEERNFT,
     abi:          NFT_ABI,
     functionName: 'redeemed',
     args:         [tokenId],
@@ -678,7 +678,7 @@ function MyListingCard({ id, address, onSelect }) {
 
   const firstTokenId = inventory?.[0];
   const { data: tokenUri } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'tokenURI',
     args:    [firstTokenId],
@@ -771,7 +771,7 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
 
   const firstTokenId = inventory?.[0];
   const { data: tokenUri } = useReadContract({
-    address: ADDRESSES.BEER_NFT,
+    address: ADDRESSES.BEERNFT,
     abi:     NFT_ABI,
     functionName: 'tokenURI',
     args:    [firstTokenId],

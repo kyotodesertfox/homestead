@@ -19,7 +19,7 @@ function deriveStep(hasListing, redeemed, claimable) {
 }
 
 export default function OrderTrackingModal({ tokenId, nftContract, onClose }) {
-  const nftAddr = nftContract ?? ADDRESSES.BEER_NFT;
+  const nftAddr = nftContract ?? ADDRESSES.BEERNFT;
 
   const { data: tokenListing } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
