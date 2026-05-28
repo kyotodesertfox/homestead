@@ -904,7 +904,7 @@ export default function AdminPage() {
   const VersionDot = ({ addrKey }) => {
     const s = versionStatus(addrKey);
     if (!s) return null;
-    const color = s === 'ok' ? 'bg-hub-green' : s === 'behind' ? 'bg-amber-400' : 'bg-gray-300';
+    const color = s === 'ok' ? 'bg-hub-green' : 'bg-red-500';
     const title = s === 'ok' ? 'Up to date' : s === 'behind' ? 'Upgrade needed' : 'Not yet upgraded';
     return <span className={`w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 ${color}`} title={title} />;
   };
