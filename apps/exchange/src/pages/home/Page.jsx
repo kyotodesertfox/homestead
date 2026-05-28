@@ -4,7 +4,7 @@ import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalL
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
 
 const IPFS_GW = 'https://ipfs.io/ipfs/';
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
@@ -139,11 +139,101 @@ function FeaturedListings() {
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
-const portals = [
-  { name: 'Beer Exchange', token: '$BEER', description: 'Craft homebrew, tokenized. Each token redeemable for a real bottle.', href: '/beer/', color: 'border-amber-400 text-amber-500', dot: 'bg-amber-400' },
-  { name: 'Egg Exchange',  token: '$EGG',  description: 'Pasture-raised eggs from a private homestead. One token, one egg.',   href: '/egg/', color: 'border-sky-400 text-sky-500', dot: 'bg-sky-400' },
-  { name: 'Spa Exchange',  token: '$SPA',  description: 'Handcrafted spa goods from the homestead. Each token redeemable for a real product.', href: '/spa/', color: 'border-purple-400 text-purple-500', dot: 'bg-purple-400' },
-];
+// Deterministic color from token address — stable for everyone, no config needed
+function addressColor(address) {
+  const hex = address.slice(2);
+  let n = 0;
+  for (let i = 0; i < hex.length; i++) n = (n * 31 + parseInt(hex[i], 16)) & 0xfffff;
+  return `hsl(${n % 360}, 65%, 52%)`;
+}
+
+function TokenPortalCard({ address }) {
+  const { data: symbol } = useReadContract({ address, abi: ERC20_ABI, functionName: 'symbol', query: { enabled: !!address } });
+  const { data: name }   = useReadContract({ address, abi: ERC20_ABI, functionName: 'name',   query: { enabled: !!address } });
+
+  if (!symbol || !name) return null;
+
+  const color = addressColor(address);
+  const href  = `/${symbol.toLowerCase()}/`;
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="group border-2 rounded-xl p-5 hover:shadow-md transition-all"
+      style={{ borderColor: color }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span className="font-black uppercase tracking-widest text-sm text-gray-900">{name}</span>
+        <ExternalLink size={14} className="ml-auto text-gray-400 group-hover:text-gray-600 transition-colors" />
+      </div>
+      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+        Physical goods backed 1:1. Each ${symbol} token redeemable for the real thing.
+      </p>
+      <div className="mt-3 text-xs font-black uppercase tracking-widest" style={{ color }}>
+        ${symbol} →
+      </div>
+    </a>
+  );
+}
+
+function ComingSoonCard({ symbol, name, description }) {
+  const color = addressColor(`0x${symbol.split('').map(c => c.charCodeAt(0).toString(16)).join('').padEnd(40, '0')}`);
+  const href  = `/${symbol.toLowerCase()}/`;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="group border-2 rounded-xl p-5 hover:shadow-md transition-all"
+      style={{ borderColor: color }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span className="font-black uppercase tracking-widest text-sm text-gray-900">{name}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-gray-100 text-gray-400">Soon</span>
+          <ExternalLink size={14} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+        </div>
+      </div>
+      <p className="text-gray-500 text-sm font-medium leading-relaxed">{description}</p>
+      <div className="mt-3 text-xs font-black uppercase tracking-widest" style={{ color }}>
+        ${symbol} →
+      </div>
+    </a>
+  );
+}
+
+function DynamicPortals() {
+  const { data: tokens } = useReadContract({
+    address: ADDRESSES.TOKEN_DEPLOYER,
+    abi:     TOKEN_DEPLOYER_ABI,
+    functionName: 'getAllTokens',
+    query:   { enabled: !!ADDRESSES.TOKEN_DEPLOYER },
+  });
+
+  return (
+    <div className="grid md:grid-cols-3 gap-4">
+      {(tokens ?? [])
+        .filter(addr => addr.toLowerCase() !== ADDRESSES.STK_HOMESTEAD?.toLowerCase())
+        .map(addr => (
+          <TokenPortalCard key={addr} address={addr} />
+        ))}
+      <ComingSoonCard symbol="EGG" name="Egg"
+        description="Pasture-raised eggs from the homestead. One token, one egg, guaranteed delivery." />
+      <ComingSoonCard symbol="SPA" name="Spa"
+        description="Handcrafted spa goods from the homestead. Each token redeemable for the real product." />
+      <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col opacity-50">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-gray-300 shrink-0" />
+          <span className="font-black uppercase tracking-widest text-sm text-gray-400">More Coming</span>
+        </div>
+        <p className="text-gray-400 text-sm font-medium leading-relaxed">
+          New producers joining the ecosystem.
+        </p>
+        <div className="mt-3 text-xs font-black uppercase tracking-widest text-gray-300">
+          Soon →
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const features = [
   { icon: <ShoppingBag size={28} />, title: 'Market',  text: 'Browse all open listings across the Homestead ecosystem.',            to: '/market' },
@@ -440,25 +530,7 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-            {activeTab === 'Portals' && (
-              <div className="grid md:grid-cols-3 gap-4">
-                {portals.map((p) => (
-                  <a key={p.name} href={p.href} target="_blank" rel="noopener noreferrer"
-                    className={`group border-2 ${p.color.split(' ')[0]} rounded-xl p-5 hover:shadow-md transition-all`}
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`w-2.5 h-2.5 rounded-full ${p.dot}`} />
-                      <span className="font-black uppercase tracking-widest text-sm text-gray-900">{p.name}</span>
-                      <ExternalLink size={14} className="ml-auto text-gray-400 group-hover:text-gray-600 transition-colors" />
-                    </div>
-                    <p className="text-gray-500 text-sm font-medium leading-relaxed">{p.description}</p>
-                    <div className={`mt-3 text-xs font-black uppercase tracking-widest ${p.color.split(' ')[1]}`}>
-                      {p.token} →
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
+            {activeTab === 'Portals' && <DynamicPortals />}
           </div>
         </section>
 
