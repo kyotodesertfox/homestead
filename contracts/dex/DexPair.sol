@@ -137,7 +137,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         super._update(from, to, value);
     }
 
-    function _syncReserves(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
+    function _syncReserves(uint256 balance0, uint256 balance1) private {
         require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, 'DEXPair: OVERFLOW');
         reserve0 = uint112(balance0);
         reserve1 = uint112(balance1);
@@ -172,7 +172,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         require(liquidity > 0, 'DEXPair: INSUFFICIENT_LIQUIDITY_MINTED');
         _mint(to, liquidity);
 
-        _syncReserves(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1);
         emit Mint(msg.sender, amount0, amount1);
     }
 
@@ -182,8 +182,6 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
-        (uint112 _reserve0, uint112 _reserve1) = getReserves();
-
         uint256 balance0  = IERC20(token0).balanceOf(address(this));
         uint256 balance1  = IERC20(token1).balanceOf(address(this));
         uint256 liquidity = balanceOf(address(this));
@@ -201,7 +199,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
-        _syncReserves(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1);
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
@@ -252,7 +250,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
             'DEXPair: INVARIANT'
         );
 
-        _syncReserves(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1);
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
@@ -263,9 +261,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     function sync() external nonReentrant {
         _syncReserves(
             IERC20(token0).balanceOf(address(this)),
-            IERC20(token1).balanceOf(address(this)),
-            reserve0,
-            reserve1
+            IERC20(token1).balanceOf(address(this))
         );
     }
 
