@@ -49,30 +49,28 @@ export default function TreasuryHealth() {
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts: [
-      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,      functionName: 'floorBalance'    }, // 0
-      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,      functionName: 'accumulatedFees' }, // 1
-      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,      functionName: 'nextBatchId'     }, // 2
-      { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,          functionName: 'totalSupply'     }, // 3
-      { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,          functionName: 'totalSupply'     }, // 4
-      { address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,           functionName: 'getReserves'     }, // 5
-      { address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI, functionName: 'totalTokens'     }, // 6
-      { address: ADDRESSES.NFT_DEPLOYER,   abi: NFT_DEPLOYER_ABI,   functionName: 'totalContracts'  }, // 7
-      { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,           functionName: 'symbol'          }, // 8
-      { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,           functionName: 'symbol'          }, // 9
+      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,      functionName: 'accumulatedFees' }, // 0
+      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,      functionName: 'nextBatchId'     }, // 1
+      { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,          functionName: 'totalSupply'     }, // 2
+      { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,          functionName: 'totalSupply'     }, // 3
+      { address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,           functionName: 'getReserves'     }, // 4
+      { address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI, functionName: 'totalTokens'     }, // 5
+      { address: ADDRESSES.NFT_DEPLOYER,   abi: NFT_DEPLOYER_ABI,   functionName: 'totalContracts'  }, // 6
+      { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,           functionName: 'symbol'          }, // 7
+      { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,           functionName: 'symbol'          }, // 8
     ],
     query: { refetchInterval: 30_000 },
   });
 
-  const floor        = data?.[0]?.result;
-  const fees         = data?.[1]?.result;
-  const nextBatchId  = data?.[2]?.result;
-  const beerSupply   = data?.[3]?.result;
-  const stkSupply    = data?.[4]?.result;
-  const reserves     = data?.[5]?.result;
-  const totalTokens  = data?.[6]?.result;
-  const totalNFTCols = data?.[7]?.result;
-  const beerSymbol   = data?.[8]?.result;
-  const stkSymbol    = data?.[9]?.result;
+  const fees         = data?.[0]?.result;
+  const nextBatchId  = data?.[1]?.result;
+  const beerSupply   = data?.[2]?.result;
+  const stkSupply    = data?.[3]?.result;
+  const reserves     = data?.[4]?.result;
+  const totalTokens  = data?.[5]?.result;
+  const totalNFTCols = data?.[6]?.result;
+  const beerSymbol   = data?.[7]?.result;
+  const stkSymbol    = data?.[8]?.result;
 
   // r0 = BEER, r1 = WETH
   const beerSpot = reserves?.[0] && reserves[0] > 0n
@@ -176,9 +174,8 @@ export default function TreasuryHealth() {
           <>
             {activeTab === 'Treasury' && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <StatCard label="ETH Floor"    value={`${fmtEth(floor)} ETH`}                        sub="Permanent. Never withdrawable." accent="green"  />
-                <StatCard label="Active Stake" value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral"    accent="sky"    />
-                <StatCard label="Claimable"    value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"     accent="violet" />
+                <StatCard label="Active Stake (TVL)" value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral" accent="sky"    />
+                <StatCard label="Claimable"           value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"  accent="violet" />
               </div>
             )}
 
