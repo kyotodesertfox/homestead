@@ -72,19 +72,19 @@ function TokenSelect({ selected, options, onChange }) {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="bg-stone-800 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 hover:bg-stone-700 transition-colors"
+        className="bg-gray-100 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-2 hover:bg-gray-200 transition-colors"
       >
         <TokenLogo symbol={tok.symbol} address={tok.address} color={tok.color} />
-        <span className="font-black text-white text-xs">{tok.symbol}</span>
-        <ChevronDown size={12} className="text-stone-400" />
+        <span className="font-black text-gray-900 text-xs">{tok.symbol}</span>
+        <ChevronDown size={12} className="text-gray-500" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 bg-stone-900 border border-white/10 rounded-xl overflow-hidden z-20 min-w-[130px]">
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl overflow-hidden z-20 min-w-[130px] shadow-lg">
           {options.filter(t => t.symbol !== selected).map(t => (
             <button
               key={t.symbol}
               onClick={() => { onChange(t.symbol); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-white/5 text-xs font-black text-white transition-colors"
+              className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 text-xs font-black text-gray-900 transition-colors"
             >
               <TokenLogo symbol={t.symbol} address={t.address} color={t.color} />
               {t.symbol}
@@ -312,19 +312,19 @@ export default function SwapPage() {
   let actionButton;
   if (!isConnected) {
     actionButton = (
-      <button onClick={() => open()} className="w-full mt-2 bg-stone-800 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm">
+      <button onClick={() => open()} className="w-full mt-2 bg-gray-900 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm hover:bg-gray-700 transition-colors">
         Connect Wallet
       </button>
     );
   } else if (!path) {
     actionButton = (
-      <button disabled className="w-full mt-2 bg-stone-700 text-stone-500 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
+      <button disabled className="w-full mt-2 bg-gray-100 text-gray-400 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
         {selectedToken} Coming Soon
       </button>
     );
   } else if (insufficientBalance) {
     actionButton = (
-      <button disabled className="w-full mt-2 bg-stone-700 text-stone-500 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
+      <button disabled className="w-full mt-2 bg-gray-100 text-gray-400 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
         Insufficient Balance
       </button>
     );
@@ -356,16 +356,13 @@ export default function SwapPage() {
         </header>
 
         <div className="max-w-2xl mx-auto">
-          <section
-            className="bg-hub-dark border-4 border-hub-green rounded-3xl p-6 shadow-xl relative overflow-visible"
-            style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/carbon-fibre.png')`, backgroundBlendMode: 'overlay' }}
-          >
+          <section className="bg-white border-4 border-hub-green rounded-3xl p-6 shadow-xl relative overflow-visible">
             <div className="flex flex-col gap-4">
 
               {/* TOKEN BOX — always the editable input */}
-              <div className="bg-black/40 border border-white/10 p-5 rounded-2xl text-left">
+              <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                     You <span className={isSelling ? 'text-rose-500' : 'text-emerald-500'}>{isSelling ? 'Sell' : 'Buy'}</span>
                   </span>
                   <span className="text-[10px] font-black uppercase tracking-widest text-hub-green">
@@ -377,7 +374,7 @@ export default function SwapPage() {
                     type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    className="bg-transparent text-3xl font-black text-white outline-none w-full overflow-hidden"
+                    className="bg-transparent text-3xl font-black text-gray-900 outline-none w-full overflow-hidden placeholder:text-gray-300"
                     value={tokenAmount}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -396,41 +393,41 @@ export default function SwapPage() {
               <div className="flex justify-center -my-2 z-10">
                 <button
                   onClick={handleToggle}
-                  className="bg-hub-dark border-2 border-hub-green p-2 rounded-full text-hub-green shadow-xl hover:rotate-180 transition-all duration-500"
+                  className="bg-white border-2 border-hub-green p-2 rounded-full text-hub-green shadow-md hover:rotate-180 transition-all duration-500"
                 >
                   <ArrowDown size={20} strokeWidth={3} />
                 </button>
               </div>
 
               {/* ETH BOX — display only, never editable */}
-              <div className="bg-black/40 border border-white/10 p-5 rounded-2xl text-left">
+              <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                     You <span className={isSelling ? 'text-emerald-500' : 'text-rose-500'}>{isSelling ? 'Receive' : 'Pay'}</span>
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-500">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     Wallet: {ethBalDisplay} ETH
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-4">
-                  <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-white' : 'text-stone-600'}`}>
+                  <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}`}>
                     {ethDisplay}
                   </div>
-                  <div className="shrink-0 bg-stone-800 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+                  <div className="shrink-0 bg-gray-100 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white font-black" style={{ fontSize: 9 }}>Ξ</div>
-                    <span className="font-black text-white text-xs">ETH</span>
+                    <span className="font-black text-gray-900 text-xs">ETH</span>
                   </div>
                 </div>
                 <div className="flex gap-1.5 mt-3">
                   {[0, 25, 50, 75].map(pct => (
                     <button key={pct} onClick={() => handlePercent(pct)}
-                      className="flex-1 bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-[9px] font-black text-gray-500 py-1.5 rounded-lg border border-gray-200 transition-all uppercase"
                     >
                       {pct === 0 ? '0' : `${pct}%`}
                     </button>
                   ))}
                   <button onClick={handleMax}
-                    className="flex-1 bg-white/5 hover:bg-white/10 text-[9px] font-black text-stone-400 py-1.5 rounded-lg border border-white/5 transition-all uppercase"
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-[9px] font-black text-gray-500 py-1.5 rounded-lg border border-gray-200 transition-all uppercase"
                   >
                     Max
                   </button>
@@ -438,11 +435,11 @@ export default function SwapPage() {
               </div>
 
               {/* TRADE INFO */}
-              <div className="bg-black/20 rounded-2xl p-4 text-[10px] font-black uppercase tracking-widest text-stone-300 flex flex-col gap-2.5 border border-white/5">
+              <div className="bg-gray-50 rounded-2xl p-4 text-[10px] font-black uppercase tracking-widest text-gray-500 flex flex-col gap-2.5 border border-gray-200">
 
                 <div className="flex justify-between">
                   <span>Rate</span>
-                  <span className={rateDisplay !== null ? 'text-white' : 'text-stone-600'}>
+                  <span className={rateDisplay !== null ? 'text-gray-900' : 'text-gray-300'}>
                     {rateDisplay !== null ? `1 ${selectedToken} = ${rateDisplay.toFixed(6)} ETH` : '—'}
                   </span>
                 </div>
@@ -451,32 +448,32 @@ export default function SwapPage() {
                   <span>Price Impact</span>
                   {priceImpact !== null
                     ? <span className={parseFloat(priceImpact) > 2 ? 'text-rose-500' : 'text-emerald-500'}>{priceImpact}%</span>
-                    : <span className="text-stone-600">—</span>
+                    : <span className="text-gray-300">—</span>
                   }
                 </div>
 
                 <div className="flex justify-between">
                   <span>Market Fee ({lpFeePercent}%)</span>
-                  <span className={tokenAmountBig > 0n ? 'text-white' : 'text-stone-600'}>
+                  <span className={tokenAmountBig > 0n ? 'text-gray-900' : 'text-gray-300'}>
                     {tokenAmountBig > 0n ? `${lpFeeDisplay} ${lpFeeCurrency}` : '—'}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>Treasury Fee ({exitFeePercent !== null ? `${exitFeePercent}%` : '—'})</span>
-                  <span className={exitFeeDisplay ? 'text-white' : 'text-stone-600'}>
+                  <span className={exitFeeDisplay ? 'text-gray-900' : 'text-gray-300'}>
                     {exitFeeDisplay ? `${exitFeeDisplay} ETH` : '—'}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>Slippage Tolerance</span>
-                  <span className="text-white">0.5%</span>
+                  <span className="text-gray-900">0.5%</span>
                 </div>
 
-                <div className="flex justify-between border-t border-white/5 pt-2.5">
+                <div className="flex justify-between border-t border-gray-200 pt-2.5">
                   <span>Minimum Received</span>
-                  <span className={netEthAmount > 0n ? 'text-white' : 'text-stone-600'}>
+                  <span className={netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}>
                     {netEthAmount > 0n ? minReceivedDisplay : '—'}
                   </span>
                 </div>
@@ -487,7 +484,7 @@ export default function SwapPage() {
 
               <div className="flex items-center justify-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${statusColor}`} />
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400">{networkName}</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">{networkName}</span>
               </div>
             </div>
           </section>
