@@ -110,9 +110,6 @@ function FeaturedListingCard({ id }) {
 function EggSvg() {
   return (
     <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
-      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
-      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheenHome)" />
-      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
       <defs>
         <radialGradient id="eggSheenHome" cx="38%" cy="32%" r="68%">
           <stop offset="0%" stopColor="#e8c99a" />
@@ -120,29 +117,61 @@ function EggSvg() {
           <stop offset="100%" stopColor="#a07040" />
         </radialGradient>
       </defs>
+      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
+      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheenHome)" />
+      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
     </svg>
   );
 }
 
-function EggFeaturedPlaceholder() {
+function SixEggsSvg() {
+  const eggs = [
+    { cx: 44,  cy: 72,  rot: -6 },
+    { cx: 110, cy: 68,  rot:  2 },
+    { cx: 176, cy: 73,  rot:  7 },
+    { cx: 44,  cy: 158, rot:  5 },
+    { cx: 110, cy: 155, rot: -4 },
+    { cx: 176, cy: 160, rot:  8 },
+  ];
+  return (
+    <svg viewBox="0 0 220 230" xmlns="http://www.w3.org/2000/svg" className="w-full h-full p-3 drop-shadow-sm">
+      <defs>
+        <radialGradient id="eggSheenSix" cx="38%" cy="32%" r="68%">
+          <stop offset="0%" stopColor="#e8c99a" />
+          <stop offset="60%" stopColor="#c8a070" />
+          <stop offset="100%" stopColor="#a07040" />
+        </radialGradient>
+      </defs>
+      {eggs.map((e, i) => (
+        <g key={i} transform={`rotate(${e.rot} ${e.cx} ${e.cy})`}>
+          <ellipse cx={e.cx} cy={e.cy} rx="24" ry="30" fill="#c8a882" stroke="#b08050" strokeWidth="1" />
+          <ellipse cx={e.cx} cy={e.cy} rx="21" ry="27" fill="url(#eggSheenSix)" />
+          <ellipse cx={e.cx - 6} cy={e.cy - 10} rx="5" ry="7" fill="white" opacity="0.18" transform={`rotate(-15 ${e.cx - 6} ${e.cy - 10})`} />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function EggFeaturedPlaceholder({ name, price, image }) {
   return (
     <Link
       to="/market"
       className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all"
     >
       <div className="relative aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
-        <EggSvg />
+        {image ?? <EggSvg />}
         <span className="absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gray-900/70 text-white/60">
           Coming Soon
         </span>
       </div>
       <div className="p-5 flex flex-col gap-2 flex-1">
-        <h3 className="text-gray-900 font-black text-lg leading-tight">Single Farm Egg</h3>
+        <h3 className="text-gray-900 font-black text-lg leading-tight">{name}</h3>
         <p className="text-hub-green text-xs font-black uppercase tracking-widest">Grade AA · Free-Range</p>
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
-            <p className="text-gray-900 font-black">1 EGG</p>
+            <p className="text-gray-900 font-black">{price}</p>
           </div>
           <span className="text-hub-green text-xs font-black uppercase tracking-widest">View →</span>
         </div>
@@ -168,7 +197,8 @@ function FeaturedListings() {
       {listingIds.map(id => (
         <FeaturedListingCard key={id} id={id} />
       ))}
-      <EggFeaturedPlaceholder />
+      <EggFeaturedPlaceholder name="Single Farm Egg" price="1 EGG" />
+      <EggFeaturedPlaceholder name="Half Dozen Farm Eggs" price="6 EGG" image={<SixEggsSvg />} />
     </div>
   );
 }
