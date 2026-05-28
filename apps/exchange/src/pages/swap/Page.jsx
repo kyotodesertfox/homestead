@@ -10,6 +10,22 @@ import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, TREASURY_ABI, CONTRACT_URI_
 
 const HUB_CHAIN_ID = 167000;
 
+let _ethUsdCached = null;
+let _ethUsdFetching = false;
+function useEthUsd() {
+  const [price, setPrice] = useState(_ethUsdCached);
+  useEffect(() => {
+    if (_ethUsdCached !== null) { setPrice(_ethUsdCached); return; }
+    if (_ethUsdFetching) return;
+    _ethUsdFetching = true;
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => { _ethUsdCached = d?.ethereum?.usd ?? null; _ethUsdFetching = false; setPrice(_ethUsdCached); })
+      .catch(() => { _ethUsdFetching = false; });
+  }, []);
+  return price;
+}
+
 // Product tokens only — ETH is always the other side and is never selectable
 // wethIsToken0: true when WETH address sorts below the token address in the pair
 const TOKENS = [
@@ -101,6 +117,7 @@ export default function SwapPage() {
   const { open }                        = useAppKit();
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
+  const ethUsd                          = useEthUsd();
 
   const [tokenAmount, setTokenAmount]     = useState('');
   const [selectedToken, setSelectedToken] = useState('$BEER');
@@ -441,6 +458,11 @@ export default function SwapPage() {
                   <span>Rate</span>
                   <span className={rateDisplay !== null ? 'text-gray-900' : 'text-gray-300'}>
                     {rateDisplay !== null ? `1 ${selectedToken} = ${rateDisplay.toFixed(6)} ETH` : '—'}
+                    {rateDisplay !== null && ethUsd && (
+                      <span className="text-gray-400 font-medium normal-case tracking-normal ml-1">
+                        (≈ ${(rateDisplay * ethUsd).toFixed(2)})
+                      </span>
+                    )}
                   </span>
                 </div>
 

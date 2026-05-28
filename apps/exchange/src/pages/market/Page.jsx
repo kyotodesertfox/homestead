@@ -2,12 +2,50 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Info, Plus, X, ImagePlus, Copy, CheckCheck, Upload, ArrowRight, PackagePlus } from 'lucide-react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI } from '../../contracts';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI } from '../../contracts';
 
 // ─── IPFS ────────────────────────────────────────────────────────────────────
 const IPFS_GW    = 'https://ipfs.io/ipfs/';
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
+
+// ─── USD reference pricing ────────────────────────────────────────────────────
+// Module-level cache so all cards share one CoinGecko fetch per page load.
+let _ethUsdCached = null;
+let _ethUsdFetching = false;
+function useEthUsd() {
+  const [price, setPrice] = useState(_ethUsdCached);
+  useEffect(() => {
+    if (_ethUsdCached !== null) { setPrice(_ethUsdCached); return; }
+    if (_ethUsdFetching) return;
+    _ethUsdFetching = true;
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => { _ethUsdCached = d?.ethereum?.usd ?? null; _ethUsdFetching = false; setPrice(_ethUsdCached); })
+      .catch(() => { _ethUsdFetching = false; });
+  }, []);
+  return price;
+}
+
+const TOKEN_PAIR_CONFIG = {
+  [ADDRESSES.BEER_TOKEN?.toLowerCase()]: { pair: ADDRESSES.BEER_WETH_PAIR, wethIsToken0: false },
+  [ADDRESSES.EGG_TOKEN?.toLowerCase()]:  { pair: ADDRESSES.EGG_WETH_PAIR,  wethIsToken0: true  },
+};
+
+function useTokenEthRate(tokenAddress) {
+  const config = tokenAddress ? TOKEN_PAIR_CONFIG[tokenAddress.toLowerCase()] : null;
+  const { data: reserves } = useReadContract({
+    address: config?.pair,
+    abi: PAIR_ABI,
+    functionName: 'getReserves',
+    query: { enabled: !!config },
+  });
+  if (!reserves || !config) return null;
+  const [r0, r1] = reserves;
+  const [rToken, rWeth] = config.wethIsToken0 ? [r1, r0] : [r0, r1];
+  if (rToken === 0n) return null;
+  return parseFloat(formatUnits(rWeth, 18)) / parseFloat(formatUnits(rToken, 18));
+}
 
 async function fetchMeta(tokenUri) {
   try {
@@ -625,9 +663,14 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
   const [bought,   setBought]   = useState(false);
   const [showStock, setShowStock] = useState(false);
 
-  const [, , price, proceeds, inventoryCount, active] = listing;
+  const [, paymentToken, price, proceeds, inventoryCount, active] = listing;
   const inStock  = inventoryCount != null && inventoryCount > 0n;
   const priceStr = price != null ? formatUnits(price, 18) : '—';
+
+  const ethUsd       = useEthUsd();
+  const tokenEthRate = useTokenEthRate(paymentToken);
+  const usdValue     = ethUsd && tokenEthRate && priceStr !== '—'
+    ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   const { data: allowance, refetch: refetchAllow } = useReadContract({
     address: ADDRESSES.BEER_TOKEN,
@@ -746,7 +789,10 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
             <div className="flex gap-6 border-t border-b border-gray-100 py-4">
               <div>
                 <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Price</p>
-                <p className="text-gray-900 font-black text-xl">{priceStr} BEER</p>
+                <p className="text-gray-900 font-black text-xl">
+                  {priceStr} BEER
+                  {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-sm ml-1">(≈ ${usdValue})</span>}
+                </p>
               </div>
               <div>
                 <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Available</p>
@@ -888,11 +934,15 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
   }, [tokenUri]);
 
   if (!listing) return null;
-  const [, , price, proceeds, inventoryCount, active] = listing;
+  const [, paymentToken, price, proceeds, inventoryCount, active] = listing;
   if (!active) return null;
 
-  const priceStr = price != null ? formatUnits(price, 18) : '—';
-  const inStock  = inventoryCount != null && inventoryCount > 0n;
+  const priceStr     = price != null ? formatUnits(price, 18) : '—';
+  const inStock      = inventoryCount != null && inventoryCount > 0n;
+  const ethUsd       = useEthUsd();
+  const tokenEthRate = useTokenEthRate(paymentToken);
+  const usdValue     = ethUsd && tokenEthRate && priceStr !== '—'
+    ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   return (
     <>
@@ -977,7 +1027,10 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
           <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
             <div>
               <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
-              <p className="text-gray-900 font-black text-base">{priceStr} BEER</p>
+              <p className="text-gray-900 font-black text-base">
+                {priceStr} BEER
+                {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
+              </p>
             </div>
             <span className="text-hub-green text-xs font-black uppercase tracking-widest">
               View →
