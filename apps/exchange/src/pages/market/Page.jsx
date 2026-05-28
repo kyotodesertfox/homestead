@@ -1010,6 +1010,53 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
   );
 }
 
+// ─── Placeholder Card (pre-launch listings) ───────────────────────────────────
+const EGG_PLACEHOLDERS = [
+  {
+    key:         'egg-single',
+    name:        'Single Farm Egg',
+    tag:         'Grade AA · Free-Range',
+    description: 'One farm-fresh egg from Homestead. Redeemable at pickup.',
+    price:       '1 EGG',
+  },
+  {
+    key:         'egg-halfdozen',
+    name:        'Half Dozen Farm Eggs',
+    tag:         'Grade AA · Free-Range',
+    description: 'Six farm-fresh eggs from Homestead. Redeemable at pickup.',
+    price:       '6 EGG',
+  },
+];
+
+function PlaceholderListingCard({ name, tag, description, price }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+      <div className="relative w-full aspect-square bg-amber-50 overflow-hidden flex items-center justify-center">
+        <ShoppingBag size={48} className="text-amber-200" />
+        <span className="absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gray-900/70 text-white/60">
+          Coming Soon
+        </span>
+      </div>
+      <div className="p-5 flex flex-col gap-2 flex-1">
+        <div>
+          <h3 className="text-gray-900 font-black text-lg leading-tight">{name}</h3>
+          {tag && <p className="text-hub-green text-xs font-black uppercase tracking-widest mt-0.5">{tag}</p>}
+        </div>
+        {description && (
+          <p className="text-gray-400 text-xs font-medium leading-relaxed line-clamp-2">{description}</p>
+        )}
+        <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
+            <p className="text-gray-900 font-black text-base">{price}</p>
+          </div>
+          <span className="text-gray-300 text-xs font-black uppercase tracking-widest">Soon →</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Market Page ──────────────────────────────────────────────────────────────
 export default function MarketPage() {
   const { address } = useAccount();
@@ -1058,23 +1105,14 @@ export default function MarketPage() {
           )}
         </header>
 
-        {listingIds.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-16 max-w-lg w-full shadow-sm">
-              <ShoppingBag size={48} className="text-hub-green mx-auto mb-6 opacity-40" />
-              <h2 className="text-2xl font-black uppercase tracking-tight text-gray-900 mb-3">No Listings Yet</h2>
-              <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                No active listings found. Check back soon.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {listingIds.map(id => (
-              <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          {listingIds.map(id => (
+            <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
+          ))}
+          {EGG_PLACEHOLDERS.map(p => (
+            <PlaceholderListingCard key={p.key} {...p} />
+          ))}
+        </div>
 
         <section className="mt-8 bg-white border border-gray-100 rounded-2xl p-5 flex gap-4 items-start shadow-sm">
           <div className="text-hub-green mt-1 shrink-0"><Info size={24} strokeWidth={3} /></div>
