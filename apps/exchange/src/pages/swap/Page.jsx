@@ -11,10 +11,11 @@ import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, TREASURY_ABI, CONTRACT_URI_
 const HUB_CHAIN_ID = 167000;
 
 // Product tokens only — ETH is always the other side and is never selectable
+// wethIsToken0: true when WETH address sorts below the token address in the pair
 const TOKENS = [
-  { symbol: '$BEER', address: ADDRESSES.BEER_TOKEN, decimals: 18, color: 'bg-amber-400' },
-  { symbol: '$EGG',  address: null,                 decimals: 18, color: 'bg-sky-400'    },
-  { symbol: '$SPA',  address: null,                 decimals: 18, color: 'bg-purple-400' },
+  { symbol: '$BEER', address: ADDRESSES.BEER_TOKEN, decimals: 18, color: 'bg-amber-400',  wethIsToken0: false, pair: ADDRESSES.BEER_WETH_PAIR },
+  { symbol: '$EGG',  address: ADDRESSES.EGG_TOKEN,  decimals: 18, color: 'bg-yellow-400', wethIsToken0: true,  pair: ADDRESSES.EGG_WETH_PAIR  },
+  { symbol: '$SPA',  address: null,                 decimals: 18, color: 'bg-purple-400', wethIsToken0: false, pair: null                     },
 ];
 
 function buildPath(tokenSymbol, isSelling) {
@@ -22,6 +23,11 @@ function buildPath(tokenSymbol, isSelling) {
     return isSelling
       ? [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH]
       : [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN];
+  }
+  if (tokenSymbol === '$EGG') {
+    return isSelling
+      ? [ADDRESSES.EGG_TOKEN, ADDRESSES.WETH]
+      : [ADDRESSES.WETH, ADDRESSES.EGG_TOKEN];
   }
   return null;
 }
@@ -154,10 +160,10 @@ export default function SwapPage() {
     : grossEthAmount;
 
   const { data: reserves } = useReadContract({
-    address: ADDRESSES.BEER_WETH_PAIR,
+    address: tokenDef?.pair ?? undefined,
     abi: PAIR_ABI,
     functionName: 'getReserves',
-    query: { enabled: !!path },
+    query: { enabled: !!path && !!tokenDef?.pair },
   });
 
   const { data: ethBal   } = useBalance({ address, query: { enabled: !!address } });
@@ -169,11 +175,11 @@ export default function SwapPage() {
   });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: ADDRESSES.BEER_TOKEN,
+    address: tokenDef?.address ?? undefined,
     abi: ERC20_ABI,
     functionName: 'allowance',
     args: [address ?? '0x0000000000000000000000000000000000000000', ADDRESSES.ROUTER],
-    query: { enabled: !!address && isSelling },
+    query: { enabled: !!address && isSelling && !!tokenDef?.address },
   });
   const needsApproval = isSelling && allowance !== undefined && allowance < tokenAmountBig;
 
@@ -198,12 +204,13 @@ export default function SwapPage() {
   // Price impact: deviation from mid price expressed as %
   const priceImpact = useMemo(() => {
     if (!reserves || tokenAmountBig === 0n || netEthAmount === 0n) return null;
-    const [r0, r1] = reserves; // r0 = BEER (token0), r1 = WETH
+    const [r0, r1] = reserves;
     if (r0 === 0n || r1 === 0n) return null;
-    const midPrice  = parseFloat(formatUnits(r1, 18)) / parseFloat(formatUnits(r0, 18));
+    const [rToken, rWeth] = tokenDef?.wethIsToken0 ? [r1, r0] : [r0, r1];
+    const midPrice  = parseFloat(formatUnits(rWeth, 18)) / parseFloat(formatUnits(rToken, 18));
     const execPrice = parseFloat(formatUnits(netEthAmount, 18)) / parseFloat(formatUnits(tokenAmountBig, 18));
     return Math.abs((midPrice - execPrice) / midPrice * 100).toFixed(2);
-  }, [reserves, tokenAmountBig, netEthAmount]);
+  }, [reserves, tokenAmountBig, netEthAmount, tokenDef]);
 
   // AMM fee — hardcoded constant in HomesteadLibrary (9970/10000).
   // Replace with getFeeSchedule() read after new Router is deployed.
@@ -234,11 +241,11 @@ export default function SwapPage() {
 
   const ethPctToTokens = (pct) => {
     if (!ethBal || !reserves) return null;
-    const [r0, r1] = reserves; // r0 = BEER, r1 = WETH
-    if (r1 === 0n) return null;
+    const [r0, r1] = reserves;
+    const [rToken, rWeth] = tokenDef?.wethIsToken0 ? [r1, r0] : [r0, r1];
+    if (rWeth === 0n) return null;
     const ethToSpend = (ethBal.value * BigInt(pct)) / 100n;
-    // Mid-price estimate, floor to whole tokens — leaves ETH remainder for gas
-    return (ethToSpend * r0) / r1 / (10n ** 18n);
+    return (ethToSpend * rToken) / rWeth / (10n ** 18n);
   };
 
   const handleMax = () => {
@@ -262,7 +269,7 @@ export default function SwapPage() {
     }
   };
   const handleApprove = () => writeApprove({
-    address: ADDRESSES.BEER_TOKEN, abi: ERC20_ABI,
+    address: tokenDef?.address, abi: ERC20_ABI,
     functionName: 'approve', args: [ADDRESSES.ROUTER, tokenAmountBig],
   });
   const handleSwap = () => {
