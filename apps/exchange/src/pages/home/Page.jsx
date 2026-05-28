@@ -107,6 +107,50 @@ function FeaturedListingCard({ id }) {
   );
 }
 
+function EggSvg() {
+  return (
+    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
+      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
+      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheenHome)" />
+      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
+      <defs>
+        <radialGradient id="eggSheenHome" cx="38%" cy="32%" r="68%">
+          <stop offset="0%" stopColor="#e8c99a" />
+          <stop offset="60%" stopColor="#c8a070" />
+          <stop offset="100%" stopColor="#a07040" />
+        </radialGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function EggFeaturedPlaceholder() {
+  return (
+    <Link
+      to="/market"
+      className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all"
+    >
+      <div className="relative aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
+        <EggSvg />
+        <span className="absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gray-900/70 text-white/60">
+          Coming Soon
+        </span>
+      </div>
+      <div className="p-5 flex flex-col gap-2 flex-1">
+        <h3 className="text-gray-900 font-black text-lg leading-tight">Single Farm Egg</h3>
+        <p className="text-hub-green text-xs font-black uppercase tracking-widest">Grade AA · Free-Range</p>
+        <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
+            <p className="text-gray-900 font-black">1 EGG</p>
+          </div>
+          <span className="text-hub-green text-xs font-black uppercase tracking-widest">View →</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function FeaturedListings() {
   const { data: nextId } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
@@ -119,20 +163,12 @@ function FeaturedListings() {
     ? Array.from({ length: Math.min(Number(nextId), 3) }, (_, i) => i)
     : [];
 
-  if (listingIds.length === 0) {
-    return (
-      <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-        <ShoppingBag size={36} className="text-hub-green mx-auto mb-4 opacity-30" />
-        <p className="text-gray-400 font-medium text-sm">First listings coming soon.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {listingIds.map(id => (
         <FeaturedListingCard key={id} id={id} />
       ))}
+      <EggFeaturedPlaceholder />
     </div>
   );
 }
