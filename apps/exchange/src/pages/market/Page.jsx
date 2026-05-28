@@ -1079,7 +1079,7 @@ function PlaceholderListingCard({ name, tag, description, price, image }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
       <div className="relative w-full aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
-        {image ?? <EggSvg />
+        {image ?? <EggSvg />}
         <span className="absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gray-900/70 text-white/60">
           Coming Soon
         </span>
