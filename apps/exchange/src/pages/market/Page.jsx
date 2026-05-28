@@ -1028,11 +1028,27 @@ const EGG_PLACEHOLDERS = [
   },
 ];
 
+function EggSvg() {
+  return (
+    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
+      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#fffbeb" stroke="#fde68a" strokeWidth="2" />
+      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheen)" />
+      <ellipse cx="48" cy="62" rx="8" ry="12" fill="white" opacity="0.4" transform="rotate(-15 48 62)" />
+      <defs>
+        <radialGradient id="eggSheen" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stopColor="#fffdf5" />
+          <stop offset="100%" stopColor="#fef3c7" />
+        </radialGradient>
+      </defs>
+    </svg>
+  );
+}
+
 function PlaceholderListingCard({ name, tag, description, price }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-      <div className="relative w-full aspect-square bg-amber-50 overflow-hidden flex items-center justify-center">
-        <ShoppingBag size={48} className="text-amber-200" />
+      <div className="relative w-full aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
+        <EggSvg />
         <span className="absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gray-900/70 text-white/60">
           Coming Soon
         </span>
