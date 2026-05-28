@@ -391,6 +391,7 @@ function TokensTab() {
   const [tokenList, setTokenList] = useState([]);
   const [expanded, setExpanded]   = useState(null);
   const [minterAddr, setMinterAddr] = useState({});
+  const [spenderAddr, setSpenderAddr] = useState({});
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
 
   const { data: allTokens, refetch } = useReadContract({
@@ -469,14 +470,20 @@ function TokensTab() {
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>
               <div>
-                <Label>Approve Router</Label>
+                <Label>Approve Spender</Label>
+                <Input
+                  value={spenderAddr[tok.address] ?? ''}
+                  onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))}
+                  placeholder="0x…"
+                  className="mb-2"
+                />
                 <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
-                  <AllowanceRow tokenAddress={tok.address} spender={ADDRESSES.ROUTER} label="Allowance → Router" />
+                  <AllowanceRow tokenAddress={tok.address} spender={spenderAddr[tok.address]} label="Current Allowance" />
                 </div>
                 <Btn
-                  onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, maxUint256] })}
-                  disabled={isPending || isConfirming}
-                >Approve Router</Btn>
+                  onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })}
+                  disabled={!spenderAddr[tok.address] || isPending || isConfirming}
+                >Approve</Btn>
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>
             </div>
