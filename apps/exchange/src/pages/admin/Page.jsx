@@ -959,7 +959,7 @@ export default function AdminPage() {
               ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER,   'NFT_DEPLOYER'],
             ].map(([label, addr, vKey]) => (
               <React.Fragment key={label}>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
                   <VersionDot addrKey={vKey} />{label}
                 </span>
                 <div className="min-w-0 self-center"><CopyAddr address={addr} /></div>
