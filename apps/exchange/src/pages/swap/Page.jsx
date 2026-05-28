@@ -97,6 +97,7 @@ function TokenSelect({ selected, options, onChange }) {
 }
 
 export default function SwapPage() {
+  useEffect(() => { document.title = 'Swap | Homestead'; }, []);
   const { open }                        = useAppKit();
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();

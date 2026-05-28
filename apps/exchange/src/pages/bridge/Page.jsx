@@ -148,6 +148,7 @@ const WARNINGS = [
 ];
 
 export default function BridgePage() {
+  useEffect(() => { document.title = 'Bridge ETH | Homestead'; }, []);
   const { address }   = useAccount();
   const [ready, setReady] = useState(false);
 

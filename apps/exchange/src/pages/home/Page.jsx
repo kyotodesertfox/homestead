@@ -280,6 +280,7 @@ const TABS = ['Exchange', 'Portals'];
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  useEffect(() => { document.title = 'Homestead — Grown here. Sold here.'; }, []);
   const { open }                  = useAppKit();
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();

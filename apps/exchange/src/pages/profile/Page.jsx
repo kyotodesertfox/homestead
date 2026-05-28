@@ -31,6 +31,7 @@ async function fetchNftMeta(tokenUri) {
 }
 
 export default function ProfilePage() {
+  useEffect(() => { document.title = 'Portfolio | Homestead'; }, []);
   const { open }                        = useAppKit();
   const { disconnect }                  = useDisconnect();
   const { isConnected, address, chain } = useAccount();

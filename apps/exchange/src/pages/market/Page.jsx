@@ -1076,6 +1076,7 @@ function PlaceholderListingCard({ name, tag, description, price }) {
 
 // ─── Market Page ──────────────────────────────────────────────────────────────
 export default function MarketPage() {
+  useEffect(() => { document.title = 'Market | Homestead'; }, []);
   const { address } = useAccount();
   const [showCreate,  setShowCreate]  = useState(false);
   const [knownStyles, setKnownStyles] = useState([]);
