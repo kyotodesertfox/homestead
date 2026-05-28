@@ -36,7 +36,8 @@ contract nftTemplate is
 
     // =========================================================================
 
-    uint96 private constant DEFAULT_ROYALTY_BPS = 500; // 5%
+    uint256 public  constant VERSION            = 1;
+    uint96  private constant DEFAULT_ROYALTY_BPS = 500; // 5%
 
     event Minted(address indexed to, uint256 indexed tokenId, string cid);
     event BatchMinted(address indexed to, uint256 startTokenId, uint256 count);

@@ -77,6 +77,8 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     struct Batch {
         address producer;
         address nftContract;

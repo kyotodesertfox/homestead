@@ -369,6 +369,26 @@ export const CONTRACT_URI_ABI = [
   { name: 'contractURI', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
 ];
 
+export const VERSION_ABI = [
+  { name: 'VERSION', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+];
+
+// Bump these when a contract is upgraded on-chain.
+export const EXPECTED_VERSIONS = {
+  TREASURY:       1,
+  ROUTER:         1,
+  MARKETPLACE:    1,
+  FACTORY:        1,
+  BEER_WETH_PAIR: 1,
+  EGG_WETH_PAIR:  1,
+  BEER_TOKEN:     1,
+  BEER_NFT:       1,
+  EGG_TOKEN:      1,
+  EGG_NFT:        1,
+  TOKEN_DEPLOYER: 1,
+  NFT_DEPLOYER:   1,
+};
+
 export const DEADLINE = () => BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 export const SLIPPAGE_BPS = 50n;
 export const applySlippage = (amount) => (amount * (10000n - SLIPPAGE_BPS)) / 10000n;

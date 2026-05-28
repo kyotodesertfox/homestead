@@ -26,6 +26,7 @@ contract Router is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     // Mirrors the 9970/10000 constant in HomesteadLibrary — exposed for UI
     uint256 public constant AMM_FEE_BPS = 30;
+    uint256 public constant VERSION     = 1;
 
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, 'Router: EXPIRED');

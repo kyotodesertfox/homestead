@@ -6,6 +6,7 @@ import { formatUnits, parseEther } from 'viem';
 import {
   ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
+  VERSION_ABI, EXPECTED_VERSIONS,
 } from '../../contracts';
 
 // ── Pinata ────────────────────────────────────────────────────────────────────
@@ -170,6 +171,10 @@ function useWrite() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
   return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
 }
+
+const VERSION_CHECKS = Object.entries(EXPECTED_VERSIONS).map(([key, expected]) => ({
+  key, expected, address: ADDRESSES[key],
+}));
 
 const TABS = ['Collections', 'Tokens', 'Treasury', 'Upload'];
 
@@ -881,6 +886,29 @@ export default function AdminPage() {
 
   const isOwner = owner && address && owner.toLowerCase() === address.toLowerCase();
 
+  const { data: versionData } = useReadContracts({
+    contracts: VERSION_CHECKS.map(c => ({
+      address: c.address, abi: VERSION_ABI, functionName: 'VERSION',
+    })),
+    query: { enabled: !!isConnected },
+  });
+
+  const versionStatus = (addressKey) => {
+    const idx = VERSION_CHECKS.findIndex(c => c.key === addressKey);
+    if (idx === -1) return null;
+    const result = versionData?.[idx];
+    if (!result || result.error || result.result === undefined) return 'unknown';
+    return result.result === BigInt(VERSION_CHECKS[idx].expected) ? 'ok' : 'behind';
+  };
+
+  const VersionDot = ({ addrKey }) => {
+    const s = versionStatus(addrKey);
+    if (!s) return null;
+    const color = s === 'ok' ? 'bg-hub-green' : s === 'behind' ? 'bg-amber-400' : 'bg-gray-300';
+    const title = s === 'ok' ? 'Up to date' : s === 'behind' ? 'Upgrade needed' : 'Not yet upgraded';
+    return <span className={`w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 ${color}`} title={title} />;
+  };
+
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -923,21 +951,24 @@ export default function AdminPage() {
           <div className="bg-white border border-gray-100 rounded-xl p-4 grid gap-x-6 gap-y-2"
                style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
             {[
-              ['Wallet',         address],
-              ['Treasury',       ADDRESSES.TREASURY],
-              ['Marketplace',    ADDRESSES.MARKETPLACE],
-              ['Beer Token',     ADDRESSES.BEER_TOKEN],
-              ['Beer NFT',       ADDRESSES.BEER_NFT],
-              ['stkHomestead',   ADDRESSES.STK_HOMESTEAD],
-              ['Router',         ADDRESSES.ROUTER],
-              ['DEX Factory',    ADDRESSES.FACTORY],
-              ['Beer/WETH Pair', ADDRESSES.BEER_WETH_PAIR],
-              ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER],
-              ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER],
-              ['WETH',           ADDRESSES.WETH],
-            ].map(([label, addr]) => (
+              ['Wallet',         address,                   null],
+              ['Treasury',       ADDRESSES.TREASURY,        'TREASURY'],
+              ['Marketplace',    ADDRESSES.MARKETPLACE,     'MARKETPLACE'],
+              ['Beer Token',     ADDRESSES.BEER_TOKEN,      'BEER_TOKEN'],
+              ['Beer NFT',       ADDRESSES.BEER_NFT,        'BEER_NFT'],
+              ['stkHomestead',   ADDRESSES.STK_HOMESTEAD,   null],
+              ['Router',         ADDRESSES.ROUTER,          'ROUTER'],
+              ['DEX Factory',    ADDRESSES.FACTORY,         'FACTORY'],
+              ['Beer/WETH Pair', ADDRESSES.BEER_WETH_PAIR,  'BEER_WETH_PAIR'],
+              ['EGG/WETH Pair',  ADDRESSES.EGG_WETH_PAIR,   'EGG_WETH_PAIR'],
+              ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER,  'TOKEN_DEPLOYER'],
+              ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER,    'NFT_DEPLOYER'],
+              ['WETH',           ADDRESSES.WETH,            null],
+            ].map(([label, addr, vKey]) => (
               <React.Fragment key={label}>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center">{label}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
+                  <VersionDot addrKey={vKey} />{label}
+                </span>
                 <div className="min-w-0 self-center"><CopyAddr address={addr} /></div>
               </React.Fragment>
             ))}

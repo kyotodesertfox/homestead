@@ -20,6 +20,8 @@ contract NFTDeployer is UUPSUpgradeable, OwnableUpgradeable {
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     event ContractDeployed(address indexed proxyAddress, string name, string symbol);
 
     /// @custom:oz-upgrades-unsafe-allow constructor

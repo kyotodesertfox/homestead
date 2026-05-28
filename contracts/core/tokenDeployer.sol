@@ -20,6 +20,8 @@ contract TokenDeployer is UUPSUpgradeable, OwnableUpgradeable {
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     event TokenDeployed(address indexed proxyAddress, string name, string symbol);
 
     /// @custom:oz-upgrades-unsafe-allow constructor

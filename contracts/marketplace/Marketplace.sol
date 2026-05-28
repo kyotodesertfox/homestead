@@ -51,6 +51,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     struct Listing {
         address nftContract;
         address paymentToken;

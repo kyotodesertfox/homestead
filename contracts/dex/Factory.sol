@@ -28,6 +28,8 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256 totalPairs);
 
     /// @custom:oz-upgrades-unsafe-allow constructor

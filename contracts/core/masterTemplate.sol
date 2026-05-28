@@ -22,6 +22,8 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
 
     // =========================================================================
 
+    uint256 public constant VERSION = 1;
+
     modifier onlyMinter() {
         require(owner() == msg.sender || isMinter[msg.sender], "Caller is not a minter");
         _;
