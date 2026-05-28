@@ -1073,6 +1073,7 @@ const EGG_PLACEHOLDERS = [
     tag:         'Grade AA · Free-Range',
     description: 'One farm-fresh egg from Homestead. Redeemable at pickup.',
     price:       '1 EGG',
+    priceAmount: 1,
   },
   {
     key:         'egg-halfdozen',
@@ -1080,6 +1081,7 @@ const EGG_PLACEHOLDERS = [
     tag:         'Grade AA · Free-Range',
     description: 'Six farm-fresh eggs from Homestead. Redeemable at pickup.',
     price:       '6 EGG',
+    priceAmount: 6,
     image:       <SixEggsSvg />,
   },
 ];
@@ -1130,7 +1132,8 @@ function SixEggsSvg() {
   );
 }
 
-function PlaceholderListingCard({ name, tag, description, price, image }) {
+function PlaceholderListingCard({ name, tag, description, price, priceAmount, usdPerToken, image }) {
+  const usdValue = usdPerToken && priceAmount ? (priceAmount * usdPerToken).toFixed(2) : null;
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
       <div className="relative w-full aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
@@ -1150,7 +1153,10 @@ function PlaceholderListingCard({ name, tag, description, price, image }) {
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
-            <p className="text-gray-900 font-black text-base">{price}</p>
+            <p className="text-gray-900 font-black text-base">
+              {price}
+              {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
+            </p>
           </div>
           <span className="text-gray-300 text-xs font-black uppercase tracking-widest">Soon →</span>
         </div>
@@ -1165,6 +1171,10 @@ export default function MarketPage() {
   const { address } = useAccount();
   const [showCreate,  setShowCreate]  = useState(false);
   const [knownStyles, setKnownStyles] = useState([]);
+
+  const eggEthRate = useTokenEthRate(ADDRESSES.EGG_TOKEN);
+  const ethUsdMkt  = useEthUsd();
+  const eggUsdRate = eggEthRate && ethUsdMkt ? eggEthRate * ethUsdMkt : null;
 
   const { data: ownerAddr } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
@@ -1213,7 +1223,7 @@ export default function MarketPage() {
             <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
           ))}
           {EGG_PLACEHOLDERS.map(p => (
-            <PlaceholderListingCard key={p.key} {...p} />
+            <PlaceholderListingCard key={p.key} {...p} usdPerToken={eggUsdRate} />
           ))}
         </div>
 
