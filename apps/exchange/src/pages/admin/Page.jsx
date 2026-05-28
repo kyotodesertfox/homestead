@@ -171,14 +171,13 @@ function AllowanceRow({ tokenAddress, spender, label }) {
     address: tokenAddress, abi: BEER_TOKEN_ABI, functionName: 'allowance', args: [owner, spender],
     query: { enabled: !!tokenAddress && !!owner && !!spender },
   });
-  const noSpender = !spender;
-  const loading = !noSpender && (isLoading || (data === undefined && !isError));
+  const loading = !!spender && (isLoading || (data === undefined && !isError));
   const amount  = data ?? 0n;
-  const isSet   = !noSpender && amount > 0n;
+  const isSet   = !!spender && amount > 0n;
 
-  const dot    = noSpender ? 'bg-gray-200' : loading ? 'bg-gray-300' : isError ? 'bg-amber-400' : isSet ? 'bg-hub-green' : 'bg-red-400';
-  const text   = noSpender ? 'text-gray-300' : loading ? 'text-gray-300' : isError ? 'text-amber-400' : isSet ? 'text-hub-green' : 'text-red-400';
-  const label2 = noSpender ? 'Unset' : loading ? '…' : isError ? 'Error' : isSet ? parseFloat(formatUnits(amount, 18)).toLocaleString() : 'None';
+  const dot    = loading ? 'bg-gray-300' : isSet ? 'bg-hub-green' : 'bg-red-400';
+  const text   = loading ? 'text-gray-300' : isSet ? 'text-hub-green' : 'text-red-400';
+  const label2 = loading ? '…' : isSet ? (amount === maxUint256 ? 'Unlimited' : parseFloat(formatUnits(amount, 18)).toLocaleString()) : 'None';
 
   return (
     <div className="flex items-center justify-between py-1.5">
