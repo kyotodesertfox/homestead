@@ -4,7 +4,6 @@ import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalL
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
-import TreasuryHealth from '../../components/TreasuryHealth';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
 
 const IPFS_GW = 'https://ipfs.io/ipfs/';
@@ -294,6 +293,87 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── REPUTATION ────────────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="grid md:grid-cols-2 gap-5">
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Not just farmers</p>
+              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
+                Vetted service providers.<br />Same market, same rules.
+              </h3>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                A carpenter. An electrician. A mechanic. Anyone who produces more than they consume —
+                in goods or in skills — can participate. Homestead isn't limited to what grows in the ground.
+                It's for anyone the current system undervalues.
+              </p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Your stake is your reputation</p>
+              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
+                Built by you.<br />Not assigned by a bank.
+              </h3>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                Every transaction, every delivered batch, every redeemed token adds to your on-chain
+                standing. No credit agency decides your tier. No institution gatekeeps your access.
+                Your history is what you've actually done — verifiable, neutral, and yours.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── HOW TO GET IN ─────────────────────────────────────────────── */}
+        <section className="mb-12 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="border-b border-gray-100 px-8 py-6">
+            <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900">
+              How do I participate?
+            </h2>
+            <p className="text-gray-500 text-sm font-medium mt-1">
+              No application. No approval committee. No fee paid to a gatekeeper for access.
+              Your trust is an investment proven by math.
+            </p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            <div className="px-8 py-6 flex gap-5">
+              <span className="text-hub-green font-black text-2xl shrink-0">01</span>
+              <div>
+                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Stake ETH</h3>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                  Deposit ETH into the protocol. You receive a credential token that reflects your
+                  standing — not a receipt, not a yield instrument. Proof that you have skin in the game.
+                  This is your investment in your own reputation.
+                </p>
+              </div>
+            </div>
+            <div className="px-8 py-6 flex gap-5">
+              <span className="text-hub-green font-black text-2xl shrink-0">02</span>
+              <div>
+                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your production</h3>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                  Open a lot against your stake. The collateral ratio is enforced by math, not a loan officer.
+                  Production tokens are minted — each one a redeemable promise backed by your stake.
+                  No rehypothecation. One token, one real thing.
+                </p>
+              </div>
+            </div>
+            <div className="px-8 py-6 flex gap-5">
+              <span className="text-hub-green font-black text-2xl shrink-0">03</span>
+              <div>
+                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                  Put your goods on the market. The token price is what real demand says your
+                  production is worth — not a distributor's offer, not a grocery store margin that
+                  squeezes both sides. Cash is welcome when it beats that price. Below it is a
+                  lowball. The friction of paying in crypto is worth it because what you're buying
+                  is genuinely better: full nutrition, grown without compromise, from someone who
+                  eats what they sell. You pay a fair price directly to the producer. They keep it.
+                  Every fulfilled order builds your on-chain track record — portable, verifiable,
+                  and not controlled by any platform that can revoke it.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── PRODUCER CTA ──────────────────────────────────────────────── */}
         <section className="mb-12 bg-white border-l-8 border-hub-green rounded-r-2xl p-8 md:p-10 shadow-sm">
           <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-3 leading-snug">
@@ -382,8 +462,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── TREASURY HEALTH ───────────────────────────────────────────── */}
-        <TreasuryHealth />
 
       </div>
     </div>
