@@ -3,7 +3,7 @@ import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, B
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI } from '../../contracts';
+import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
 import MessagesPanel      from '../../components/MessagesPanel';
 import StakePanel         from '../../components/StakePanel';
 import OrderTrackingModal from '../../components/OrderTrackingModal';
@@ -198,10 +198,7 @@ export default function ProfilePage() {
         {/* Token balances */}
         <div className="grid grid-cols-2 gap-4">
           <BeerCard beerRaw={beerRaw} address={address} onOpen={() => setShowLiquidity(true)} />
-          <div className="bg-hub-dark border-2 border-yellow-500/20 rounded-3xl p-5 shadow-xl opacity-40">
-            <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400 mb-1">$EGG</p>
-            <p className="font-black text-white/30 text-3xl">—</p>
-          </div>
+          <DynamicTokenCards walletAddress={address} />
         </div>
 
         {showLiquidity && <LiquidityModal onClose={() => setShowLiquidity(false)} />}
@@ -232,9 +229,8 @@ export default function ProfilePage() {
             <ActionCard
               icon={<Egg size={24} className="text-yellow-400" />}
               title="Egg Portal"
-              description="Coming soon"
+              description="Your egg stash and the market"
               href="/egg/"
-              disabled
             />
           </div>
         </section>
@@ -481,6 +477,72 @@ function StakingPositionCards({ address }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Dynamic token cards ──────────────────────────────────────────────────────
+
+function addressColor(addr) {
+  const hex = addr.slice(2);
+  let n = 0;
+  for (let i = 0; i < hex.length; i++) n = (n * 31 + parseInt(hex[i], 16)) & 0xfffff;
+  return `hsl(${n % 360}, 65%, 52%)`;
+}
+
+function TokenBalanceCard({ tokenAddress, walletAddress }) {
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const { data: meta } = useReadContracts({
+    contracts: [
+      { address: tokenAddress, abi: ERC20_ABI, functionName: 'symbol' },
+      { address: tokenAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [walletAddress ?? ZERO] },
+    ],
+    query: { enabled: !!tokenAddress },
+  });
+  const symbol  = meta?.[0]?.result;
+  const balance = meta?.[1]?.result;
+  const color   = addressColor(tokenAddress);
+  const href    = `/${symbol?.toLowerCase()}/`;
+  const fmt     = balance != null ? parseFloat(formatUnits(balance, 18)).toLocaleString() : '—';
+
+  return (
+    <a href={href}
+      className="bg-hub-dark rounded-3xl p-5 shadow-xl text-left transition-all group block border-2"
+      style={{ borderColor: `${color}4d` }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = color}
+      onMouseLeave={e => e.currentTarget.style.borderColor = `${color}4d`}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>${symbol ?? '…'}</p>
+        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color, opacity: 0.4 }} />
+      </div>
+      <p className="font-black text-white text-3xl">{fmt}</p>
+      <p className="text-[9px] font-black uppercase tracking-widest mt-1 transition-colors" style={{ color, opacity: 0.5 }}>
+        {symbol ? `${symbol} portal →` : '…'}
+      </p>
+    </a>
+  );
+}
+
+function DynamicTokenCards({ walletAddress }) {
+  const { data: allTokens } = useReadContract({
+    address: ADDRESSES.TOKEN_DEPLOYER,
+    abi: TOKEN_DEPLOYER_ABI,
+    functionName: 'getAllTokens',
+  });
+
+  const tokens = (allTokens ?? []).filter(
+    addr => addr.toLowerCase() !== ADDRESSES.STK_HOMESTEAD?.toLowerCase()
+              && addr.toLowerCase() !== ADDRESSES.BEER_TOKEN?.toLowerCase()
+  );
+
+  if (!tokens.length) return null;
+
+  return (
+    <>
+      {tokens.map(addr => (
+        <TokenBalanceCard key={addr} tokenAddress={addr} walletAddress={walletAddress} />
+      ))}
+    </>
   );
 }
 

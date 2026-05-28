@@ -215,8 +215,6 @@ function DynamicPortals() {
         .map(addr => (
           <TokenPortalCard key={addr} address={addr} />
         ))}
-      <ComingSoonCard symbol="EGG" name="Egg"
-        description="Pasture-raised eggs from the homestead. One token, one egg, guaranteed delivery." />
       <ComingSoonCard symbol="SPA" name="Spa"
         description="Handcrafted spa goods from the homestead. Each token redeemable for the real product." />
       <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col opacity-50">

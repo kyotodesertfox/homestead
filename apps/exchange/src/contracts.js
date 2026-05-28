@@ -10,6 +10,7 @@ export const ADDRESSES = {
   TOKEN_DEPLOYER:   import.meta.env.VITE_TOKEN_DEPLOYER,
   NFT_DEPLOYER:     import.meta.env.VITE_NFT_DEPLOYER,
   STK_HOMESTEAD:    import.meta.env.VITE_STK_HOMESTEAD,
+  EGG_TOKEN:        import.meta.env.VITE_EGG_TOKEN,
 };
 
 export const ERC20_ABI = [
