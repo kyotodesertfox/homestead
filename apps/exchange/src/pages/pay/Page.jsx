@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAccount, useReadContract, useReadContracts, useSendTransaction, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { useAccount, useBalance, useReadContract, useReadContracts, useSendTransaction, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { parseEther, formatUnits } from 'viem';
 import { QRCodeSVG } from 'qrcode.react';
@@ -168,7 +168,8 @@ function PayScreen({ tokenParam, ethParam }) {
   const [resolvedToken, setResolvedToken] = useState(null);
   const [resolving, setResolving]   = useState(false);
 
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
+  const { data: ethBal } = useBalance({ address, query: { enabled: !!address } });
   const { open }        = useAppKit();
   const publicClient    = usePublicClient();
 
@@ -305,6 +306,19 @@ function PayScreen({ tokenParam, ethParam }) {
             </div>
           )}
 
+          {/* Insufficient balance */}
+          {isConnected && ethBal && ethNum > 0 && parseFloat(formatUnits(ethBal.value, 18)) < ethNum && (
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-red-600 text-sm font-medium">
+                Insufficient ETH.{' '}
+                <a href="/bridge" className="font-black underline hover:text-red-800 transition-colors">
+                  Bridge ETH →
+                </a>
+              </p>
+            </div>
+          )}
+
           {/* CTA */}
           {!isConnected ? (
             <button onClick={() => open()}
@@ -313,7 +327,7 @@ function PayScreen({ tokenParam, ethParam }) {
             </button>
           ) : (
             <button onClick={handlePay}
-              disabled={!hasPair || !ethAmount || ethNum <= 0 || isPending || confirming}
+              disabled={!hasPair || !ethAmount || ethNum <= 0 || isPending || confirming || (ethBal && parseFloat(formatUnits(ethBal.value, 18)) < ethNum)}
               className="w-full py-4 rounded-xl text-white font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-40 hover:brightness-110"
               style={{ backgroundColor: color }}>
               {isPending || confirming ? 'Sending…' : `Pay ${ethNum > 0 ? `${ethNum} ETH` : ''}`}
