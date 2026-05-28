@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAccount, useBalance, useReadContract, useReadContracts, useSendTransaction, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { parseEther, formatUnits } from 'viem';
 import { QRCodeSVG } from 'qrcode.react';
@@ -219,12 +219,17 @@ function PayScreen({ tokenParam, ethParam }) {
   const tokenEquiv = tokenPriceEth > 0 && ethNum > 0
     ? (ethNum / tokenPriceEth).toLocaleString(undefined, { maximumFractionDigits: 2 }) : null;
 
-  const { sendTransaction, data: hash, isPending } = useSendTransaction();
+  const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash });
 
   const handlePay = () => {
     if (!hasPair || !ethAmount || ethNum <= 0) return;
-    sendTransaction({ to: pairAddress, value: parseEther(ethAmount) });
+    writeContract({
+      address: pairAddress,
+      abi: PAIR_ABI,
+      functionName: 'depositAndSync',
+      value: parseEther(ethAmount),
+    });
   };
 
   const color = resolvedToken ? addressColor(resolvedToken) : '#22c55e';

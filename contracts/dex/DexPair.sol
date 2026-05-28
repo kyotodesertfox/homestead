@@ -10,6 +10,10 @@ interface ITreasury {
     function receiveAndMintLPReward(address rewardToken, address to) external payable;
 }
 
+interface IWETH {
+    function deposit() external payable;
+}
+
 contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable {
 
     // =========================================================================
@@ -66,6 +70,21 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     }
 
     // =========================================================================
+    // DIRECT POOL DEPOSIT — wraps ETH to WETH and syncs reserves
+    // No LP tokens minted; no rewards distributed. Price adjusts upward.
+    // =========================================================================
+
+    function depositAndSync() external payable nonReentrant {
+        require(msg.value > 0, 'DEXPair: ZERO_VALUE');
+        IWETH(weth).deposit{value: msg.value}();
+        _syncReserves(
+            IERC20(token0).balanceOf(address(this)),
+            IERC20(token1).balanceOf(address(this))
+        );
+        emit PoolDeposit(msg.sender, msg.value);
+    }
+
+    // =========================================================================
     // LP REWARDS
     // =========================================================================
 
@@ -105,6 +124,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     event Sync(uint112 reserve0, uint112 reserve1);
     event RewardAdded(uint256 amount, uint256 rewardPerTokenStored);
     event RewardClaimed(address indexed account, uint256 ethForwarded);
+    event PoolDeposit(address indexed sender, uint256 ethAmount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

@@ -135,10 +135,11 @@ export const PAIR_ABI = [
     inputs: [],
     outputs: [{ type: 'uint256' }],
   },
-  { name: 'token0',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { name: 'token1',      type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { name: 'totalSupply', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'balanceOf',   type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'token0',      type: 'function', stateMutability: 'view',    inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'token1',      type: 'function', stateMutability: 'view',    inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'totalSupply', type: 'function', stateMutability: 'view',    inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'balanceOf',   type: 'function', stateMutability: 'view',    inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'depositAndSync', type: 'function', stateMutability: 'payable', inputs: [], outputs: [] },
 ];
 
 export const FACTORY_ABI = [
