@@ -254,7 +254,7 @@ function PayScreen({ tokenParam, ethParam }) {
           </h1>
           {hasLiquidity && (
             <p className="text-gray-500 font-bold mt-2 text-sm">
-              1 ETH ≈ {(1 / tokenPriceEth).toLocaleString(undefined, { maximumFractionDigits: 2 })} {symbol}
+              1 {symbol} ≈ {tokenPriceEth.toFixed(8)} ETH
             </p>
           )}
         </header>
