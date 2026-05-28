@@ -1,59 +1,160 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard } from 'lucide-react';
+import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard, ArrowRight } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
+import { formatUnits } from 'viem';
 import TreasuryHealth from '../../components/TreasuryHealth';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI } from '../../contracts';
+
+const IPFS_GW = 'https://ipfs.io/ipfs/';
+const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
+
+async function fetchMeta(tokenUri) {
+  try {
+    const m = await fetch(resolveIpfs(tokenUri)).then(r => r.json());
+    return {
+      name:  m?.name  ?? null,
+      image: m?.image ? resolveIpfs(m.image) : null,
+      style: m?.attributes?.find(a => a.trait_type === 'Style')?.value ?? null,
+    };
+  } catch { return null; }
+}
+
+// Lightweight listing card — teaser only, full interaction lives on /market
+function FeaturedListingCard({ id }) {
+  const [meta,   setMeta]   = useState(null);
+  const [imgErr, setImgErr] = useState(false);
+
+  const { data: listing } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getListing',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const { data: inventory } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'getInventory',
+    args:    [BigInt(id)],
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const firstTokenId = inventory?.[0];
+  const { data: tokenUri } = useReadContract({
+    address: ADDRESSES.BEER_NFT,
+    abi:     NFT_ABI,
+    functionName: 'tokenURI',
+    args:    [firstTokenId],
+    query:   { enabled: firstTokenId != null },
+  });
+
+  useEffect(() => {
+    if (!tokenUri) return;
+    fetchMeta(tokenUri).then(m => m && setMeta(m));
+  }, [tokenUri]);
+
+  if (!listing) return null;
+  const [,, price,, inventoryCount, active] = listing;
+  if (!active) return null;
+
+  const inStock  = inventoryCount != null && inventoryCount > 0n;
+  const priceStr = price != null ? formatUnits(price, 18) : '—';
+
+  return (
+    <Link
+      to="/market"
+      className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all"
+    >
+      <div className="relative aspect-square bg-gray-50 overflow-hidden">
+        {meta?.image && !imgErr ? (
+          <img
+            src={meta.image}
+            alt={meta.name ?? 'Homestead product'}
+            onError={() => setImgErr(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ShoppingBag size={48} className="text-gray-200" />
+          </div>
+        )}
+        <span className={`absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg backdrop-blur-sm ${
+          inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
+        }`}>
+          {inStock ? `${inventoryCount?.toString()} available` : 'Sold Out'}
+        </span>
+      </div>
+      <div className="p-5 flex flex-col gap-2 flex-1">
+        <h3 className="text-gray-900 font-black text-lg leading-tight">
+          {meta?.name ?? 'Homestead Product'}
+        </h3>
+        {meta?.style && (
+          <p className="text-hub-green text-xs font-black uppercase tracking-widest">{meta.style}</p>
+        )}
+        <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
+            <p className="text-gray-900 font-black">{priceStr} BEER</p>
+          </div>
+          <span className="text-hub-green text-xs font-black uppercase tracking-widest">
+            View →
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function FeaturedListings() {
+  const { data: nextId } = useReadContract({
+    address: ADDRESSES.MARKETPLACE,
+    abi:     MARKETPLACE_ABI,
+    functionName: 'nextListingId',
+    query:   { enabled: !!ADDRESSES.MARKETPLACE },
+  });
+
+  const listingIds = nextId != null
+    ? Array.from({ length: Math.min(Number(nextId), 3) }, (_, i) => i)
+    : [];
+
+  if (listingIds.length === 0) {
+    return (
+      <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+        <ShoppingBag size={36} className="text-hub-green mx-auto mb-4 opacity-30" />
+        <p className="text-gray-400 font-medium text-sm">First listings coming soon.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {listingIds.map(id => (
+        <FeaturedListingCard key={id} id={id} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Static data ──────────────────────────────────────────────────────────────
 
 const portals = [
-  {
-    name: 'Beer Exchange',
-    token: '$BEER',
-    description: 'Craft homebrew, tokenized. Each token redeemable for a real bottle.',
-    href: '/beer/',
-    color: 'border-amber-400 text-amber-500',
-    dot: 'bg-amber-400',
-  },
-  {
-    name: 'Egg Exchange',
-    token: '$EGG',
-    description: 'Pasture-raised eggs from a private homestead. One token, one egg.',
-    href: '/egg/',
-    color: 'border-sky-400 text-sky-500',
-    dot: 'bg-sky-400',
-  },
-  {
-    name: 'Spa Exchange',
-    token: '$SPA',
-    description: 'Handcrafted spa goods from the homestead. Each token redeemable for a real product.',
-    href: '/spa/',
-    color: 'border-purple-400 text-purple-500',
-    dot: 'bg-purple-400',
-  },
+  { name: 'Beer Exchange', token: '$BEER', description: 'Craft homebrew, tokenized. Each token redeemable for a real bottle.', href: '/beer/', color: 'border-amber-400 text-amber-500', dot: 'bg-amber-400' },
+  { name: 'Egg Exchange',  token: '$EGG',  description: 'Pasture-raised eggs from a private homestead. One token, one egg.',   href: '/egg/', color: 'border-sky-400 text-sky-500', dot: 'bg-sky-400' },
+  { name: 'Spa Exchange',  token: '$SPA',  description: 'Handcrafted spa goods from the homestead. Each token redeemable for a real product.', href: '/spa/', color: 'border-purple-400 text-purple-500', dot: 'bg-purple-400' },
 ];
 
 const features = [
-  {
-    icon: <ShoppingBag size={28} />,
-    title: 'Market',
-    text: 'Browse all open listings across the Homestead ecosystem.',
-    to: '/market',
-  },
-  {
-    icon: <Repeat size={28} />,
-    title: 'Swap',
-    text: 'Trade any Homestead token directly — $BEER, $EGG, and more.',
-    to: '/swap',
-  },
-  {
-    icon: <ArrowLeftRight size={28} />,
-    title: 'Bridge',
-    text: 'Move ETH from any exchange into Taiko in under two minutes.',
-    to: '/bridge',
-  },
+  { icon: <ShoppingBag size={28} />, title: 'Market',  text: 'Browse all open listings across the Homestead ecosystem.',            to: '/market' },
+  { icon: <Repeat size={28} />,      title: 'Swap',    text: 'Trade any Homestead token directly — $BEER, $EGG, and more.',         to: '/swap'   },
+  { icon: <ArrowLeftRight size={28} />, title: 'Bridge', text: 'Move ETH from any exchange into Taiko in under two minutes.',       to: '/bridge' },
 ];
 
 const TABS = ['Exchange', 'Portals'];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { open }                  = useAppKit();
@@ -67,22 +168,124 @@ export default function HomePage() {
     <div className="py-12 px-4">
       <div className="max-w-4xl mx-auto">
 
-        {/* HERO */}
-        <section className="bg-white border-t-8 border-hub-green shadow-2xl rounded-b-lg p-8 md:p-12 mb-12">
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900 mb-4">
-            Homestead <span className="text-hub-green">Market</span>
-          </h1>
-          <p className="text-xl text-gray-700 font-medium leading-relaxed mb-2">
-            Real goods. On-chain provenance. Taiko blockchain.
+        {/* ── HERO ──────────────────────────────────────────────────────── */}
+        <section className="bg-white border-t-8 border-hub-green shadow-2xl rounded-b-lg p-8 md:p-14 mb-12">
+          <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">
+            Direct. Local. No middlemen.
           </p>
-          <p className="text-gray-500 font-medium leading-relaxed max-w-2xl">
-            The Homestead Exchange is the root of a physical-goods economy built on tokenized trust.
-            Connect your wallet once here — it carries across every product portal in the ecosystem.
+          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-none">
+            Grown here.<br />Sold here.
+          </h1>
+          <p className="text-lg text-gray-700 font-medium leading-relaxed mb-3 max-w-2xl">
+            The eggs at your grocery store sat in a truck for three weeks. These didn't.
+          </p>
+          <p className="text-gray-500 font-medium leading-relaxed max-w-2xl mb-8">
+            Homestead is a direct market for local producers — brewers, farmers, and homesteaders
+            who grow and make for themselves first, and sell what they'd put on their own table.
+            No distributor. No markup. No middleman taking a cut on the way to your door.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              to="/market"
+              className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded"
+            >
+              See What's for Sale
+            </Link>
+            <button
+              onClick={() => navigate('/profile')}
+              className="inline-flex items-center gap-2 border-2 border-gray-900 text-gray-900 font-black py-3 px-8 uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all rounded"
+            >
+              I'm a Producer
+            </button>
+          </div>
+        </section>
+
+        {/* ── WHY DIFFERENT ─────────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="grid md:grid-cols-3 gap-5">
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="text-hub-green mb-4"><Leaf size={28} strokeWidth={2} /></div>
+              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
+                Full nutrition.<br />No compromise.
+              </h3>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                Commercial distribution forces corner-cutting — shelf life, transport, regulation.
+                Homestead producers grow without that overhead. What you get is what they eat.
+              </p>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="text-hub-green mb-4"><BadgeCheck size={28} strokeWidth={2} /></div>
+              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
+                You pay the farmer.<br />Not the chain.
+              </h3>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                Distributor. Wholesaler. Retailer. Each takes a cut. By the time it reaches the shelf
+                the producer saw a fraction of what you paid. Here, you pay them directly.
+              </p>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="text-hub-green mb-4"><Users size={28} strokeWidth={2} /></div>
+              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
+                Their reputation.<br />Your confidence.
+              </h3>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                Your neighbor trusts a producer because they know them. Homestead lets that trust
+                travel — to buyers who've never met them, backed by every batch they've delivered.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FROM THE HOMESTEAD ────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900">
+                From the Homestead
+              </h2>
+              <p className="text-gray-500 text-sm font-medium mt-1">Backed. Verified. Ready to claim.</p>
+            </div>
+            <Link to="/market" className="text-hub-green text-sm font-black uppercase tracking-widest hover:underline flex items-center gap-1">
+              Browse all <ArrowRight size={14} strokeWidth={3} />
+            </Link>
+          </div>
+          <FeaturedListings />
+        </section>
+
+        {/* ── WHY NOT JUST CASH ─────────────────────────────────────────── */}
+        <section className="mb-12 bg-gray-900 rounded-2xl p-8 md:p-12 text-white">
+          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-4">
+            We take cash. It just goes to the back of the line.
+          </h2>
+          <p className="text-white/70 font-medium leading-relaxed mb-4 max-w-2xl">
+            Token holders already committed. They bought in when demand was lower, locked their price,
+            and their place in line is provable on-chain. The cash buyer pays today's market price
+            and gets whatever's left. That's not a punishment — that's how real demand works.
+          </p>
+          <p className="text-white/70 font-medium leading-relaxed max-w-2xl">
+            For the producer, outstanding tokens are visible backlog — proof of real demand before
+            the next batch even starts. No guessing. No overproducing for a distributor who might
+            not take it. The market tells you exactly what to grow next.
+          </p>
+        </section>
+
+        {/* ── PRODUCER CTA ──────────────────────────────────────────────── */}
+        <section className="mb-12 bg-white border-l-8 border-hub-green rounded-r-2xl p-8 md:p-10 shadow-sm">
+          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-3 leading-snug">
+            You grow it.<br />Demand prices it.<br />You keep it.
+          </h2>
+          <p className="text-gray-500 font-medium leading-relaxed mb-6 max-w-xl">
+            A distributor pays you their price — fixed, negotiated down, regardless of how good your
+            product is or how many people want it. On Homestead, the token price reflects real market
+            demand. When demand outpaces your supply, the price rises — and that value goes to you,
+            not the middleman who got there first.
           </p>
           {isConnected ? (
             <button
               onClick={() => navigate('/profile')}
-              className="mt-6 inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md active:scale-95"
+              className="inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md"
             >
               <LayoutDashboard size={16} />
               {formatAddress(address)}
@@ -90,24 +293,19 @@ export default function HomePage() {
           ) : (
             <button
               onClick={() => open()}
-              className="mt-6 inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md active:scale-95"
+              className="inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md"
             >
               <Wallet size={16} />
-              Connect Wallet
+              Get Started
             </button>
           )}
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Link to="/market" className="bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all duration-300 shadow-md rounded">
-              Browse Market
-            </Link>
-            <Link to="/swap" className="border-2 border-gray-900 text-gray-900 font-black py-3 px-8 uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all duration-300 rounded">
-              Swap Tokens
-            </Link>
-          </div>
         </section>
 
-        {/* TABBED CARD */}
+        {/* ── EXCHANGE TOOLS ────────────────────────────────────────────── */}
         <section className="mb-4 bg-white shadow-md rounded-2xl overflow-hidden">
+          <div className="px-6 pt-5 pb-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Exchange Tools</p>
+          </div>
           <div className="flex border-b border-gray-100">
             {TABS.map(tab => (
               <button
@@ -123,7 +321,6 @@ export default function HomePage() {
               </button>
             ))}
           </div>
-
           <div className="p-6">
             {activeTab === 'Exchange' && (
               <div className="grid md:grid-cols-3 gap-4">
@@ -140,7 +337,6 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-
             {activeTab === 'Portals' && (
               <div className="grid md:grid-cols-3 gap-4">
                 {portals.map((p) => (
@@ -163,7 +359,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* TREASURY HEALTH */}
+        {/* ── TREASURY HEALTH ───────────────────────────────────────────── */}
         <TreasuryHealth />
 
       </div>
