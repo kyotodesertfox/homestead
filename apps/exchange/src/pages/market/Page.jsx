@@ -3,6 +3,7 @@ import { ShoppingBag, Info, Plus, X, ImagePlus, Copy, CheckCheck, Upload, ArrowR
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
+import RefreshCountdown from '../../components/RefreshCountdown';
 
 // ─── IPFS ────────────────────────────────────────────────────────────────────
 const IPFS_GW    = 'https://ipfs.io/ipfs/';
@@ -38,7 +39,7 @@ function useTokenEthRate(tokenAddress) {
     address: config?.pair,
     abi: PAIR_ABI,
     functionName: 'getReserves',
-    query: { enabled: !!config },
+    query: { enabled: !!config, refetchInterval: 30_000 },
   });
   if (!reserves || !config) return null;
   const [r0, r1] = reserves;
@@ -1079,7 +1080,7 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
               <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
               <p className="text-gray-900 font-black text-base">
                 {priceStr} {tokenSymbol}
-                {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
+                {usdValue && <><span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span><RefreshCountdown size={20} /></>}
               </p>
             </div>
             <span className="text-hub-green text-xs font-black uppercase tracking-widest">
@@ -1202,7 +1203,7 @@ function PlaceholderListingCard({ name, tag, description, priceAmount, tokenSymb
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
             <p className="text-gray-900 font-black text-base">
               {priceLabel ?? '—'}
-              {usdValue && <span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span>}
+              {usdValue && <><span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span><RefreshCountdown size={20} /></>}
             </p>
           </div>
           <span className="text-gray-300 text-xs font-black uppercase tracking-widest">Soon →</span>

@@ -7,6 +7,7 @@ import {
 } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
 import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, FACTORY_ABI, TREASURY_ABI, CONTRACT_URI_ABI, TOKEN_DEPLOYER_ABI, DEADLINE, applySlippage } from '../../contracts';
+import RefreshCountdown from '../../components/RefreshCountdown';
 
 const HUB_CHAIN_ID = 167000;
 const ZERO = '0x0000000000000000000000000000000000000000';
@@ -38,6 +39,7 @@ function toHttp(uri) {
   if (!uri) return null;
   return uri.startsWith('ipfs://') ? IPFS_GATEWAY + uri.slice(7) : uri;
 }
+
 
 function TokenLogo({ symbol, address }) {
   const { data: uri } = useReadContract({
@@ -452,8 +454,11 @@ export default function SwapPage() {
                 </div>
                 <div className="flex justify-between items-center gap-4">
                   <div>
-                    <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}`}>
-                      {ethDisplay}
+                    <div className="flex items-center gap-2">
+                      <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}`}>
+                        {ethDisplay}
+                      </div>
+                      {netEthAmount > 0n && <RefreshCountdown size={22} />}
                     </div>
                     {netEthAmount > 0n && ethUsd && (
                       <p className="text-gray-600 text-xs font-medium mt-0.5">
