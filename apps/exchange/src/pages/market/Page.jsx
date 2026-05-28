@@ -933,15 +933,17 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
     });
   }, [tokenUri]);
 
+  const ethUsd = useEthUsd();
+  const paymentToken = listing?.[1];
+  const tokenEthRate = useTokenEthRate(paymentToken);
+
   if (!listing) return null;
-  const [, paymentToken, price, proceeds, inventoryCount, active] = listing;
+  const [, , price, proceeds, inventoryCount, active] = listing;
   if (!active) return null;
 
-  const priceStr     = price != null ? formatUnits(price, 18) : '—';
-  const inStock      = inventoryCount != null && inventoryCount > 0n;
-  const ethUsd       = useEthUsd();
-  const tokenEthRate = useTokenEthRate(paymentToken);
-  const usdValue     = ethUsd && tokenEthRate && priceStr !== '—'
+  const priceStr = price != null ? formatUnits(price, 18) : '—';
+  const inStock  = inventoryCount != null && inventoryCount > 0n;
+  const usdValue = ethUsd && tokenEthRate && priceStr !== '—'
     ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   return (
