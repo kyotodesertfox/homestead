@@ -1031,13 +1031,14 @@ const EGG_PLACEHOLDERS = [
 function EggSvg() {
   return (
     <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
-      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#fffbeb" stroke="#fde68a" strokeWidth="2" />
+      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
       <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheen)" />
-      <ellipse cx="48" cy="62" rx="8" ry="12" fill="white" opacity="0.4" transform="rotate(-15 48 62)" />
+      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
       <defs>
-        <radialGradient id="eggSheen" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#fffdf5" />
-          <stop offset="100%" stopColor="#fef3c7" />
+        <radialGradient id="eggSheen" cx="38%" cy="32%" r="68%">
+          <stop offset="0%" stopColor="#e8c99a" />
+          <stop offset="60%" stopColor="#c8a070" />
+          <stop offset="100%" stopColor="#a07040" />
         </radialGradient>
       </defs>
     </svg>
