@@ -3,7 +3,7 @@ import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, B
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
+import { ADDRESSES, BEER_TOKEN_ABI, ERC20_ABI, PAIR_ABI, ROUTER_ABI, MARKETPLACE_ABI, NFT_ABI, TREASURY_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI } from '../../contracts';
 import MessagesPanel      from '../../components/MessagesPanel';
 import StakePanel         from '../../components/StakePanel';
 import OrderTrackingModal from '../../components/OrderTrackingModal';
@@ -489,7 +489,7 @@ function addressColor(addr) {
   return `hsl(${n % 360}, 65%, 52%)`;
 }
 
-function TokenBalanceCard({ tokenAddress, walletAddress }) {
+function TokenBalanceCard({ tokenAddress, walletAddress, onClick }) {
   const ZERO = '0x0000000000000000000000000000000000000000';
   const { data: meta } = useReadContracts({
     contracts: [
@@ -501,12 +501,11 @@ function TokenBalanceCard({ tokenAddress, walletAddress }) {
   const symbol  = meta?.[0]?.result;
   const balance = meta?.[1]?.result;
   const color   = addressColor(tokenAddress);
-  const href    = `/${symbol?.toLowerCase()}/`;
   const fmt     = balance != null ? parseFloat(formatUnits(balance, 18)).toLocaleString() : '—';
 
   return (
-    <a href={href}
-      className="bg-hub-dark rounded-3xl p-5 shadow-xl text-left transition-all group block border-2"
+    <button onClick={onClick}
+      className="bg-hub-dark rounded-3xl p-5 shadow-xl text-left transition-all group w-full border-2"
       style={{ borderColor: `${color}4d` }}
       onMouseEnter={e => e.currentTarget.style.borderColor = color}
       onMouseLeave={e => e.currentTarget.style.borderColor = `${color}4d`}
@@ -517,13 +516,15 @@ function TokenBalanceCard({ tokenAddress, walletAddress }) {
       </div>
       <p className="font-black text-white text-3xl">{fmt}</p>
       <p className="text-[9px] font-black uppercase tracking-widest mt-1 transition-colors" style={{ color, opacity: 0.5 }}>
-        {symbol ? `${symbol} portal →` : '…'}
+        View portfolio →
       </p>
-    </a>
+    </button>
   );
 }
 
 function DynamicTokenCards({ walletAddress }) {
+  const [openToken, setOpenToken] = useState(null);
+
   const { data: allTokens } = useReadContract({
     address: ADDRESSES.TOKEN_DEPLOYER,
     abi: TOKEN_DEPLOYER_ABI,
@@ -540,8 +541,13 @@ function DynamicTokenCards({ walletAddress }) {
   return (
     <>
       {tokens.map(addr => (
-        <TokenBalanceCard key={addr} tokenAddress={addr} walletAddress={walletAddress} />
+        <TokenBalanceCard key={addr} tokenAddress={addr} walletAddress={walletAddress}
+          onClick={() => setOpenToken(addr)} />
       ))}
+      {openToken && (
+        <TokenModal tokenAddress={openToken} walletAddress={walletAddress}
+          onClose={() => setOpenToken(null)} />
+      )}
     </>
   );
 }
@@ -1083,6 +1089,501 @@ const TABS = [
   { id: 'liquidity', label: 'Liquidity', Icon: TrendingUp },
 ];
 
+// ─── Generic token modal (reads everything from chain) ────────────────────────
+function TokenModal({ tokenAddress, walletAddress, onClose }) {
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const [tab, setTab]       = useState('holdings');
+  const [liqTab, setLiqTab] = useState('add');
+  const [tokenInput, setTokenInput] = useState('');
+  const [ethInput,   setEthInput]   = useState('');
+  const [lpInput,    setLpInput]    = useState('');
+  const [pendingAction, setPendingAction] = useState(null);
+  const [stakeEmit,    setStakeEmit]      = useState('');
+  const [mintAmount,    setMintAmount]    = useState('');
+  const [mintDest,      setMintDest]      = useState('self');
+  const [mintRecipient, setMintRecipient] = useState('');
+  const [openLotError, setOpenLotError]   = useState('');
+
+  const color = addressColor(tokenAddress);
+
+  // ── On-chain reads ──────────────────────────────────────────────────────────
+  const { data: symbol } = useReadContract({
+    address: tokenAddress, abi: ERC20_ABI, functionName: 'symbol',
+  });
+
+  const { data: pairAddress } = useReadContract({
+    address: ADDRESSES.FACTORY, abi: FACTORY_ABI, functionName: 'getPair',
+    args: [tokenAddress, ADDRESSES.WETH],
+    query: { enabled: !!tokenAddress && !!ADDRESSES.WETH },
+  });
+
+  const hasPair = pairAddress && pairAddress !== ZERO;
+
+  const { data: tokenBal } = useReadContract({
+    address: tokenAddress, abi: ERC20_ABI, functionName: 'balanceOf',
+    args: [walletAddress ?? ZERO], query: { enabled: !!walletAddress },
+  });
+  const { data: ethBal } = useBalance({ address: walletAddress, query: { enabled: !!walletAddress } });
+
+  const { data: reserves, isLoading: reservesLoading, isError: reservesError } = useReadContract({
+    address: pairAddress, abi: PAIR_ABI, functionName: 'getReserves',
+    query: { enabled: hasPair },
+  });
+  const { data: token0 } = useReadContract({
+    address: pairAddress, abi: PAIR_ABI, functionName: 'token0',
+    query: { enabled: hasPair },
+  });
+  const { data: lpBalance, isLoading: lpBalLoading, isError: lpBalError, refetch: refetchLp } = useReadContract({
+    address: pairAddress, abi: ERC20_ABI, functionName: 'balanceOf',
+    args: [walletAddress ?? ZERO], query: { enabled: hasPair && !!walletAddress },
+  });
+  const { data: lpSupply, isLoading: lpSupLoading, isError: lpSupError } = useReadContract({
+    address: pairAddress, abi: ERC20_ABI, functionName: 'totalSupply',
+    query: { enabled: hasPair },
+  });
+  const { data: tokenAllow, refetch: refetchTokenAllow } = useReadContract({
+    address: tokenAddress, abi: ERC20_ABI, functionName: 'allowance',
+    args: [walletAddress ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!walletAddress },
+  });
+  const { data: lpAllow, refetch: refetchLpAllow } = useReadContract({
+    address: pairAddress, abi: ERC20_ABI, functionName: 'allowance',
+    args: [walletAddress ?? ZERO, ADDRESSES.ROUTER], query: { enabled: hasPair && !!walletAddress },
+  });
+  const { data: isMinter } = useReadContract({
+    address: tokenAddress, abi: BEER_TOKEN_ABI, functionName: 'isMinter',
+    args: [walletAddress ?? ZERO], query: { enabled: !!walletAddress },
+  });
+  const { data: availableCollateral } = useReadContract({
+    address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'availableCollateral',
+    args: [walletAddress ?? ZERO], query: { enabled: !!walletAddress && !!ADDRESSES.TREASURY },
+  });
+  const { data: collateralRatioBps } = useReadContract({
+    address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'collateralRatioBps',
+    query: { enabled: !!ADDRESSES.TREASURY },
+  });
+
+  // ── Derived values ──────────────────────────────────────────────────────────
+  const reservesReady = !reservesLoading && !reservesError && hasPair;
+  // normalise so r0 = token, r1 = WETH regardless of pair ordering
+  const [rawR0, rawR1] = reserves ?? [0n, 0n];
+  const [r0, r1] = token0?.toLowerCase() === tokenAddress.toLowerCase()
+    ? [rawR0, rawR1] : [rawR1, rawR0];
+
+  const tokenPriceEth = reservesReady && r0 > 0n
+    ? Number(formatUnits(r1, 18)) / Number(formatUnits(r0, 18)) : 0;
+  const ratioBps = collateralRatioBps != null ? Number(collateralRatioBps) : 11000;
+  const stakeEmitNum = parseInt(stakeEmit, 10) || 0;
+  const stakeRequired = stakeEmitNum > 0 && tokenPriceEth > 0
+    ? (stakeEmitNum * tokenPriceEth * ratioBps) / 10000 : 0;
+  const availableCollateralEth = availableCollateral != null ? Number(formatUnits(availableCollateral, 18)) : 0;
+  const collateralInsufficient = stakeRequired > 0 && availableCollateralEth < stakeRequired;
+  const hasLiquidity = reservesReady && r0 > 0n && r1 > 0n;
+  const poolEmpty    = reservesReady && r0 === 0n && r1 === 0n;
+
+  const lpReady    = hasPair && !lpBalLoading && !lpBalError && !lpSupLoading && !lpSupError;
+  const hasLp      = lpReady && (lpBalance ?? 0n) > 0n && (lpSupply ?? 0n) > 0n;
+  const lpShare    = hasLp ? Number(lpBalance) / Number(lpSupply) : 0;
+  const lpToken    = hasLp && reservesReady ? (lpBalance * r0) / lpSupply : null;
+  const lpEth      = hasLp && reservesReady ? (lpBalance * r1) / lpSupply : null;
+  const lpSharePct = (lpShare * 100).toFixed(4);
+
+  const tokenWei = useMemo(() => { try { return tokenInput ? parseUnits(tokenInput, 18) : 0n; } catch { return 0n; } }, [tokenInput]);
+  const ethWei   = useMemo(() => { try { return ethInput   ? parseUnits(ethInput,   18) : 0n; } catch { return 0n; } }, [ethInput]);
+  const lpWei    = useMemo(() => { try { return lpInput    ? parseUnits(lpInput,    18) : 0n; } catch { return 0n; } }, [lpInput]);
+
+  const ethRequired  = hasLiquidity && tokenWei > 0n ? (tokenWei * r1) / r0 : ethWei;
+  const expectedToken = (lpSupply ?? 0n) > 0n && lpWei > 0n ? (lpWei * r0) / lpSupply : 0n;
+  const expectedEth   = (lpSupply ?? 0n) > 0n && lpWei > 0n ? (lpWei * r1) / lpSupply : 0n;
+
+  const needsTokenApproval = tokenWei > 0n && (tokenAllow ?? 0n) < tokenWei;
+  const needsLpApproval    = lpWei    > 0n && (lpAllow    ?? 0n) < lpWei;
+
+  const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 1200);
+  const slip = (n) => n * 9900n / 10000n;
+
+  // ── Write contracts ─────────────────────────────────────────────────────────
+  const { writeContract: writeApprove, data: approveHash } = useWriteContract();
+  const { writeContract: writeAdd,     data: addHash }     = useWriteContract();
+  const { writeContract: writeRemove,  data: removeHash }  = useWriteContract();
+  const { writeContract: writeOpenLot, data: openLotHash } = useWriteContract();
+  const { writeContract: writeMint,    data: mintTxHash }  = useWriteContract();
+
+  const { isLoading: approving, isSuccess: approved }  = useWaitForTransactionReceipt({ hash: approveHash });
+  const { isLoading: adding,    isSuccess: addDone }   = useWaitForTransactionReceipt({ hash: addHash });
+  const { isLoading: removing,  isSuccess: removeDone }= useWaitForTransactionReceipt({ hash: removeHash });
+  const { isLoading: openingLot,isSuccess: lotOpened } = useWaitForTransactionReceipt({ hash: openLotHash, query: { enabled: !!openLotHash } });
+  const { isLoading: minting,   isSuccess: mintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash });
+
+  const mintDisabled = minting || !mintAmount || Number(mintAmount) <= 0
+    || (mintDest === 'wallet' && !/^0x[0-9a-fA-F]{40}$/.test(mintRecipient));
+
+  useEffect(() => {
+    if (!approved) return;
+    if (pendingAction === 'add')    refetchTokenAllow();
+    if (pendingAction === 'remove') refetchLpAllow();
+    setPendingAction(null);
+  }, [approved]);
+  useEffect(() => { if (addDone || removeDone) refetchLp(); }, [addDone, removeDone]);
+  useEffect(() => { if (lotOpened) { setStakeEmit(''); setOpenLotError(''); } }, [lotOpened]);
+  useEffect(() => { if (mintConfirmed) { setMintAmount(''); setMintRecipient(''); } }, [mintConfirmed]);
+
+  const handleAdd = () => {
+    if (!tokenWei || (!hasLiquidity && !ethWei)) return;
+    if (needsTokenApproval) {
+      setPendingAction('add');
+      writeApprove({ address: tokenAddress, abi: ERC20_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, tokenWei] });
+      return;
+    }
+    writeAdd({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'addLiquidityETH',
+      args: [tokenAddress, tokenWei, slip(tokenWei), slip(ethRequired), walletAddress, deadline()],
+      value: ethRequired });
+  };
+
+  const handleRemove = () => {
+    if (!lpWei) return;
+    if (needsLpApproval) {
+      setPendingAction('remove');
+      writeApprove({ address: pairAddress, abi: ERC20_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, lpWei] });
+      return;
+    }
+    writeRemove({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'removeLiquidityETH',
+      args: [tokenAddress, lpWei, slip(expectedToken), slip(expectedEth), walletAddress, deadline()] });
+  };
+
+  const handleOpenLot = () => {
+    if (!stakeEmitNum || stakeEmitNum <= 0) return;
+    setOpenLotError('');
+    try {
+      writeOpenLot({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'openLot',
+        args: [tokenAddress, BigInt(stakeEmitNum)] });
+    } catch (e) {
+      setOpenLotError(e.shortMessage ?? e.message ?? 'Transaction failed');
+    }
+  };
+
+  const handleMint = () => {
+    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
+    const amount = BigInt(Math.round(Number(mintAmount)));
+    if (mintDest === 'pool') {
+      writeMint({ address: tokenAddress, abi: BEER_TOKEN_ABI, functionName: 'mintToPool', args: [pairAddress, amount] });
+    } else {
+      const to = mintDest === 'wallet' ? mintRecipient : walletAddress;
+      writeMint({ address: tokenAddress, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [to, amount] });
+    }
+  };
+
+  const sym = symbol ?? '…';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-hub-dark rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border-2"
+        style={{ borderColor: `${color}4d` }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-7 pt-7 pb-4 shrink-0">
+          <h2 className="font-black uppercase tracking-tight text-white text-xl">${sym} Portfolio</h2>
+          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors"><X size={22} /></button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-white/10 px-7 shrink-0">
+          {TABS.map(({ id, label, Icon }) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors -mb-px ${
+                tab === id ? 'border-b-2 text-white' : 'border-transparent text-stone-500 hover:text-white'
+              }`}
+              style={tab === id ? { borderColor: color, color } : {}}>
+              <Icon size={13} strokeWidth={3} />{label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto px-7 py-6 flex-1 space-y-4">
+
+          {/* Holdings */}
+          {tab === 'holdings' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color }}>${sym} Balance</p>
+                  <p className="font-black text-white text-2xl">
+                    {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '—'}
+                  </p>
+                </div>
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Balance</p>
+                  <p className="font-black text-white text-2xl">{ethBal ? fmtEth(ethBal.value) : '—'}</p>
+                </div>
+              </div>
+
+              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+                  <p className="text-xs font-black uppercase tracking-widest" style={{ color }}>LP Position — {sym}/ETH</p>
+                  {hasLp && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={{ color, backgroundColor: `${color}1a` }}>
+                      {lpSharePct}% of pool
+                    </span>
+                  )}
+                </div>
+                {!hasPair ? (
+                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">No pair created yet.</p>
+                ) : lpBalLoading || lpSupLoading ? (
+                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">Loading…</p>
+                ) : !hasLp ? (
+                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">No LP tokens in this wallet.</p>
+                ) : (
+                  <div className="px-5 pb-5 space-y-2 mt-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-400 font-bold">LP Tokens</span>
+                      <span className="text-white font-black">{parseFloat(formatUnits(lpBalance, 18)).toFixed(6)}</span>
+                    </div>
+                    <div className="h-px bg-white/10" />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-400 font-bold">${sym} in pool</span>
+                      <span className="font-black" style={{ color }}>
+                        {lpToken == null ? '—' : parseFloat(formatUnits(lpToken, 18)).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-400 font-bold">ETH in pool</span>
+                      <span className="text-white font-black">
+                        {lpEth == null ? '—' : parseFloat(formatUnits(lpEth, 18)).toFixed(8)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-5">
+                <p className="text-xs font-black uppercase tracking-widest text-stone-400 mb-3">Total Pool Reserves</p>
+                {!hasPair ? (
+                  <p className="text-stone-500 text-sm font-bold">Pair not yet created.</p>
+                ) : reservesLoading ? (
+                  <p className="text-stone-500 text-sm font-bold">Loading…</p>
+                ) : reservesError ? (
+                  <p className="text-red-400 text-sm font-bold">Could not load reserves.</p>
+                ) : poolEmpty ? (
+                  <p className="text-amber-400 text-sm font-bold">Pool is currently empty.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-400 font-bold">${sym}</span>
+                      <span className="text-white font-black">{parseFloat(formatUnits(r0, 18)).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-400 font-bold">ETH</span>
+                      <span className="text-white font-black">{parseFloat(formatUnits(r1, 18)).toFixed(8)}</span>
+                    </div>
+                    {r0 > 0n && r1 > 0n && (
+                      <div className="flex justify-between text-sm pt-1 border-t border-white/10">
+                        <span className="text-stone-400 font-bold">Price</span>
+                        <span className="font-black" style={{ color }}>
+                          {tokenPriceEth.toFixed(8)} ETH / {sym}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={() => setTab('liquidity')}
+                className="w-full py-3 rounded-xl text-white font-black uppercase tracking-widest text-sm hover:brightness-110 transition-all"
+                style={{ backgroundColor: color }}>
+                Manage Liquidity →
+              </button>
+            </>
+          )}
+
+          {/* Minting / Staking */}
+          {tab === 'staking' && (
+            <div className="relative">
+              <StakingPositionCards address={walletAddress} />
+              <div className="mt-5 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 block">
+                  ${sym} to Mint
+                </label>
+                <input type="number" min="1" step="1" placeholder="e.g. 100"
+                  value={stakeEmit}
+                  onChange={e => { const v = e.target.value; if (v === '' || /^\d+$/.test(v)) setStakeEmit(v); }}
+                  className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors"
+                  style={{ '--tw-ring-color': color }}
+                />
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Collateral Required</p>
+                    <p className="font-black text-white text-sm">{stakeRequired > 0 ? `${stakeRequired.toFixed(6)} stkHOME` : '—'}</p>
+                  </div>
+                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Available</p>
+                    <p className="font-black text-white text-sm">
+                      {availableCollateral != null ? `${fmtEth(availableCollateral)} stkHOME` : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {openLotError && <p className="text-red-400 text-xs font-bold mt-2">{openLotError}</p>}
+              {lotOpened && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center mt-2">Lot opened!</p>}
+              <div className="mt-4">
+                <button onClick={handleOpenLot}
+                  disabled={!stakeEmitNum || openingLot || collateralInsufficient}
+                  className="w-full py-4 disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all"
+                  style={{ backgroundColor: color }}>
+                  {openingLot ? 'Minting…' : collateralInsufficient ? 'Insufficient Collateral' : `Mint $${sym}`}
+                </button>
+              </div>
+
+              {isMinter === true && (
+                <div className="mt-5 pt-5 border-t border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Flame size={13} className="text-amber-400 shrink-0" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Mint ${sym}</p>
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-500/40 text-amber-500/70">Admin</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="number" min="1" step="1" placeholder="Amount" value={mintAmount}
+                      onChange={e => setMintAmount(e.target.value)}
+                      className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors" />
+                    <div className="flex rounded-xl overflow-hidden border border-amber-500/20">
+                      {['self', 'wallet', 'pool'].map(d => (
+                        <button key={d} onClick={() => setMintDest(d)}
+                          className={`px-3 py-2.5 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === d ? 'bg-amber-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {mintDest === 'wallet' && (
+                    <input type="text" placeholder="0x recipient address" value={mintRecipient}
+                      onChange={e => setMintRecipient(e.target.value)}
+                      className="w-full bg-white/10 text-white placeholder-white/30 font-mono text-sm rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors" />
+                  )}
+                  <button onClick={handleMint} disabled={mintDisabled}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95">
+                    {minting ? 'Minting…' : mintConfirmed ? 'Minted ✓' : 'Mint'}
+                  </button>
+                  <p className="text-[10px] font-bold text-amber-500/30 uppercase tracking-widest">
+                    {mintDest === 'pool' ? `Tokens go into the ${sym}/WETH liquidity pool.`
+                     : mintDest === 'wallet' ? 'Tokens go to the address entered above.'
+                     : 'Tokens land in your connected wallet.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Liquidity */}
+          {tab === 'liquidity' && (
+            <>
+              {!hasPair ? (
+                <div className="bg-white/5 rounded-2xl border border-white/10 p-6 text-center">
+                  <p className="text-stone-400 font-bold text-sm">No DEX pair exists for ${sym} yet.</p>
+                  <p className="text-stone-500 text-xs font-bold mt-1">Create the pair via the factory to enable liquidity.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex rounded-xl overflow-hidden border border-white/10">
+                    {['add', 'remove'].map(t => (
+                      <button key={t} onClick={() => setLiqTab(t)}
+                        className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${liqTab === t ? 'text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                        style={liqTab === t ? { backgroundColor: color } : {}}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  {liqTab === 'add' ? (
+                    <div className="space-y-3">
+                      {reservesLoading ? (
+                        <p className="text-stone-400 text-xs font-bold uppercase tracking-widest bg-white/5 rounded-xl px-3 py-2">Loading pool data…</p>
+                      ) : reservesError ? (
+                        <p className="text-red-400 text-xs font-bold uppercase tracking-widest bg-red-500/10 rounded-xl px-3 py-2">Could not load pool — check your network.</p>
+                      ) : poolEmpty ? (
+                        <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">Pool is empty — you set the initial price</p>
+                      ) : null}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">${sym} Amount</label>
+                          <span className="text-[10px] font-black" style={{ color }}>
+                            Balance: {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '—'}
+                          </span>
+                        </div>
+                        <input type="number" min="0" placeholder="0" value={tokenInput} onChange={e => setTokenInput(e.target.value)}
+                          className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors" />
+                        <PctButtons onSelect={p => {
+                          const n = tokenBal != null ? Math.round(Number(formatUnits(tokenBal, 18)) * p / 100) : 0;
+                          setTokenInput(n > 0 ? n.toString() : '0');
+                        }} />
+                      </div>
+                      {hasLiquidity ? (
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Required (at market rate)</p>
+                          <p className="font-black text-white text-lg">{tokenWei > 0n ? formatUnits(ethRequired, 18) : '—'}</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">ETH Amount (sets initial price)</label>
+                            <span className="text-[10px] font-black text-stone-400">Balance: {ethBal ? parseFloat(formatUnits(ethBal.value, 18)).toFixed(4) : '—'}</span>
+                          </div>
+                          <input type="number" min="0" placeholder="0" value={ethInput} onChange={e => setEthInput(e.target.value)}
+                            className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors" />
+                        </div>
+                      )}
+                      <button onClick={handleAdd} disabled={approving || adding || !tokenWei || (!hasLiquidity && !ethWei)}
+                        className="w-full py-4 disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95"
+                        style={{ backgroundColor: color }}>
+                        {approving ? 'Approving…' : adding ? 'Adding Liquidity…' : needsTokenApproval ? `Approve $${sym}` : 'Add Liquidity'}
+                      </button>
+                      {addDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity added!</p>}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Your LP Balance</p>
+                        <p className="font-black text-white">{lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">LP to Remove</label>
+                          <span className="text-[10px] font-black" style={{ color }}>Balance: {lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</span>
+                        </div>
+                        <input type="number" min="0" placeholder="0" value={lpInput} onChange={e => setLpInput(e.target.value)}
+                          className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors" />
+                        <PctButtons onSelect={p => {
+                          const amount = (lpBalance ?? 0n) * BigInt(p) / 100n;
+                          setLpInput(p === 0 ? '0' : formatUnits(amount, 18));
+                        }} />
+                      </div>
+                      {lpWei > 0n && (
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-2">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">You'll receive (~)</p>
+                          <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">${sym}</span><span className="text-sm font-black text-white">{formatUnits(expectedToken, 18)}</span></div>
+                          <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">ETH</span><span className="text-sm font-black text-white">{formatUnits(expectedEth, 18)}</span></div>
+                        </div>
+                      )}
+                      <button onClick={handleRemove} disabled={approving || removing || !lpWei}
+                        className="w-full py-4 border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white disabled:opacity-40 font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95">
+                        {approving ? 'Approving…' : removing ? 'Removing…' : needsLpApproval ? 'Approve LP Token' : 'Remove Liquidity'}
+                      </button>
+                      {removeDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity removed!</p>}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Beer-specific liquidity modal ───────────────────────────────────────────
 function LiquidityModal({ onClose }) {
   const { address } = useAccount();
   const [tab, setTab]         = useState('holdings');
