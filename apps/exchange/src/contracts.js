@@ -1,7 +1,7 @@
 export const ADDRESSES = {
   WETH:           import.meta.env.VITE_WETH,
   BEER_TOKEN:     import.meta.env.VITE_BEER_TOKEN,
-  BEER_NFT:       import.meta.env.VITE_BEER_NFT,
+  BEERNFT:        import.meta.env.VITE_BEER_NFT,
   ROUTER:         import.meta.env.VITE_ROUTER,
   FACTORY:        import.meta.env.VITE_FACTORY,
   MARKETPLACE:    import.meta.env.VITE_MARKETPLACE,
@@ -11,7 +11,7 @@ export const ADDRESSES = {
   NFT_DEPLOYER:     import.meta.env.VITE_NFT_DEPLOYER,
   STK_HOMESTEAD:    import.meta.env.VITE_STK_HOMESTEAD,
   EGG_TOKEN:        import.meta.env.VITE_EGG_TOKEN,
-  EGG_NFT:          import.meta.env.VITE_EGG_NFT,
+  EGGNFT:           import.meta.env.VITE_EGG_NFT,
   EGG_WETH_PAIR:    import.meta.env.VITE_EGG_WETH_PAIR,
 };
 
@@ -382,9 +382,9 @@ export const EXPECTED_VERSIONS = {
   BEER_WETH_PAIR: 1,
   EGG_WETH_PAIR:  1,
   BEER_TOKEN:     1,
-  BEER_NFT:       1,
+  BEERNFT:        1,
   EGG_TOKEN:      1,
-  EGG_NFT:        1,
+  EGGNFT:         1,
   TOKEN_DEPLOYER: 1,
   NFT_DEPLOYER:   1,
 };

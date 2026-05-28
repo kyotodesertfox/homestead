@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { formatUnits, parseEther } from 'viem';
+import { formatUnits, parseEther, maxUint256 } from 'viem';
 import {
   ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
@@ -153,6 +153,31 @@ function RoleStatusRow({ contract, abi, fn, target, label, refetchKey }) {
   const dot   = loading ? 'bg-gray-300' : isError ? 'bg-amber-400' : isSet ? 'bg-hub-green' : 'bg-red-400';
   const text  = loading ? 'text-gray-300' : isError ? 'text-amber-400' : isSet ? 'text-hub-green' : 'text-red-400';
   const label2 = loading ? '…' : isError ? 'Error' : isSet ? 'Set' : 'Not set';
+
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+        {label2}
+      </span>
+    </div>
+  );
+}
+
+function AllowanceRow({ tokenAddress, spender, label }) {
+  const { address: owner } = useAccount();
+  const { data, isLoading, isError, refetch } = useReadContract({
+    address: tokenAddress, abi: BEER_TOKEN_ABI, functionName: 'allowance', args: [owner, spender],
+    query: { enabled: !!tokenAddress && !!owner && !!spender },
+  });
+  const loading = !!spender && (isLoading || (data === undefined && !isError));
+  const amount  = data ?? 0n;
+  const isSet   = !!spender && amount > 0n;
+
+  const dot    = loading ? 'bg-gray-300' : isSet ? 'bg-hub-green' : 'bg-red-400';
+  const text   = loading ? 'text-gray-300' : isSet ? 'text-hub-green' : 'text-red-400';
+  const label2 = loading ? '…' : isSet ? (amount === maxUint256 ? 'Unlimited' : parseFloat(formatUnits(amount, 18)).toLocaleString()) : 'None';
 
   return (
     <div className="flex items-center justify-between py-1.5">
@@ -366,6 +391,7 @@ function TokensTab() {
   const [tokenList, setTokenList] = useState([]);
   const [expanded, setExpanded]   = useState(null);
   const [minterAddr, setMinterAddr] = useState({});
+  const [spenderAddr, setSpenderAddr] = useState({});
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
 
   const { data: allTokens, refetch } = useReadContract({
@@ -440,6 +466,33 @@ function TokensTab() {
                   />
                   <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
                   <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
+                </div>
+                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+              <div>
+                <Label>Allowance Status</Label>
+                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
+                  <AllowanceRow tokenAddress={tok.address} spender={spenderAddr[tok.address]} label="Allowance → Router" />
+                </div>
+              </div>
+              <div>
+                <Label>Approve Spender</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={spenderAddr[tok.address] ?? ''}
+                    onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))}
+                    placeholder="0x…"
+                    className="flex-1"
+                  />
+                  <Btn
+                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })}
+                    disabled={!spenderAddr[tok.address] || isPending || isConfirming}
+                  >Approve</Btn>
+                  <Btn
+                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], 0n] })}
+                    disabled={!spenderAddr[tok.address] || isPending || isConfirming}
+                    variant="danger"
+                  >Revoke</Btn>
                 </div>
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>

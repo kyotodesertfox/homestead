@@ -3,33 +3,34 @@ import { ArrowDown, Info, ChevronDown } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import {
   useAccount, useBalance, useChainId,
-  useReadContract, useWriteContract, useWaitForTransactionReceipt,
+  useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt,
 } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, TREASURY_ABI, CONTRACT_URI_ABI, DEADLINE, applySlippage } from '../../contracts';
+import { ADDRESSES, ROUTER_ABI, ERC20_ABI, PAIR_ABI, FACTORY_ABI, TREASURY_ABI, CONTRACT_URI_ABI, TOKEN_DEPLOYER_ABI, DEADLINE, applySlippage } from '../../contracts';
 
 const HUB_CHAIN_ID = 167000;
+const ZERO = '0x0000000000000000000000000000000000000000';
 
-// Product tokens only — ETH is always the other side and is never selectable
-// wethIsToken0: true when WETH address sorts below the token address in the pair
-const TOKENS = [
-  { symbol: '$BEER', address: ADDRESSES.BEER_TOKEN, decimals: 18, color: 'bg-amber-400',  wethIsToken0: false, pair: ADDRESSES.BEER_WETH_PAIR },
-  { symbol: '$EGG',  address: ADDRESSES.EGG_TOKEN,  decimals: 18, color: 'bg-yellow-400', wethIsToken0: true,  pair: ADDRESSES.EGG_WETH_PAIR  },
-  { symbol: '$SPA',  address: null,                 decimals: 18, color: 'bg-purple-400', wethIsToken0: false, pair: null                     },
-];
+let _ethUsdCached = null;
+let _ethUsdFetching = false;
+function useEthUsd() {
+  const [price, setPrice] = useState(_ethUsdCached);
+  useEffect(() => {
+    if (_ethUsdCached !== null) { setPrice(_ethUsdCached); return; }
+    if (_ethUsdFetching) return;
+    _ethUsdFetching = true;
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => { _ethUsdCached = d?.ethereum?.usd ?? null; _ethUsdFetching = false; setPrice(_ethUsdCached); })
+      .catch(() => { _ethUsdFetching = false; });
+  }, []);
+  return price;
+}
 
-function buildPath(tokenSymbol, isSelling) {
-  if (tokenSymbol === '$BEER') {
-    return isSelling
-      ? [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH]
-      : [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN];
-  }
-  if (tokenSymbol === '$EGG') {
-    return isSelling
-      ? [ADDRESSES.EGG_TOKEN, ADDRESSES.WETH]
-      : [ADDRESSES.WETH, ADDRESSES.EGG_TOKEN];
-  }
-  return null;
+function addressColor(addr) {
+  if (!addr) return '#888';
+  const h = parseInt(addr.slice(2, 8), 16) % 360;
+  return `hsl(${h}, 70%, 55%)`;
 }
 
 const IPFS_GATEWAY = 'https://cloudflare-ipfs.com/ipfs/';
@@ -38,7 +39,7 @@ function toHttp(uri) {
   return uri.startsWith('ipfs://') ? IPFS_GATEWAY + uri.slice(7) : uri;
 }
 
-function TokenLogo({ symbol, address, color }) {
+function TokenLogo({ symbol, address }) {
   const { data: uri } = useReadContract({
     address: address ?? undefined,
     abi: CONTRACT_URI_ABI,
@@ -62,31 +63,32 @@ function TokenLogo({ symbol, address, color }) {
     resolve();
   }, [uri]);
   if (imgSrc) return <img src={imgSrc} alt={symbol} className="w-5 h-5 rounded-full object-cover" />;
-  return <div className={`w-4 h-4 rounded-full ${color}`} />;
+  return <div className="w-4 h-4 rounded-full" style={{ background: addressColor(address) }} />;
 }
 
 function TokenSelect({ selected, options, onChange }) {
   const [open, setOpen] = useState(false);
-  const tok = options.find(t => t.symbol === selected) ?? options[0];
+  const tok = options.find(t => t.address === selected) ?? options[0];
+  if (!tok) return null;
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="bg-gray-100 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-2 hover:bg-gray-200 transition-colors"
       >
-        <TokenLogo symbol={tok.symbol} address={tok.address} color={tok.color} />
+        <TokenLogo symbol={tok.symbol} address={tok.address} />
         <span className="font-black text-gray-900 text-xs">{tok.symbol}</span>
         <ChevronDown size={12} className="text-gray-500" />
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl overflow-hidden z-20 min-w-[130px] shadow-lg">
-          {options.filter(t => t.symbol !== selected).map(t => (
+          {options.filter(t => t.address !== selected).map(t => (
             <button
-              key={t.symbol}
-              onClick={() => { onChange(t.symbol); setOpen(false); }}
+              key={t.address}
+              onClick={() => { onChange(t.address); setOpen(false); }}
               className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 text-xs font-black text-gray-900 transition-colors"
             >
-              <TokenLogo symbol={t.symbol} address={t.address} color={t.color} />
+              <TokenLogo symbol={t.symbol} address={t.address} />
               {t.symbol}
             </button>
           ))}
@@ -101,15 +103,57 @@ export default function SwapPage() {
   const { open }                        = useAppKit();
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
+  const ethUsd                          = useEthUsd();
 
   const [tokenAmount, setTokenAmount]     = useState('');
-  const [selectedToken, setSelectedToken] = useState('$BEER');
+  const [selectedToken, setSelectedToken] = useState(null);
   const [isSelling, setIsSelling]         = useState(false);
   const [mounted, setMounted]             = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const tokenDef = TOKENS.find(t => t.symbol === selectedToken);
-  const path     = buildPath(selectedToken, isSelling);
+  // ── Dynamic token list from TOKEN_DEPLOYER ──────────────────────────────────
+  const { data: allTokenAddrs } = useReadContract({
+    address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI,
+    functionName: 'getAllTokens',
+    query: { enabled: !!ADDRESSES.TOKEN_DEPLOYER },
+  });
+  const candidateTokens = (allTokenAddrs ?? []).filter(a =>
+    a.toLowerCase() !== ADDRESSES.STK_HOMESTEAD?.toLowerCase()
+  );
+  const { data: symResults } = useReadContracts({
+    contracts: candidateTokens.map(a => ({ address: a, abi: ERC20_ABI, functionName: 'symbol' })),
+    query: { enabled: candidateTokens.length > 0 },
+  });
+  const { data: pairResults } = useReadContracts({
+    contracts: candidateTokens.map(a => ({
+      address: ADDRESSES.FACTORY, abi: FACTORY_ABI, functionName: 'getPair',
+      args: [a, ADDRESSES.WETH],
+    })),
+    query: { enabled: candidateTokens.length > 0 && !!ADDRESSES.FACTORY && !!ADDRESSES.WETH },
+  });
+  const pairAddrs = pairResults?.map(r => r?.result ?? ZERO) ?? [];
+  const { data: token0Results } = useReadContracts({
+    contracts: pairAddrs.map(p => ({ address: p === ZERO ? undefined : p, abi: PAIR_ABI, functionName: 'token0' })),
+    query: { enabled: pairAddrs.length > 0 && pairAddrs.some(p => p && p !== ZERO) },
+  });
+
+  const tokenList = candidateTokens.map((addr, i) => {
+    const sym    = symResults?.[i]?.result;
+    const pair   = pairResults?.[i]?.result;
+    const token0 = token0Results?.[i]?.result;
+    if (!sym || !pair || pair === ZERO) return null;
+    const wethIsToken0 = token0?.toLowerCase() === ADDRESSES.WETH?.toLowerCase();
+    return { address: addr, symbol: `$${sym}`, pair, wethIsToken0 };
+  }).filter(Boolean);
+
+  useEffect(() => {
+    if (!selectedToken && tokenList.length > 0) setSelectedToken(tokenList[0].address);
+  }, [tokenList.length]);
+
+  const tokenDef = tokenList.find(t => t.address === selectedToken) ?? tokenList[0] ?? null;
+  const path = selectedToken && ADDRESSES.WETH
+    ? (isSelling ? [selectedToken, ADDRESSES.WETH] : [ADDRESSES.WETH, selectedToken])
+    : null;
 
   const tokenAmountBig = useMemo(() => {
     try { return tokenAmount ? parseUnits(tokenAmount, 18) : 0n; }
@@ -121,7 +165,7 @@ export default function SwapPage() {
     address: ADDRESSES.ROUTER,
     abi: ROUTER_ABI,
     functionName: 'getAmountsIn',
-    args: [tokenAmountBig, path ?? [ADDRESSES.WETH, ADDRESSES.BEER_TOKEN]],
+    args: [tokenAmountBig, path ?? [ADDRESSES.WETH, ADDRESSES.WETH]],
     query: { enabled: !isSelling && !!path && tokenAmountBig > 0n },
   });
 
@@ -130,7 +174,7 @@ export default function SwapPage() {
     address: ADDRESSES.ROUTER,
     abi: ROUTER_ABI,
     functionName: 'getAmountsOut',
-    args: [tokenAmountBig, path ?? [ADDRESSES.BEER_TOKEN, ADDRESSES.WETH]],
+    args: [tokenAmountBig, path ?? [ADDRESSES.WETH, ADDRESSES.WETH]],
     query: { enabled: isSelling && !!path && tokenAmountBig > 0n },
   });
 
@@ -230,13 +274,13 @@ export default function SwapPage() {
 
   const lpFeePercent   = (Number(AMM_FEE_BPS) / 100).toFixed(2).replace(/\.?0+$/, '');
   const exitFeePercent = exitFeeBps !== undefined ? (Number(exitFeeBps) / 100).toFixed(2).replace(/\.?0+$/, '') : null;
-  const lpFeeCurrency  = isSelling ? selectedToken : 'ETH';
+  const lpFeeCurrency  = isSelling ? (tokenDef?.symbol ?? 'token') : 'ETH';
 
-  // Minimum received: BEER when buying, ETH when selling
+  // Minimum received: token when buying, ETH when selling
   const minReceived        = isSelling ? applySlippage(grossEthAmount) : applySlippage(tokenAmountBig);
   const minReceivedDisplay = isSelling
     ? `${parseFloat(formatUnits(minReceived, 18)).toFixed(8)} ETH`
-    : `${parseFloat(formatUnits(minReceived, 18)).toFixed(4)} ${selectedToken}`;
+    : `${parseFloat(formatUnits(minReceived, 18)).toFixed(4)} ${tokenDef?.symbol ?? ''}`;
 
   const handleToggle  = () => { setIsSelling(s => !s); setTokenAmount(''); };
 
@@ -306,9 +350,6 @@ export default function SwapPage() {
   const tokenBalDisplay = tokenBal ? parseFloat(formatUnits(tokenBal.value, 18)).toFixed(0) : '...';
   const ethBalDisplay   = ethBal   ? parseFloat(formatUnits(ethBal.value, 18)).toFixed(4)   : '...';
 
-  const tokenLabel = isSelling ? 'You Sell' : 'You Buy';
-  const ethLabel   = isSelling ? 'You Receive' : 'You Pay';
-
   let actionButton;
   if (!isConnected) {
     actionButton = (
@@ -319,7 +360,7 @@ export default function SwapPage() {
   } else if (!path) {
     actionButton = (
       <button disabled className="w-full mt-2 bg-gray-100 text-gray-400 font-black py-5 rounded-2xl uppercase tracking-widest text-sm cursor-not-allowed">
-        {selectedToken} Coming Soon
+        {tokenDef?.symbol ?? 'Token'} Coming Soon
       </button>
     );
   } else if (insufficientBalance) {
@@ -331,13 +372,13 @@ export default function SwapPage() {
   } else if (needsApproval) {
     actionButton = (
       <button onClick={handleApprove} disabled={isPending || tokenAmountBig === 0n} className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
-        {approving ? 'Approving...' : `Approve ${selectedToken}`}
+        {approving ? 'Approving...' : `Approve ${tokenDef?.symbol ?? 'token'}`}
       </button>
     );
   } else {
     actionButton = (
       <button onClick={handleSwap} disabled={isPending || tokenAmountBig === 0n || (!isSelling && grossEthAmount === 0n)} className="w-full mt-2 bg-hub-green hover:bg-hub-light text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-50">
-        {swapping ? 'Swapping...' : isSelling ? `Sell ${selectedToken}` : `Buy ${selectedToken}`}
+        {swapping ? 'Swapping...' : isSelling ? `Sell ${tokenDef?.symbol ?? 'token'}` : `Buy ${tokenDef?.symbol ?? 'token'}`}
       </button>
     );
   }
@@ -366,7 +407,7 @@ export default function SwapPage() {
                     You <span className={isSelling ? 'text-rose-500' : 'text-emerald-500'}>{isSelling ? 'Sell' : 'Buy'}</span>
                   </span>
                   <span className="text-[10px] font-black uppercase tracking-widest text-hub-green">
-                    Balance: {tokenBalDisplay} {selectedToken}
+                    Balance: {tokenBalDisplay} {tokenDef?.symbol ?? ''}
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-4 mb-4">
@@ -383,8 +424,8 @@ export default function SwapPage() {
                   />
                   <TokenSelect
                     selected={selectedToken}
-                    options={TOKENS}
-                    onChange={(sym) => { setSelectedToken(sym); setTokenAmount(''); }}
+                    options={tokenList}
+                    onChange={(addr) => { setSelectedToken(addr); setTokenAmount(''); }}
                   />
                 </div>
               </div>
@@ -410,8 +451,15 @@ export default function SwapPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-4">
-                  <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}`}>
-                    {ethDisplay}
+                  <div>
+                    <div className={`text-3xl font-black select-none ${netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}`}>
+                      {ethDisplay}
+                    </div>
+                    {netEthAmount > 0n && ethUsd && (
+                      <p className="text-gray-600 text-xs font-medium mt-0.5">
+                        ≈ ${(parseFloat(formatUnits(netEthAmount, 18)) * ethUsd).toFixed(2)}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 bg-gray-100 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white font-black" style={{ fontSize: 9 }}>Ξ</div>
@@ -440,7 +488,7 @@ export default function SwapPage() {
                 <div className="flex justify-between">
                   <span>Rate</span>
                   <span className={rateDisplay !== null ? 'text-gray-900' : 'text-gray-300'}>
-                    {rateDisplay !== null ? `1 ${selectedToken} = ${rateDisplay.toFixed(6)} ETH` : '—'}
+                    {rateDisplay !== null ? `1 ${tokenDef?.symbol ?? '?'} = ${rateDisplay.toFixed(6)} ETH` : '—'}
                   </span>
                 </div>
 
@@ -499,6 +547,13 @@ export default function SwapPage() {
                 Trade any Homestead token instantly against ETH.
                 A market fee applies to all trades. Selling also incurs a Treasury fee deducted from proceeds.
                 All orders include slippage protection while they confirm.
+              </p>
+              <p className="text-gray-500 text-xs mt-2 leading-relaxed font-medium">
+                Swap prices are live AMM rates — they rise with demand.
+                Marketplace listings are priced in tokens, so buyers who got in early
+                and hold tokens at a lower cost basis pay less in real terms than
+                someone acquiring tokens at today's swap rate.
+                That gap is the early-holder advantage.
               </p>
             </div>
           </section>
