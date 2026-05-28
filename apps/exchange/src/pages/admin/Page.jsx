@@ -951,19 +951,12 @@ export default function AdminPage() {
           <div className="bg-white border border-gray-100 rounded-xl p-4 grid gap-x-6 gap-y-2"
                style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
             {[
-              ['Wallet',         address,                   null],
-              ['Treasury',       ADDRESSES.TREASURY,        'TREASURY'],
-              ['Marketplace',    ADDRESSES.MARKETPLACE,     'MARKETPLACE'],
-              ['Beer Token',     ADDRESSES.BEER_TOKEN,      'BEER_TOKEN'],
-              ['Beer NFT',       ADDRESSES.BEER_NFT,        'BEER_NFT'],
-              ['stkHomestead',   ADDRESSES.STK_HOMESTEAD,   null],
-              ['Router',         ADDRESSES.ROUTER,          'ROUTER'],
-              ['DEX Factory',    ADDRESSES.FACTORY,         'FACTORY'],
-              ['Beer/WETH Pair', ADDRESSES.BEER_WETH_PAIR,  'BEER_WETH_PAIR'],
-              ['EGG/WETH Pair',  ADDRESSES.EGG_WETH_PAIR,   'EGG_WETH_PAIR'],
-              ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER,  'TOKEN_DEPLOYER'],
-              ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER,    'NFT_DEPLOYER'],
-              ['WETH',           ADDRESSES.WETH,            null],
+              ['Treasury',       ADDRESSES.TREASURY,       'TREASURY'],
+              ['Marketplace',    ADDRESSES.MARKETPLACE,    'MARKETPLACE'],
+              ['Router',         ADDRESSES.ROUTER,         'ROUTER'],
+              ['DEX Factory',    ADDRESSES.FACTORY,        'FACTORY'],
+              ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER, 'TOKEN_DEPLOYER'],
+              ['NFT Deployer',   ADDRESSES.NFT_DEPLOYER,   'NFT_DEPLOYER'],
             ].map(([label, addr, vKey]) => (
               <React.Fragment key={label}>
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
