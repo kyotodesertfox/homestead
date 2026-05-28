@@ -58,6 +58,7 @@ export default function TreasuryHealth() {
       { address: ADDRESSES.NFT_DEPLOYER,   abi: NFT_DEPLOYER_ABI,   functionName: 'totalContracts'  }, // 6
       { address: ADDRESSES.BEER_TOKEN,     abi: ERC20_ABI,           functionName: 'symbol'          }, // 7
       { address: ADDRESSES.STK_HOMESTEAD,  abi: ERC20_ABI,           functionName: 'symbol'          }, // 8
+      { address: ADDRESSES.TREASURY,       abi: TREASURY_ABI,        functionName: 'floorBalance'    }, // 9
     ],
     query: { refetchInterval: 30_000 },
   });
@@ -71,6 +72,7 @@ export default function TreasuryHealth() {
   const totalNFTCols = data?.[6]?.result;
   const beerSymbol   = data?.[7]?.result;
   const stkSymbol    = data?.[8]?.result;
+  const floor        = data?.[9]?.result;
 
   // r0 = BEER, r1 = WETH
   const beerSpot = reserves?.[0] && reserves[0] > 0n
@@ -174,8 +176,9 @@ export default function TreasuryHealth() {
           <>
             {activeTab === 'Treasury' && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <StatCard label="Active Stake (TVL)" value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral" accent="sky"    />
-                <StatCard label="Claimable"           value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"  accent="violet" />
+                <StatCard label="Total Stake"         value={`${fmtEth(floor)} ETH`}                        sub="All producer ETH in protocol" accent="green"  />
+                <StatCard label="Active Stake (TVL)"  value={`${fmtEth(batchMetrics?.totalStaked)} ETH`}    sub="Locked producer collateral"   accent="sky"    />
+                <StatCard label="Claimable"           value={`${fmtEth(batchMetrics?.totalClaimable)} ETH`} sub="Ready for producer claims"    accent="violet" />
               </div>
             )}
 
