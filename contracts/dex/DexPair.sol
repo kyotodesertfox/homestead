@@ -6,6 +6,10 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface ITreasury {
+    function receiveAndMintLPReward(address rewardToken, address to) external payable;
+}
+
 contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable {
 
     // =========================================================================
@@ -20,11 +24,11 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
 
     uint112 private reserve0;
     uint112 private reserve1;
-    uint32  private blockTimestampLast;
+    uint32  private blockTimestampLast;     // slot reserved — was Uniswap V2 TWAP timestamp
 
-    uint256 public price0CumulativeLast;
-    uint256 public price1CumulativeLast;
-    uint256 public kLast;
+    uint256 public price0CumulativeLast;    // slot reserved — was TWAP price accumulator (token0)
+    uint256 public price1CumulativeLast;    // slot reserved — was TWAP price accumulator (token1)
+    uint256 public kLast;                   // slot reserved — was Uniswap V2 protocol fee tracker
 
     // ---- LP REWARDS (added in upgrade) ----
     address public rewardsTreasury;
@@ -120,27 +124,23 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // RESERVES
     // =========================================================================
 
-    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
-        _reserve0           = reserve0;
-        _reserve1           = reserve1;
-        _blockTimestampLast = blockTimestampLast;
+    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1) {
+        _reserve0 = reserve0;
+        _reserve1 = reserve1;
     }
 
-    function _update(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
+    // OZ ERC20Upgradeable v5 hook — fires on every LP token mint, burn, and transfer.
+    // Settle rewards for both parties before balances change so earned() is correct.
+    function _update(address from, address to, uint256 value) internal override {
+        if (from != address(0) && from != address(this)) _updateReward(from);
+        if (to   != address(0) && to   != address(this)) _updateReward(to);
+        super._update(from, to, value);
+    }
+
+    function _syncReserves(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
         require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, 'DEXPair: OVERFLOW');
-
-        uint32 blockTimestamp = uint32(block.timestamp % 2**32);
-        uint32 timeElapsed    = blockTimestamp - blockTimestampLast;
-
-        if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
-            price0CumulativeLast += uint256(uint224((_reserve1 << 112) / _reserve0)) * timeElapsed;
-            price1CumulativeLast += uint256(uint224((_reserve0 << 112) / _reserve1)) * timeElapsed;
-        }
-
-        reserve0           = uint112(balance0);
-        reserve1           = uint112(balance1);
-        blockTimestampLast = blockTimestamp;
-
+        reserve0 = uint112(balance0);
+        reserve1 = uint112(balance1);
         emit Sync(reserve0, reserve1);
     }
 
@@ -150,8 +150,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function mint(address to) external nonReentrant returns (uint256 liquidity) {
-        _updateReward(to);
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1) = getReserves();
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
@@ -173,7 +172,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         require(liquidity > 0, 'DEXPair: INSUFFICIENT_LIQUIDITY_MINTED');
         _mint(to, liquidity);
 
-        _update(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1, _reserve0, _reserve1);
         emit Mint(msg.sender, amount0, amount1);
     }
 
@@ -183,7 +182,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function burn(address to) external nonReentrant returns (uint256 amount0, uint256 amount1) {
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1) = getReserves();
 
         uint256 balance0  = IERC20(token0).balanceOf(address(this));
         uint256 balance1  = IERC20(token1).balanceOf(address(this));
@@ -202,7 +201,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
-        _update(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1, _reserve0, _reserve1);
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
@@ -215,7 +214,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     function swap(uint256 amount0Out, uint256 amount1Out, address to) external nonReentrant {
         require(amount0Out > 0 || amount1Out > 0, 'DEXPair: INSUFFICIENT_OUTPUT_AMOUNT');
 
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+        (uint112 _reserve0, uint112 _reserve1) = getReserves();
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'DEXPair: INSUFFICIENT_LIQUIDITY');
         require(to != token0 && to != token1, 'DEXPair: INVALID_TO');
 
@@ -253,7 +252,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
             'DEXPair: INVARIANT'
         );
 
-        _update(balance0, balance1, _reserve0, _reserve1);
+        _syncReserves(balance0, balance1, _reserve0, _reserve1);
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
@@ -262,7 +261,7 @@ contract DEXPair is Initializable, ReentrancyGuardUpgradeable, ERC20Upgradeable 
     // =========================================================================
 
     function sync() external nonReentrant {
-        _update(
+        _syncReserves(
             IERC20(token0).balanceOf(address(this)),
             IERC20(token1).balanceOf(address(this)),
             reserve0,

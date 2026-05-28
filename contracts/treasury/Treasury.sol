@@ -184,7 +184,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     function _spotEthValue(address token, uint256 humanAmount) internal view returns (uint256) {
         address pair = IFactory(dexFactory).getPair(token, weth);
         if (pair == address(0)) revert PairNotFound();
-        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
+        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
         if (r0 == 0 || r1 == 0) revert NoLiquidity();
         address t0 = IPair(pair).token0();
         return (t0 == weth)
@@ -195,7 +195,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     function _quoteTokensForEth(address token, uint256 ethAmount) internal view returns (uint256) {
         address pair = IFactory(dexFactory).getPair(token, weth);
         if (pair == address(0)) revert PairNotFound();
-        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
+        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
         if (r0 == 0 || r1 == 0) revert NoLiquidity();
         address t0 = IPair(pair).token0();
         return (t0 == weth)
@@ -289,7 +289,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         address pair = IFactory(dexFactory).getPair(token, _weth);
         if (pair == address(0)) return 0;
 
-        (uint112 r0, uint112 r1,) = IPair(pair).getReserves();
+        (uint112 r0, uint112 r1) = IPair(pair).getReserves();
         if (r0 == 0 || r1 == 0) return 0;
 
         address t0 = IPair(pair).token0();

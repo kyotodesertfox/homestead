@@ -1017,8 +1017,8 @@ const safeFmt = (val, decimals = 18) => {
 
 const TABS = [
   { id: 'holdings',  label: 'Holdings',  Icon: Droplets  },
+  { id: 'staking',   label: 'Minting',   Icon: Lock       },
   { id: 'liquidity', label: 'Liquidity', Icon: TrendingUp },
-  { id: 'staking',   label: 'Staking',   Icon: Lock       },
 ];
 
 function LiquidityModal({ onClose }) {
@@ -1062,8 +1062,46 @@ function LiquidityModal({ onClose }) {
 
   useEffect(() => { if (mintConfirmed) { setMintAmount(''); setMintRecipient(''); } }, [mintConfirmed]);
 
-  const STAKE_RATIO_BPS = 1000; // 10% — placeholder until contract is live
-  const stakeEmitNum    = parseInt(stakeEmit, 10) || 0;
+  const stakeEmitNum = parseInt(stakeEmit, 10) || 0;
+
+  const { data: availableCollateral } = useReadContract({
+    address:      ADDRESSES.TREASURY,
+    abi:          TREASURY_ABI,
+    functionName: 'availableCollateral',
+    args:         [address ?? ZERO],
+    query:        { enabled: !!address && !!ADDRESSES.TREASURY },
+  });
+
+  const { data: collateralRatioBps } = useReadContract({
+    address:      ADDRESSES.TREASURY,
+    abi:          TREASURY_ABI,
+    functionName: 'collateralRatioBps',
+    query:        { enabled: !!ADDRESSES.TREASURY },
+  });
+
+  const { writeContract: writeOpenLot, data: openLotHash } = useWriteContract();
+  const { isLoading: openingLot, isSuccess: lotOpened } = useWaitForTransactionReceipt({
+    hash:  openLotHash,
+    query: { enabled: !!openLotHash },
+  });
+  const [openLotError, setOpenLotError] = useState('');
+
+  useEffect(() => { if (lotOpened) { setStakeEmit(''); setOpenLotError(''); } }, [lotOpened]);
+
+  const handleOpenLot = () => {
+    if (!stakeEmitNum || stakeEmitNum <= 0) return;
+    setOpenLotError('');
+    try {
+      writeOpenLot({
+        address:      ADDRESSES.TREASURY,
+        abi:          TREASURY_ABI,
+        functionName: 'openLot',
+        args:         [ADDRESSES.BEER_TOKEN, BigInt(stakeEmitNum)],
+      });
+    } catch (e) {
+      setOpenLotError(e.shortMessage ?? e.message ?? 'Transaction failed');
+    }
+  };
 
   const ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -1079,13 +1117,16 @@ function LiquidityModal({ onClose }) {
   const reservesReady = !reservesLoading && !reservesError;
   const [r0, r1]      = reserves ?? [0n, 0n];
 
-  // Stake calculator — uses live market price so the ETH required is realistic
+  // Stake calculator — uses live market price + on-chain collateral ratio
   const beerPriceEth  = reservesReady && r0 > 0n
     ? Number(formatUnits(r1, 18)) / Number(formatUnits(r0, 18))
     : 0;
+  const ratioBps = collateralRatioBps != null ? Number(collateralRatioBps) : 11000;
   const stakeRequired = stakeEmitNum > 0 && beerPriceEth > 0
-    ? (stakeEmitNum * beerPriceEth * STAKE_RATIO_BPS) / 10000
+    ? (stakeEmitNum * beerPriceEth * ratioBps) / 10000
     : 0;
+  const availableCollateralEth = availableCollateral != null ? Number(formatUnits(availableCollateral, 18)) : 0;
+  const collateralInsufficient = stakeRequired > 0 && availableCollateralEth < stakeRequired;
   const hasLiquidity  = reservesReady && reserves != null && r0 > 0n && r1 > 0n;
   const poolEmpty     = reservesReady && reserves != null && r0 === 0n && r1 === 0n;
 
@@ -1359,28 +1400,20 @@ function LiquidityModal({ onClose }) {
             </>
           )}
 
-          {/* ── Staking ── */}
+          {/* ── Minting ── */}
           {tab === 'staking' && (
             <div className="relative">
-
-              {/* Coming-soon notice */}
-              <div className="flex items-center gap-3 bg-hub-green/10 border border-hub-green/20 rounded-xl px-4 py-3 mb-5">
-                <Lock size={13} className="text-hub-green shrink-0" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">
-                  Contract deployment pending — preview only
-                </p>
-              </div>
 
               {/* Live position cards */}
               <StakingPositionCards address={address} />
 
-              {/* Live calculator — interactive */}
+              {/* Open Lot */}
               <div className="mt-5 space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 block">
-                  $BEER to Emit (target)
+                  $BEER to Mint
                 </label>
                 <input
-                  type="number" min="0" step="1" placeholder="e.g. 2400"
+                  type="number" min="1" step="1" placeholder="e.g. 2400"
                   value={stakeEmit}
                   onChange={e => {
                     const v = e.target.value;
@@ -1390,22 +1423,30 @@ function LiquidityModal({ onClose }) {
                 />
                 <div className="flex gap-3">
                   <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">ETH Required</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Collateral Required</p>
                     <p className="font-black text-white text-sm">
-                      {stakeRequired > 0 ? stakeRequired.toFixed(6) : '—'}
+                      {stakeRequired > 0 ? `${stakeRequired.toFixed(6)} stkHOME` : '—'}
                     </p>
                   </div>
                   <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Wallet Balance</p>
-                    <p className="font-black text-white text-sm">{ethBal ? fmtEth(ethBal.value) : '—'}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Available</p>
+                    <p className="font-black text-white text-sm">
+                      {availableCollateral != null ? `${fmtEth(availableCollateral)} stkHOME` : '—'}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Locked button */}
-              <div className="mt-4 opacity-40 pointer-events-none">
-                <button disabled className="w-full py-4 bg-hub-green text-white font-black uppercase tracking-widest text-sm rounded-xl">
-                  Post ETH Collateral &amp; Brew Batch
+              {openLotError && <p className="text-red-400 text-xs font-bold mt-2">{openLotError}</p>}
+              {lotOpened && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center mt-2">Lot opened!</p>}
+
+              <div className="mt-4">
+                <button
+                  onClick={handleOpenLot}
+                  disabled={!stakeEmitNum || openingLot || collateralInsufficient}
+                  className="w-full py-4 bg-hub-green hover:brightness-110 disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all"
+                >
+                  {openingLot ? 'Minting…' : collateralInsufficient ? 'Insufficient Collateral' : 'Mint $BEER'}
                 </button>
               </div>
 

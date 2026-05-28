@@ -15,7 +15,7 @@ interface IBurnableToken {
 }
 
 interface IPair {
-    function getReserves() external view returns (uint112 r0, uint112 r1, uint32 ts);
+    function getReserves() external view returns (uint112 r0, uint112 r1);
     function token0() external view returns (address);
 }
 
@@ -133,7 +133,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     // Only called when dexPair is set and the sender chooses the ETH path.
     function ethEquivalent() public view returns (uint256) {
         require(dexPair != address(0), "Relay: DEX_PAIR_NOT_SET");
-        (uint112 r0, uint112 r1,) = IPair(dexPair).getReserves();
+        (uint112 r0, uint112 r1) = IPair(dexPair).getReserves();
         address t0 = IPair(dexPair).token0();
         // quantumFee is in $BEER units; derive ETH cost at spot
         return t0 == feeToken
