@@ -81,7 +81,11 @@ const tokenLabel = (addr) => {
 function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }) {
   const { address } = useAccount();
 
-  // Start on step 0 if no styles have been minted yet
+  const [collection, setCollection] = useState('BEER');
+  const nftAddress   = collection === 'EGG' ? ADDRESSES.EGG_NFT   : ADDRESSES.BEER_NFT;
+  const tokenAddress = collection === 'EGG' ? ADDRESSES.EGG_TOKEN  : ADDRESSES.BEER_TOKEN;
+  const tokenSymbol  = collection === 'EGG' ? 'EGG' : 'BEER';
+
   const [step, setStep] = useState(knownStyles.length === 0 ? 0 : 1);
 
   // ── Step 0 state ────────────────────────────────────────────────────────────
@@ -90,9 +94,12 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
   const [desc,    setDesc]    = useState('');
   const [abv,     setAbv]     = useState('');
   const [ibu,     setIbu]     = useState('');
+  const [grade,   setGrade]   = useState('');
+  const [eggSize, setEggSize] = useState('');
+  const [eggType, setEggType] = useState('');
   const [image,   setImage]   = useState(null);
   const [preview, setPreview] = useState(null);
-  const [upStatus, setUpStatus] = useState(null); // null|'image'|'meta'|'done'|'error'
+  const [upStatus, setUpStatus] = useState(null);
   const [ipfsUri, setIpfsUri]   = useState('');
   const [upErr,   setUpErr]     = useState('');
   const [copied,  setCopied]    = useState(false);
@@ -104,7 +111,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
   const [showSugg1,    setShowSugg1]    = useState(false);
 
   const allStyles = [...new Set([...knownStyles, ...(style ? [style] : [])])].sort();
-  const filtered0 = style       ? allStyles.filter(s => s.toLowerCase().includes(style.toLowerCase()))       : allStyles;
+  const filtered0 = style        ? allStyles.filter(s => s.toLowerCase().includes(style.toLowerCase()))        : allStyles;
   const filtered1 = listingStyle ? allStyles.filter(s => s.toLowerCase().includes(listingStyle.toLowerCase())) : allStyles;
 
   const { writeContract, data: txHash, isPending, error: txError } = useWriteContract();
@@ -116,7 +123,6 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
     onClose();
   }, [isSuccess]);
 
-  // ── Metadata upload ─────────────────────────────────────────────────────────
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -125,32 +131,31 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
   };
 
   const handleUpload = async () => {
-    if (!image || !name.trim() || !style.trim()) return;
+    if (!image || !name.trim()) return;
+    if (collection === 'BEER' && !style.trim()) return;
     setUpErr('');
     try {
       setUpStatus('image');
       const imageCid = await pinFile(image);
-
       setUpStatus('meta');
-      const attributes = [
-        { trait_type: 'Style', value: style.trim() },
-        ...(abv ? [{ trait_type: 'ABV', value: parseFloat(abv), display_type: 'number' }] : []),
-        ...(ibu ? [{ trait_type: 'IBU', value: parseInt(ibu),   display_type: 'number' }] : []),
-      ];
-      const metadata = {
-        name:        name.trim(),
-        description: desc.trim(),
-        image:       `ipfs://${imageCid}`,
-        attributes,
-      };
-      const metaCid = await pinJson(metadata, `${name.trim().replace(/\s+/g, '-').toLowerCase()}.json`);
-      const uri = `ipfs://${metaCid}`;
 
-      setIpfsUri(uri);
+      const attributes = collection === 'EGG'
+        ? [
+            ...(grade   ? [{ trait_type: 'Grade', value: grade }]        : []),
+            ...(eggSize ? [{ trait_type: 'Size',  value: eggSize }]      : []),
+            ...(eggType ? [{ trait_type: 'Type',  value: eggType }]      : []),
+          ]
+        : [
+            { trait_type: 'Style', value: style.trim() },
+            ...(abv ? [{ trait_type: 'ABV', value: parseFloat(abv), display_type: 'number' }] : []),
+            ...(ibu ? [{ trait_type: 'IBU', value: parseInt(ibu),   display_type: 'number' }] : []),
+          ];
+
+      const metadata = { name: name.trim(), description: desc.trim(), image: `ipfs://${imageCid}`, attributes };
+      const metaCid  = await pinJson(metadata, `${name.trim().replace(/\s+/g, '-').toLowerCase()}.json`);
+      setIpfsUri(`ipfs://${metaCid}`);
       setUpStatus('done');
-      onStyleResolved?.(style.trim());
-      // Pre-fill the listing style and advance
-      setListingStyle(style.trim());
+      if (collection === 'BEER') { onStyleResolved?.(style.trim()); setListingStyle(style.trim()); }
     } catch (e) {
       setUpErr(e.message);
       setUpStatus('error');
@@ -163,21 +168,21 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const uploadBusy = upStatus === 'image' || upStatus === 'meta';
+  const uploadBusy  = upStatus === 'image' || upStatus === 'meta';
   const uploadLabel = upStatus === 'image' ? 'Uploading image…' : upStatus === 'meta' ? 'Pinning metadata…' : 'Upload to IPFS';
+  const uploadDisabled = !image || !name.trim() || (collection === 'BEER' && !style.trim()) || !PINATA_JWT || uploadBusy;
 
-  // ── Listing submit ──────────────────────────────────────────────────────────
   const handleCreate = () => {
-    if (!listingStyle.trim() || !address) return;
+    if (!address) return;
+    if (collection === 'BEER' && !listingStyle.trim()) return;
     writeContract({
       address: ADDRESSES.MARKETPLACE,
       abi:     MARKETPLACE_ABI,
       functionName: 'createListing',
-      args: [ADDRESSES.BEER_NFT, ADDRESSES.BEER_TOKEN, 1n, address],
+      args: [nftAddress, tokenAddress, 1n, address],
     });
   };
 
-  // ── Step labels ─────────────────────────────────────────────────────────────
   const steps = ['Prepare Metadata', 'Create Listing'];
 
   return (
@@ -190,10 +195,8 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
             {steps.map((label, i) => (
               <React.Fragment key={i}>
                 <button
-                  onClick={() => { if (i === 1 && allStyles.length > 0) setStep(1); if (i === 0) setStep(0); }}
-                  className={`text-xs font-black uppercase tracking-widest transition-colors ${
-                    step === i ? 'text-hub-green' : 'text-white/30 hover:text-white/60'
-                  }`}
+                  onClick={() => { if (i === 1 && (collection === 'EGG' || allStyles.length > 0)) setStep(1); if (i === 0) setStep(0); }}
+                  className={`text-xs font-black uppercase tracking-widest transition-colors ${step === i ? 'text-hub-green' : 'text-white/30 hover:text-white/60'}`}
                 >
                   {label}
                 </button>
@@ -201,13 +204,21 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               </React.Fragment>
             ))}
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={20} /></button>
         </div>
 
         {/* Body */}
         <div className="overflow-y-auto px-8 pb-8 flex-1">
+
+          {/* Collection picker */}
+          <div className="flex rounded-xl overflow-hidden border border-white/10 mb-5">
+            {['BEER', 'EGG'].map(c => (
+              <button key={c} onClick={() => { setCollection(c); setStep(0); setUpStatus(null); setIpfsUri(''); }}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest transition-colors ${collection === c ? 'bg-hub-green text-white' : 'bg-white/5 text-white/40 hover:text-white/70'}`}>
+                ${c}
+              </button>
+            ))}
+          </div>
 
           {/* ── Step 0: Metadata Builder ─────────────────────────────────── */}
           {step === 0 && (
@@ -221,19 +232,17 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
 
               {/* Image */}
               <div>
-                <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Label Image</label>
-                <div
-                  onClick={() => fileRef.current?.click()}
-                  className="relative w-full h-40 rounded-xl border-2 border-dashed border-white/20 hover:border-hub-green flex items-center justify-center cursor-pointer overflow-hidden transition-colors group"
-                >
+                <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">
+                  {collection === 'EGG' ? 'Photo' : 'Label Image'}
+                </label>
+                <div onClick={() => fileRef.current?.click()}
+                  className="relative w-full h-40 rounded-xl border-2 border-dashed border-white/20 hover:border-hub-green flex items-center justify-center cursor-pointer overflow-hidden transition-colors group">
                   {preview
                     ? <img src={preview} alt="preview" className="w-full h-full object-cover" />
-                    : (
-                      <div className="flex flex-col items-center gap-2 text-white/30 group-hover:text-hub-green transition-colors">
+                    : <div className="flex flex-col items-center gap-2 text-white/30 group-hover:text-hub-green transition-colors">
                         <ImagePlus size={32} />
                         <span className="text-xs font-bold uppercase tracking-widest">Click to upload</span>
-                      </div>
-                    )}
+                      </div>}
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
               </div>
@@ -241,70 +250,97 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               {/* Name */}
               <div>
                 <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  placeholder="Homestead West Coast IPA"
+                <input type="text" value={name}
+                  placeholder={collection === 'EGG' ? 'Homestead Farm Fresh Eggs' : 'Homestead West Coast IPA'}
                   onChange={e => setName(e.target.value)}
-                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30"
-                />
+                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30" />
               </div>
 
-              {/* Style */}
-              <div className="relative">
-                <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Style</label>
-                <input
-                  type="text"
-                  value={style}
-                  placeholder="West Coast IPA"
-                  onChange={e => { setStyle(e.target.value); setShowSugg0(true); }}
-                  onFocus={() => setShowSugg0(true)}
-                  onBlur={() => setTimeout(() => setShowSugg0(false), 150)}
-                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30"
-                />
-                {showSugg0 && filtered0.length > 0 && (
-                  <ul className="absolute z-10 mt-1 w-full bg-gray-900 border border-white/10 rounded-xl shadow-xl max-h-40 overflow-y-auto">
-                    {filtered0.map(s => (
-                      <li key={s} onMouseDown={() => { setStyle(s); setShowSugg0(false); }}
-                        className="px-4 py-2.5 text-sm text-white/80 hover:bg-hub-green hover:text-white cursor-pointer font-medium">
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              {/* BEER-specific fields */}
+              {collection === 'BEER' && (
+                <>
+                  <div className="relative">
+                    <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Style</label>
+                    <input type="text" value={style} placeholder="West Coast IPA"
+                      onChange={e => { setStyle(e.target.value); setShowSugg0(true); }}
+                      onFocus={() => setShowSugg0(true)}
+                      onBlur={() => setTimeout(() => setShowSugg0(false), 150)}
+                      className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30" />
+                    {showSugg0 && filtered0.length > 0 && (
+                      <ul className="absolute z-10 mt-1 w-full bg-gray-900 border border-white/10 rounded-xl shadow-xl max-h-40 overflow-y-auto">
+                        {filtered0.map(s => (
+                          <li key={s} onMouseDown={() => { setStyle(s); setShowSugg0(false); }}
+                            className="px-4 py-2.5 text-sm text-white/80 hover:bg-hub-green hover:text-white cursor-pointer font-medium">{s}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">ABV %</label>
+                      <input type="number" min="0" max="99" step="0.1" placeholder="6.5" value={abv}
+                        onChange={e => setAbv(e.target.value)}
+                        className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green [appearance:textfield] placeholder:text-white/30" />
+                    </div>
+                    <div>
+                      <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">IBU</label>
+                      <input type="number" min="0" step="1" placeholder="65" value={ibu}
+                        onChange={e => setIbu(e.target.value)}
+                        className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green [appearance:textfield] placeholder:text-white/30" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* EGG-specific fields */}
+              {collection === 'EGG' && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Grade</label>
+                    <select value={grade} onChange={e => setGrade(e.target.value)}
+                      className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
+                      <option value="">—</option>
+                      <option value="AA">AA</option>
+                      <option value="A">A</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Size</label>
+                    <select value={eggSize} onChange={e => setEggSize(e.target.value)}
+                      className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
+                      <option value="">—</option>
+                      <option value="Small">Small</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Large">Large</option>
+                      <option value="XL">XL</option>
+                      <option value="Jumbo">Jumbo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Type</label>
+                    <select value={eggType} onChange={e => setEggType(e.target.value)}
+                      className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
+                      <option value="">—</option>
+                      <option value="Free-Range">Free-Range</option>
+                      <option value="Cage-Free">Cage-Free</option>
+                      <option value="Organic">Organic</option>
+                      <option value="Pasture-Raised">Pasture-Raised</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Description */}
               <div>
                 <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Description</label>
-                <textarea
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                  placeholder="Tasting notes, ingredients, story…"
+                <textarea value={desc} onChange={e => setDesc(e.target.value)}
+                  placeholder={collection === 'EGG' ? 'Farm details, freshness, quantity…' : 'Tasting notes, ingredients, story…'}
                   rows={3}
-                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-hub-green resize-none placeholder:text-white/30"
-                />
-              </div>
-
-              {/* ABV + IBU */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">ABV %</label>
-                  <input type="number" min="0" max="99" step="0.1" placeholder="6.5" value={abv}
-                    onChange={e => setAbv(e.target.value)}
-                    className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green [appearance:textfield] placeholder:text-white/30" />
-                </div>
-                <div>
-                  <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">IBU</label>
-                  <input type="number" min="0" step="1" placeholder="65" value={ibu}
-                    onChange={e => setIbu(e.target.value)}
-                    className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green [appearance:textfield] placeholder:text-white/30" />
-                </div>
+                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-hub-green resize-none placeholder:text-white/30" />
               </div>
 
               {upErr && <p className="text-red-400 text-xs font-medium">{upErr}</p>}
 
-              {/* Result */}
               {upStatus === 'done' && ipfsUri && (
                 <div className="bg-hub-green/10 border border-hub-green/30 rounded-xl px-4 py-3">
                   <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1.5">IPFS URI — use this when minting</p>
@@ -318,30 +354,22 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
               )}
 
               <div className="flex gap-2">
-                <button
-                  onClick={handleUpload}
-                  disabled={!image || !name.trim() || !style.trim() || !PINATA_JWT || uploadBusy}
-                  className="flex-1 py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all flex items-center justify-center gap-2"
-                >
+                <button onClick={handleUpload} disabled={uploadDisabled}
+                  className="flex-1 py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all flex items-center justify-center gap-2">
                   <Upload size={15} strokeWidth={3} />
                   {uploadLabel}
                 </button>
-                {/* Skip to listing form if styles already exist */}
-                {allStyles.length > 0 && (
-                  <button
-                    onClick={() => setStep(1)}
-                    className="px-4 py-3.5 rounded-xl border border-white/20 text-white/60 hover:text-white hover:border-white/40 font-black uppercase tracking-widest text-xs transition-all flex items-center gap-1.5"
-                  >
+                {(collection === 'EGG' || allStyles.length > 0) && (
+                  <button onClick={() => setStep(1)}
+                    className="px-4 py-3.5 rounded-xl border border-white/20 text-white/60 hover:text-white hover:border-white/40 font-black uppercase tracking-widest text-xs transition-all flex items-center gap-1.5">
                     Skip <ArrowRight size={13} strokeWidth={3} />
                   </button>
                 )}
               </div>
 
               {upStatus === 'done' && (
-                <button
-                  onClick={() => setStep(1)}
-                  className="w-full py-3 rounded-xl border border-hub-green text-hub-green font-black uppercase tracking-widest text-sm hover:bg-hub-green hover:text-white transition-all flex items-center justify-center gap-2"
-                >
+                <button onClick={() => setStep(1)}
+                  className="w-full py-3 rounded-xl border border-hub-green text-hub-green font-black uppercase tracking-widest text-sm hover:bg-hub-green hover:text-white transition-all flex items-center justify-center gap-2">
                   Continue to Listing <ArrowRight size={15} strokeWidth={3} />
                 </button>
               )}
@@ -352,45 +380,37 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
           {step === 1 && (
             <div className="space-y-4">
 
-              {/* Style with autocomplete */}
-              <div className="relative">
-                <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Beer Style</label>
-                <input
-                  type="text"
-                  value={listingStyle}
-                  placeholder="e.g. West Coast IPA"
-                  onChange={e => { setListingStyle(e.target.value); setShowSugg1(true); }}
-                  onFocus={() => setShowSugg1(true)}
-                  onBlur={() => setTimeout(() => setShowSugg1(false), 150)}
-                  className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30"
-                />
-                {showSugg1 && filtered1.length > 0 && (
-                  <ul className="absolute z-10 mt-1 w-full bg-gray-900 border border-white/10 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                    {filtered1.map(s => (
-                      <li key={s} onMouseDown={() => { setListingStyle(s); setShowSugg1(false); }}
-                        className="px-4 py-2.5 text-sm text-white/80 hover:bg-hub-green hover:text-white cursor-pointer font-medium">
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <button
-                  onClick={() => setStep(0)}
-                  className="mt-1.5 text-white/30 hover:text-hub-green text-[10px] font-black uppercase tracking-widest transition-colors"
-                >
-                  + Prepare metadata for a new style
-                </button>
-              </div>
+              {collection === 'BEER' && (
+                <div className="relative">
+                  <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Beer Style</label>
+                  <input type="text" value={listingStyle} placeholder="e.g. West Coast IPA"
+                    onChange={e => { setListingStyle(e.target.value); setShowSugg1(true); }}
+                    onFocus={() => setShowSugg1(true)}
+                    onBlur={() => setTimeout(() => setShowSugg1(false), 150)}
+                    className="w-full bg-white/10 text-white rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green placeholder:text-white/30" />
+                  {showSugg1 && filtered1.length > 0 && (
+                    <ul className="absolute z-10 mt-1 w-full bg-gray-900 border border-white/10 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                      {filtered1.map(s => (
+                        <li key={s} onMouseDown={() => { setListingStyle(s); setShowSugg1(false); }}
+                          className="px-4 py-2.5 text-sm text-white/80 hover:bg-hub-green hover:text-white cursor-pointer font-medium">{s}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <button onClick={() => setStep(0)}
+                    className="mt-1.5 text-white/30 hover:text-hub-green text-[10px] font-black uppercase tracking-widest transition-colors">
+                    + Prepare metadata for a new style
+                  </button>
+                </div>
+              )}
 
-              {/* Fixed details */}
               <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-white/40 font-bold uppercase tracking-widest">Collection</span>
-                  <span className="text-white/60 font-mono">{ADDRESSES.BEER_NFT?.slice(0, 10)}…</span>
+                  <span className="text-white/60 font-mono">{nftAddress?.slice(0, 10)}…</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/40 font-bold uppercase tracking-widest">Price</span>
-                  <span className="text-amber-400 font-black">1 BEER</span>
+                  <span className="text-amber-400 font-black">1 {tokenSymbol}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/40 font-bold uppercase tracking-widest">Proceeds</span>
@@ -398,15 +418,11 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                 </div>
               </div>
 
-              {txError && (
-                <p className="text-red-400 text-xs font-medium">{txError.shortMessage ?? txError.message}</p>
-              )}
+              {txError && <p className="text-red-400 text-xs font-medium">{txError.shortMessage ?? txError.message}</p>}
 
-              <button
-                onClick={handleCreate}
-                disabled={!listingStyle.trim() || isPending}
-                className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all"
-              >
+              <button onClick={handleCreate}
+                disabled={(collection === 'BEER' && !listingStyle.trim()) || isPending}
+                className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition-all">
                 {isPending ? 'Creating…' : 'Create Listing'}
               </button>
             </div>

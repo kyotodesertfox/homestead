@@ -525,7 +525,12 @@ function DEXPairsSection() {
             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
           >
             <div className="flex-1 min-w-0">
-              <p className="font-black text-gray-900 text-sm">{pair.symbol0}/{pair.symbol1} <span className="text-gray-400 font-mono text-xs">LP</span></p>
+              <p className="font-black text-gray-900 text-sm">
+                {pair.token0?.toLowerCase() === ADDRESSES.WETH?.toLowerCase()
+                  ? `${pair.symbol1}/${pair.symbol0}`
+                  : `${pair.symbol0}/${pair.symbol1}`}
+                {' '}<span className="text-gray-400 font-mono text-xs">LP</span>
+              </p>
               <CopyAddr address={pair.address} />
             </div>
             <p className="text-xs text-gray-400 shrink-0">{fmt18(pair.lpSupply)} LP supply</p>
