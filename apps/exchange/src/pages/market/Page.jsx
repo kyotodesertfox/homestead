@@ -1232,9 +1232,10 @@ export default function MarketPage() {
           <div>
             <h4 className="text-gray-900 font-black text-sm uppercase tracking-tight">About the Market</h4>
             <p className="text-gray-500 text-xs mt-1 leading-relaxed font-medium">
-              Producers purchase inventory NFTs from the Treasury, then list them here for
-              $BEER. Buyers pay with tokens; proceeds go directly to the producer wallet.
-              A small platform fee (governed by the Treasury) applies to each sale.
+              Producers purchase inventory NFTs from the Treasury and list them here for
+              their native token. Buyers pay with tokens; proceeds go directly to the
+              producer wallet. A small platform fee governed by the Treasury applies to
+              each sale.
             </p>
           </div>
         </section>
