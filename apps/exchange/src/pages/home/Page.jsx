@@ -426,6 +426,51 @@ export default function HomePage() {
           <FeaturedListings />
         </section>
 
+        {/* ── THE DEAL ──────────────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
+            <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-8 leading-tight">
+              Same farm. Same eggs.<br />Better price — if you take the path.
+            </h2>
+
+            <div className="grid md:grid-cols-3 items-center gap-4 mb-8">
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm text-center">
+                <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Publix</p>
+                <p className="text-5xl font-black text-gray-300 line-through">$6.79</p>
+                <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Sat in a truck.<br />Three weeks ago.</p>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <ArrowRight size={36} className="text-hub-green" strokeWidth={3} />
+              </div>
+
+              <div className="bg-hub-green rounded-xl p-6 shadow-md text-center">
+                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-3">Community Price</p>
+                <p className="text-5xl font-black text-white">$6.00</p>
+                <p className="text-white/80 text-xs font-medium mt-3 leading-relaxed">This farm.<br />This morning.</p>
+              </div>
+            </div>
+
+            <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-2">
+              Token holders pay the community price. Cash buyers pay market rate.
+              Same product, same farm, same day — the difference stays out of the supply chain.
+            </p>
+            <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
+              You don't need to understand blockchain to get the deal.
+              Swap a little ETH for community tokens on our{' '}
+              <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link> — takes about five minutes.
+              Then you're a token holder, and the community price is yours.
+            </p>
+            <Link
+              to="/swap"
+              className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded"
+            >
+              Get the Deal <ArrowRight size={16} strokeWidth={3} />
+            </Link>
+          </div>
+        </section>
+
         {/* ── WHY NOT JUST CASH ─────────────────────────────────────────── */}
         <section className="mb-12 bg-gray-900 rounded-2xl p-8 md:p-12 text-white">
           <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-4">
