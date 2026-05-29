@@ -9,6 +9,108 @@ import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI, PRI
 const EXPLORER = 'https://hekla.taikoscan.io';
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
+const HOW_IT_WORKS_STEPS = [
+  {
+    number: '01',
+    title:  'Buy ETH',
+    image:  '/onboarding/step-1-buy-eth.png',
+    body:   'Start on any major exchange - Coinbase, Kraken, or Binance. Buy a small amount of Ethereum (ETH). You don\'t need much - even $20 is enough to get started.',
+    link:   null,
+  },
+  {
+    number: '02',
+    title:  'Bridge to Taiko',
+    image:  '/onboarding/step-2-bridge.png',
+    body:   'Bridging moves your ETH from the main Ethereum network to Taiko - a faster, cheaper layer built on top of it. Think of it like moving money between two bank accounts. It takes about 2 minutes.',
+    link:   { label: 'Open Bridge', href: 'https://bridge.taiko.xyz' },
+  },
+  {
+    number: '03',
+    title:  'Swap for $EGG',
+    image:  '/onboarding/step-3-swap.png',
+    body:   'Once your ETH is on Taiko, head to our Swap page and trade a little of it for $EGG or any of our available tokens. $EGG is what you\'ll use to pay the community price at the farm.',
+    link:   { label: 'Go to Swap', href: '/swap', internal: true },
+  },
+  {
+    number: '04',
+    title:  'Claim Goods',
+    image:  '/onboarding/step-4-redeem.png',
+    body:   'Use your $EGG tokens to purchase an egg carton NFT from our marketplace. That NFT is your claim - bring it to the farm and redeem it for the real thing. No middleman, no markup.',
+    link:   null,
+  },
+];
+
+function HowItWorksModal({ onClose }) {
+  const [step, setStep] = useState(0);
+  const s = HOW_IT_WORKS_STEPS[step];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl overflow-hidden max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-3">
+          <div>
+            <p className="text-hub-green text-[10px] font-black uppercase tracking-widest">How it works</p>
+            <h3 className="text-xl font-black uppercase tracking-tighter text-gray-900">{s.title}</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors"><X size={20} /></button>
+        </div>
+
+        {/* Step counter */}
+        <div className="flex gap-1.5 px-6 mb-4">
+          {HOW_IT_WORKS_STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i)}
+              className={`h-1 flex-1 rounded-full transition-all ${i === step ? 'bg-hub-green' : 'bg-gray-200'}`}
+            />
+          ))}
+        </div>
+
+        {/* Image */}
+        <div className="w-full h-52 bg-gray-50 overflow-hidden">
+          {s.image && (
+            <img
+              src={s.image}
+              alt={s.title}
+              className="w-full h-full object-cover"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+          <p className="text-gray-600 text-sm font-medium leading-relaxed mb-5">{s.body}</p>
+
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setStep(i => Math.max(0, i - 1))}
+              className={`text-sm font-black uppercase tracking-widest text-gray-400 hover:text-gray-700 transition-colors ${step === 0 ? 'invisible' : ''}`}
+            >
+              ← Back
+            </button>
+
+            <div className="flex items-center gap-3 ml-auto">
+              {s.link && (
+                s.link.internal
+                  ? <Link to={s.link.href} onClick={onClose} className="text-hub-green text-sm font-black uppercase tracking-widest hover:underline underline-offset-2">{s.link.label} →</Link>
+                  : <a href={s.link.href} target="_blank" rel="noopener noreferrer" className="text-hub-green text-sm font-black uppercase tracking-widest hover:underline underline-offset-2">{s.link.label} →</a>
+              )}
+              {step < HOW_IT_WORKS_STEPS.length - 1
+                ? <button onClick={() => setStep(i => i + 1)} className="bg-hub-green text-white font-black py-2 px-6 uppercase tracking-widest hover:bg-green-700 transition-all rounded text-sm">Next</button>
+                : <button onClick={onClose} className="bg-hub-green text-white font-black py-2 px-6 uppercase tracking-widest hover:bg-green-700 transition-all rounded text-sm">Done</button>
+              }
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 const IPFS_GW = 'https://ipfs.io/ipfs/';
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
@@ -667,7 +769,8 @@ export default function HomePage() {
   const { open }                  = useAppKit();
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();
-  const [activeTab, setActiveTab] = useState('Exchange');
+  const [activeTab, setActiveTab]       = useState('Exchange');
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -792,7 +895,7 @@ export default function HomePage() {
               <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
                 The token path costs less - not as a gimmick, as a reflection of reality.
                 No distributor, no shelf-life engineering, no corporate margin. The result is a
-                more nutrient-dense product at a lower price. That's what removing the supply chain actually does.
+                more <strong className="text-gray-900 font-black">nutrient-dense</strong> product at a lower price. That's what cutting out the middleman actually does.
               </p>
               <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
                 The friction of setting it up is the cost of the difference. Swap a little ETH for
@@ -804,7 +907,15 @@ export default function HomePage() {
                 <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
                   Get the Deal <ArrowRight size={16} strokeWidth={3} />
                 </Link>
+                <button
+                  onClick={() => setShowHowItWorks(true)}
+                  className="inline-flex items-center gap-2 border-2 border-hub-green text-hub-green font-black py-3 px-8 uppercase tracking-widest hover:bg-hub-green/5 transition-all rounded"
+                >
+                  How it works
+                </button>
               </div>
+
+              {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
             </div>
           </div>
         </section>
