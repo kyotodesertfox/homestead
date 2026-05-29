@@ -100,7 +100,7 @@ function PriceEvidenceCard() {
         args: [IpfsHash, BigInt(Math.round(parseFloat(priceInput) * 100)), remarks],
       });
     } catch {
-      setPinError('Upload failed — check your connection and try again.');
+      setPinError('Upload failed - check your connection and try again.');
     } finally {
       setPinning(false);
     }
@@ -115,26 +115,36 @@ function PriceEvidenceCard() {
     <>
       <button
         onClick={() => setMode('lightbox')}
-        className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm text-center w-full hover:shadow-md hover:-translate-y-0.5 transition-all group"
+        className="relative rounded-xl border border-gray-200 shadow-sm text-center w-full hover:shadow-md hover:-translate-y-0.5 transition-all group overflow-hidden"
       >
-        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">
-          {hasFeatured ? 'Cash Price · Community Reported' : 'Cash Price'}
-        </p>
-        <p className="text-5xl font-black text-gray-300 line-through">{cashPrice}</p>
-        {hasFeatured && featuredRemarks && (
-          <p className="text-gray-400 text-xs font-medium mt-2">{featuredRemarks}</p>
-        )}
-        {hasFeatured && (
-          <p className="text-gray-400 text-[10px] font-medium mt-2">by {shortAddr(featuredSub)}</p>
-        )}
-        {!hasFeatured && (
-          <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">
-            Unknown farm.<br />Weeks in transit.
+        {/* Ghost background photo */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${photoUrl})` }}
+        />
+        <div className="absolute inset-0 bg-white/90" />
+
+        {/* Content */}
+        <div className="relative z-10 p-6">
+          <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest mb-3">
+            {hasFeatured ? 'Cash Price · Community Reported' : 'Cash Price'}
           </p>
-        )}
-        <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mt-4 group-hover:underline underline-offset-2">
-          See evidence →
-        </p>
+          <p className="text-5xl font-black text-gray-500 line-through">{cashPrice}</p>
+          {hasFeatured && featuredRemarks && (
+            <p className="text-gray-600 text-xs font-medium mt-2">{featuredRemarks}</p>
+          )}
+          {hasFeatured && (
+            <p className="text-gray-500 text-[10px] font-medium mt-2">by {shortAddr(featuredSub)}</p>
+          )}
+          {!hasFeatured && (
+            <p className="text-gray-600 text-xs font-medium mt-3 leading-relaxed">
+              Unknown farm.<br />Weeks in transit.
+            </p>
+          )}
+          <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mt-4 group-hover:underline underline-offset-2">
+            See evidence →
+          </p>
+        </div>
       </button>
 
       {mode !== 'closed' && (
@@ -149,7 +159,7 @@ function PriceEvidenceCard() {
                     <div>
                       {hasFeatured ? (
                         <>
-                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">{cashPrice} — community reported</p>
+                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">{cashPrice} - community reported</p>
                           {featuredRemarks && <p className="text-gray-400 text-xs mt-0.5">{featuredRemarks}</p>}
                           <a href={`${EXPLORER}/address/${featuredSub}`} target="_blank" rel="noopener noreferrer"
                             className="text-hub-green text-xs font-black mt-0.5 hover:underline inline-block">
@@ -158,7 +168,7 @@ function PriceEvidenceCard() {
                         </>
                       ) : (
                         <>
-                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Store shelf — $6.19</p>
+                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Store shelf - $6.19</p>
                           <p className="text-gray-400 text-xs mt-0.5">Free range, 12 large. This is what the supply chain costs you.</p>
                         </>
                       )}
@@ -189,7 +199,7 @@ function PriceEvidenceCard() {
 
                 {!isConnected ? (
                   <div className="text-center py-6">
-                    <p className="text-gray-500 text-sm font-medium mb-4">Connect your wallet — it's where your $EGG lands.</p>
+                    <p className="text-gray-500 text-sm font-medium mb-4">Connect your wallet - it's where your $EGG lands.</p>
                     <button onClick={() => openWallet()} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg">
                       Connect Wallet
                     </button>
@@ -258,7 +268,7 @@ function PriceEvidenceCard() {
                 <p className="text-hub-green font-black text-4xl mb-4">✓</p>
                 <p className="text-gray-900 font-black text-lg uppercase tracking-tight mb-2">On chain.</p>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed mb-6">
-                  Submission recorded. If approved, {rewardLabel} lands in your wallet — and you'll have a shot at completing the full carton deal.
+                  Submission recorded. If approved, {rewardLabel} lands in your wallet - and you'll have a shot at completing the full carton deal.
                 </p>
                 <button onClick={handleClose} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700">Done</button>
               </div>
@@ -318,10 +328,10 @@ function DealCreditBanner() {
           <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1">Your submission was approved</p>
           <p className="text-gray-900 font-black text-lg">You have 1 $EGG credit.</p>
           <p className="text-gray-500 text-sm font-medium mt-1 max-w-sm">
-            Claim it now, or complete the deal — get 5 more and walk away with a full carton NFT ready to redeem.
+            Claim it now, or complete the deal - get 5 more and walk away with a full carton NFT ready to redeem.
           </p>
           {!submissionId && (
-            <p className="text-amber-600 text-xs font-medium mt-2">Submission ID not in this browser — use "Claim 1 $EGG" to withdraw.</p>
+            <p className="text-amber-600 text-xs font-medium mt-2">Submission ID not in this browser - use "Claim 1 $EGG" to withdraw.</p>
           )}
         </div>
         <div className="flex flex-col gap-2 shrink-0">
@@ -345,7 +355,7 @@ function DealCreditBanner() {
   );
 }
 
-// Lightweight listing card — teaser only, full interaction lives on /market
+// Lightweight listing card - teaser only, full interaction lives on /market
 function FeaturedListingCard({ id }) {
   const [meta,   setMeta]   = useState(null);
   const [imgErr, setImgErr] = useState(false);
@@ -393,7 +403,7 @@ function FeaturedListingCard({ id }) {
   if (!active) return null;
 
   const inStock     = inventoryCount != null && inventoryCount > 0n;
-  const priceStr    = price != null ? formatUnits(price, 18) : '—';
+  const priceStr    = price != null ? formatUnits(price, 18) : '-';
   const tokenSymbol = rawSymbol ? `$${rawSymbol}` : null;
 
   return (
@@ -506,7 +516,7 @@ function EggFeaturedPlaceholder({ name, priceAmount, tokenSymbol, image }) {
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
-            <p className="text-gray-900 font-black">{priceLabel ?? '—'}</p>
+            <p className="text-gray-900 font-black">{priceLabel ?? '-'}</p>
           </div>
           <span className="text-hub-green text-xs font-black uppercase tracking-widest">View →</span>
         </div>
@@ -548,7 +558,7 @@ function FeaturedListings() {
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
-// Deterministic color from token address — stable for everyone, no config needed
+// Deterministic color from token address - stable for everyone, no config needed
 function addressColor(address) {
   const hex = address.slice(2);
   let n = 0;
@@ -644,7 +654,7 @@ function DynamicPortals() {
 
 const features = [
   { icon: <ShoppingBag size={28} />, title: 'Market',  text: 'Browse all open listings across the Homestead ecosystem.',            to: '/market' },
-  { icon: <Repeat size={28} />,      title: 'Swap',    text: 'Trade any Homestead token directly — $BEER, $EGG, and more.',         to: '/swap'   },
+  { icon: <Repeat size={28} />,      title: 'Swap',    text: 'Trade any Homestead token directly - $BEER, $EGG, and more.',         to: '/swap'   },
   { icon: <ArrowLeftRight size={28} />, title: 'Bridge', text: 'Move ETH from any exchange into Taiko in under two minutes.',       to: '/bridge' },
 ];
 
@@ -653,7 +663,7 @@ const TABS = ['Exchange', 'Portals'];
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  useEffect(() => { document.title = 'Homestead — Grown here. Sold here.'; }, []);
+  useEffect(() => { document.title = 'Homestead - Grown here. Sold here.'; }, []);
   const { open }                  = useAppKit();
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();
@@ -677,7 +687,7 @@ export default function HomePage() {
             The eggs at your grocery store sat in a truck for three weeks. These didn't.
           </p>
           <p className="text-gray-500 font-medium leading-relaxed max-w-2xl mb-8">
-            Homestead is a direct market for local producers — brewers, farmers, and homesteaders
+            Homestead is a direct market for local producers - brewers, farmers, and homesteaders
             who grow and make for themselves first, and sell what they'd put on their own table.
             No distributor. No markup. No middleman taking a cut on the way to your door.
           </p>
@@ -706,7 +716,7 @@ export default function HomePage() {
                 Full nutrition.<br />No compromise.
               </h3>
               <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                Commercial distribution forces corner-cutting — shelf life, transport, regulation.
+                Commercial distribution forces corner-cutting - shelf life, transport, regulation.
                 Homestead producers grow without that overhead. What you get is what they eat.
               </p>
             </div>
@@ -729,7 +739,7 @@ export default function HomePage() {
               </h3>
               <p className="text-gray-500 text-sm font-medium leading-relaxed">
                 Your neighbor trusts a producer because they know them. Homestead lets that trust
-                travel — to buyers who've never met them, backed by every batch they've delivered.
+                travel - to buyers who've never met them, backed by every batch they've delivered.
               </p>
             </div>
           </div>
@@ -756,22 +766,22 @@ export default function HomePage() {
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-2 leading-tight">
-              Better food.<br />Better price — if you take the path.
+              Better food<br />Better price - if you pay with crypto
             </h2>
             <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
-              Cash is welcome — at the price on the left. That number is community-reported:
+              Cash is welcome - at the price on the left. That number is community-reported:
               real shelf photos submitted by wallet holders, verified and updated when someone
               finds a better one. Token holders pay less.
             </p>
 
-            <div className="grid md:grid-cols-3 items-center gap-4 mb-4">
+            <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-2 mb-4">
               <PriceEvidenceCard />
-              <div className="flex items-center justify-center">
-                <ArrowRight size={36} className="text-hub-green" strokeWidth={3} />
+              <div className="flex items-center justify-center px-2">
+                <ArrowRight size={28} className="text-hub-green" strokeWidth={3} />
               </div>
-              <div className="bg-hub-green rounded-xl p-6 shadow-md text-center">
+              <div className="bg-hub-green rounded-xl p-6 shadow-md text-center flex flex-col items-center justify-center">
                 <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-3">Token Price</p>
-                <p className="text-5xl font-black text-white">$6.00</p>
+                <p className="text-5xl font-black text-white">$5.50</p>
                 <p className="text-white/80 text-xs font-medium mt-3 leading-relaxed">Local farm.<br />Nutrient-rich. This morning.</p>
               </div>
             </div>
@@ -780,7 +790,7 @@ export default function HomePage() {
 
             <div className="mt-8 border-t border-hub-green/10 pt-8">
               <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
-                The token path costs less — not as a gimmick, as a reflection of reality.
+                The token path costs less - not as a gimmick, as a reflection of reality.
                 No distributor, no shelf-life engineering, no corporate margin. The result is a
                 more nutrient-dense product at a lower price. That's what removing the supply chain actually does.
               </p>
@@ -788,7 +798,7 @@ export default function HomePage() {
                 The friction of setting it up is the cost of the difference. Swap a little ETH for
                 community tokens on our{' '}
                 <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link>{' '}
-                — takes about five minutes. Or submit a store price photo and earn your first token for free.
+                - takes about five minutes. Or submit a store price photo and earn your first $EGG token on us. To keep the token meaningful, photo submissions require a small ETH balance in your wallet - not spent, just held. It's proof you've bridged and have skin in the game.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
@@ -808,7 +818,7 @@ export default function HomePage() {
             <p className="text-gray-500 font-medium leading-relaxed max-w-2xl">
               The neighbor who buys your eggs today could be selling you tomatoes next season.
               Every producer who joins brings new supply. Every buyer who holds a token signals
-              real demand. The more people who participate — on either side — the less anyone
+              real demand. The more people who participate - on either side - the less anyone
               depends on a supply chain that was never built for them.
             </p>
             <p className="text-gray-500 font-medium leading-relaxed max-w-2xl mt-3">
@@ -827,8 +837,8 @@ export default function HomePage() {
                 Vetted service providers.<br />Same market, same rules.
               </h3>
               <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                A carpenter. An electrician. A mechanic. Anyone who produces more than they consume —
-                in goods or in skills — can participate. Homestead isn't limited to what grows in the ground.
+                A carpenter. An electrician. A mechanic. Anyone who produces more than they consume -
+                in goods or in skills - can participate. Homestead isn't limited to what grows in the ground.
                 It's for anyone the current system undervalues.
               </p>
             </div>
@@ -840,7 +850,7 @@ export default function HomePage() {
               <p className="text-gray-500 text-sm font-medium leading-relaxed">
                 Every transaction, every delivered batch, every redeemed token adds to your on-chain
                 standing. No credit agency decides your tier. No institution gatekeeps your access.
-                Your history is what you've actually done — verifiable, neutral, and yours.
+                Your history is what you've actually done - verifiable, neutral, and yours.
               </p>
             </div>
           </div>
@@ -864,7 +874,7 @@ export default function HomePage() {
                 <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Stake ETH</h3>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">
                   Deposit ETH into the protocol. You receive a credential token that reflects your
-                  standing — not a receipt, not a yield instrument. Proof that you have skin in the game.
+                  standing - not a receipt, not a yield instrument. Proof that you have skin in the game.
                   This is your investment in your own reputation.
                 </p>
               </div>
@@ -875,7 +885,7 @@ export default function HomePage() {
                 <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your production</h3>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">
                   Open a lot against your stake. The collateral ratio is enforced by math, not a loan officer.
-                  Production tokens are minted — each one a redeemable promise backed by your stake.
+                  Production tokens are minted - each one a redeemable promise backed by your stake.
                   No rehypothecation. One token, one real thing.
                 </p>
               </div>
@@ -886,12 +896,12 @@ export default function HomePage() {
                 <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">
                   Put your goods on the market. The token price is what real demand says your
-                  production is worth — not a distributor's offer, not a grocery store margin that
+                  production is worth - not a distributor's offer, not a grocery store margin that
                   squeezes both sides. Cash is welcome when it beats that price. Below it is a
                   lowball. The friction of paying in crypto is worth it because what you're buying
                   is genuinely better: full nutrition, grown without compromise, from someone who
                   eats what they sell. You pay a fair price directly to the producer. They keep it.
-                  Every fulfilled order builds your on-chain track record — portable, verifiable,
+                  Every fulfilled order builds your on-chain track record - portable, verifiable,
                   and not controlled by any platform that can revoke it.
                 </p>
               </div>
@@ -905,9 +915,9 @@ export default function HomePage() {
             You grow it.<br />Demand prices it.<br />You keep it.
           </h2>
           <p className="text-gray-500 font-medium leading-relaxed mb-6 max-w-xl">
-            A distributor pays you their price — fixed, negotiated down, regardless of how good your
+            A distributor pays you their price - fixed, negotiated down, regardless of how good your
             product is or how many people want it. On Homestead, the token price reflects real market
-            demand. When demand outpaces your supply, the price rises — and that value goes to you,
+            demand. When demand outpaces your supply, the price rises - and that value goes to you,
             not the middleman who got there first.
           </p>
           {isConnected ? (
