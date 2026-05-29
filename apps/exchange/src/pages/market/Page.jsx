@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Info, Plus, X, ImagePlus, Copy, CheckCheck, Upload, ArrowRight, PackagePlus } from 'lucide-react';
+import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
@@ -692,7 +693,8 @@ function StockModal({ listingId, onClose, onStocked }) {
 
 // ─── Listing Detail Modal ─────────────────────────────────────────────────────
 function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocked, onRefetch }) {
-  const { address } = useAccount();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAccount();
   const [imgErr,   setImgErr]   = useState(false);
   const [bought,   setBought]   = useState(false);
   const [showStock, setShowStock] = useState(false);
@@ -739,6 +741,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
   }, [isSuccess]);
 
   const handleBuy = () => {
+    if (!isConnected || !address) return;
     if (!approved) {
       writeContract({ address: paymentToken, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.MARKETPLACE, price] });
     } else {
@@ -861,9 +864,16 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                 <PackagePlus size={15} strokeWidth={3} />
                 {inStock ? 'Add Stock' : 'Stock Listing'}
               </button>
-            ) : address ? (
+            ) : (
               <div className="space-y-3">
-                {needsApprove && (
+                {!isConnected && (
+                  <p className="text-gray-500 text-xs font-medium leading-relaxed">
+                    You'll need a connected wallet and {tokenSymbol ?? 'tokens'} to purchase.
+                    Don't have any yet? Bridge ETH to Taiko and swap for {tokenSymbol ?? 'tokens'} on the{' '}
+                    <a href="/swap" className="text-hub-green font-black underline-offset-2 hover:underline">Swap page</a>.
+                  </p>
+                )}
+                {isConnected && needsApprove && (
                   <p className="text-gray-400 text-xs font-medium">
                     First approve the Marketplace to spend <span className="text-gray-700 font-black">{priceStr} {tokenSymbol ?? 'token'}</span>, then confirm the purchase.
                   </p>
@@ -872,22 +882,19 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                   <p className="text-red-400 text-xs font-medium">{writeErr.shortMessage ?? writeErr.message}</p>
                 )}
                 <button
-                  onClick={handleBuy}
-                  disabled={!inStock || isPending}
+                  onClick={isConnected ? handleBuy : () => open()}
+                  disabled={isConnected && (!inStock || isPending)}
                   className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
                 >
-                  {!inStock      ? 'Sold Out'
-                   : isPending   ? 'Pending…'
-                   : needsApprove ? `Step 1 — Approve ${tokenSymbol ?? 'token'}`
-                   :               'Buy Now 🍺'}
+                  {!isConnected                          ? 'Connect Wallet'
+                   : !inStock                            ? 'Sold Out'
+                   : isPending                           ? 'Pending…'
+                   : needsApprove                        ? `Step 1 — Approve ${tokenSymbol ?? 'token'}`
+                   :                                       'Buy Now 🍺'}
                 </button>
-                {!needsApprove && inStock && (
+                {isConnected && !needsApprove && inStock && (
                   <p className="text-gray-400 text-[10px] text-center font-medium">{tokenSymbol ?? 'Token'} approved — one click to buy</p>
                 )}
-              </div>
-            ) : (
-              <div className="w-full py-3.5 rounded-xl bg-gray-100 text-gray-400 font-black uppercase tracking-widest text-sm text-center">
-                Connect Wallet to Buy
               </div>
             )}
 
