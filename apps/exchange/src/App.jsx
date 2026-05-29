@@ -1,5 +1,12 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import MainLayout from './components/layout';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
 
 const pages = import.meta.glob('./pages/**/*Page.jsx', { eager: true });
 
@@ -19,6 +26,7 @@ const routes = Object.keys(pages).map((path) => {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<MainLayout />}>
           {routes.map(({ path, component: Component }) => (

@@ -22,7 +22,7 @@ const HOW_IT_WORKS_STEPS = [
     title:  'Bridge to Taiko',
     image:  '/onboarding/step-2-bridge.png',
     body:   'Bridging moves your ETH from the main Ethereum network to Taiko - a faster, cheaper layer built on top of it. Think of it like moving money between two bank accounts. It takes about 2 minutes.',
-    link:   { label: 'Open Bridge', href: 'https://bridge.taiko.xyz' },
+    link:   { label: 'Open Bridge', href: '/bridge', internal: true },
   },
   {
     number: '03',
