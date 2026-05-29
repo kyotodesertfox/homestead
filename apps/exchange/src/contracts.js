@@ -13,6 +13,7 @@ export const ADDRESSES = {
   EGG_TOKEN:        import.meta.env.VITE_EGG_TOKEN,
   EGGNFT:           import.meta.env.VITE_EGG_NFT,
   EGG_WETH_PAIR:    import.meta.env.VITE_EGG_WETH_PAIR,
+  PRICE_EVIDENCE:   import.meta.env.VITE_PRICE_EVIDENCE,
 };
 
 export const ERC20_ABI = [
@@ -388,6 +389,76 @@ export const EXPECTED_VERSIONS = {
   TOKEN_DEPLOYER: 1,
   NFT_DEPLOYER:   1,
 };
+
+export const PRICE_EVIDENCE_ABI = [
+  // view
+  { name: 'getFeatured',         type: 'function', stateMutability: 'view', inputs: [], outputs: [
+    { name: 'submitter',  type: 'address' },
+    { name: 'ipfsHash',   type: 'string'  },
+    { name: 'priceCents', type: 'uint256' },
+    { name: 'remarks',    type: 'string'  },
+  ]},
+  { name: 'rewardAmount',        type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'minEthBalance',       type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'usePool',             type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool'    }] },
+  { name: 'nextId',              type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'featuredId',          type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'featuredPriceCents',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'eggCartonListingId',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'eggCredit',           type: 'function', stateMutability: 'view',
+    inputs:  [{ name: '', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  { name: 'getSubmission',       type: 'function', stateMutability: 'view',
+    inputs:  [{ name: 'id', type: 'uint256' }],
+    outputs: [{ type: 'tuple', components: [
+      { name: 'submitter',         type: 'address' },
+      { name: 'ipfsHash',          type: 'string'  },
+      { name: 'claimedPriceCents', type: 'uint256' },
+      { name: 'remarks',           type: 'string'  },
+      { name: 'status',            type: 'uint8'   },
+      { name: 'dealCompleted',     type: 'bool'    },
+    ]}],
+  },
+  // write
+  { name: 'submit', type: 'function', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'ipfsHash',          type: 'string'  },
+      { name: 'claimedPriceCents', type: 'uint256' },
+      { name: 'remarks',           type: 'string'  },
+    ],
+    outputs: [{ name: 'id', type: 'uint256' }],
+  },
+  { name: 'claimEgg',       type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'completeTheDeal', type: 'function', stateMutability: 'payable',
+    inputs: [{ name: 'submissionId', type: 'uint256' }],
+    outputs: [],
+  },
+  // events
+  { name: 'Submitted', type: 'event', inputs: [
+    { name: 'id',                type: 'uint256', indexed: true  },
+    { name: 'submitter',         type: 'address', indexed: true  },
+    { name: 'claimedPriceCents', type: 'uint256', indexed: false },
+    { name: 'ipfsHash',          type: 'string',  indexed: false },
+  ]},
+  { name: 'Approved', type: 'event', inputs: [
+    { name: 'id',                 type: 'uint256', indexed: true  },
+    { name: 'submitter',          type: 'address', indexed: true  },
+    { name: 'verifiedPriceCents', type: 'uint256', indexed: false },
+    { name: 'eggCredited',        type: 'uint256', indexed: false },
+    { name: 'featured',           type: 'bool',    indexed: false },
+  ]},
+  { name: 'DealCompleted', type: 'event', inputs: [
+    { name: 'submissionId', type: 'uint256', indexed: true  },
+    { name: 'submitter',    type: 'address', indexed: true  },
+    { name: 'tokenId',      type: 'uint256', indexed: true  },
+    { name: 'ethSpent',     type: 'uint256', indexed: false },
+  ]},
+  { name: 'EggClaimed', type: 'event', inputs: [
+    { name: 'submitter', type: 'address', indexed: true  },
+    { name: 'amount',    type: 'uint256', indexed: false },
+  ]},
+];
 
 export const DEADLINE = () => BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 export const SLIPPAGE_BPS = 50n;

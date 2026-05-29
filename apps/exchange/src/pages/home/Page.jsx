@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard, ArrowRight, X } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useReadContract } from 'wagmi';
-import { formatUnits } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
+import { formatUnits, decodeEventLog } from 'viem';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI, PRICE_EVIDENCE_ABI } from '../../contracts';
+
+const EXPLORER = 'https://hekla.taikoscan.io';
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
 const IPFS_GW = 'https://ipfs.io/ipfs/';
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
@@ -22,17 +25,50 @@ async function fetchMeta(tokenUri) {
 }
 
 function PriceEvidenceCard() {
-  const { address } = useAccount();
-  const [open, setOpen]           = useState(false);
-  const [mode, setMode]           = useState('view'); // 'view' | 'submit'
+  const { address, isConnected } = useAccount();
+  const { open: openWallet }     = useAppKit();
+  const [mode, setMode]  = useState('closed'); // 'closed' | 'lightbox' | 'submit'
   const [photo, setPhoto]         = useState(null);
   const [preview, setPreview]     = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [priceInput, setPriceInput] = useState('');
+  const [remarks, setRemarks]     = useState('');
   const [wallet, setWallet]       = useState('');
+  const [pinning, setPinning]     = useState(false);
+  const [pinError, setPinError]   = useState(null);
   const fileRef = useRef(null);
 
   useEffect(() => { if (address) setWallet(address); }, [address]);
+
+  const contractAddr = ADDRESSES.PRICE_EVIDENCE;
+
+  const { data: featured }    = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'getFeatured',   query: { enabled: !!contractAddr } });
+  const { data: rewardAmt }   = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'rewardAmount',  query: { enabled: !!contractAddr } });
+  const { data: minEth }      = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'minEthBalance', query: { enabled: !!contractAddr } });
+  const { data: ethBal }      = useBalance({ address, query: { enabled: !!address } });
+
+  const hasFeatured     = featured && featured[0] !== ZERO_ADDR;
+  const cashPrice       = hasFeatured ? `$${(Number(featured[2]) / 100).toFixed(2)}` : '$6.19';
+  const featuredRemarks = hasFeatured ? featured[3] : null;
+  const featuredSub     = hasFeatured ? featured[0] : null;
+  const photoUrl        = hasFeatured && featured[1] ? `https://ipfs.io/ipfs/${featured[1]}` : '/store-egg-price.jpg';
+  const rewardLabel     = rewardAmt != null ? `${rewardAmt} $EGG` : '$EGG';
+  const meetsMinEth     = !minEth || !ethBal || ethBal.value >= minEth;
+  const minEthLabel     = minEth ? `${Number(formatUnits(minEth, 18)).toFixed(3)} ETH` : 'ETH';
+  const shortAddr       = (a) => a ? `${a.slice(0,6)}...${a.slice(-4)}` : '';
+
+  const { writeContract: writeSubmit, data: submitHash, isPending: submitPending } = useWriteContract();
+  const { data: submitReceipt, isSuccess: submitConfirmed } = useWaitForTransactionReceipt({ hash: submitHash });
+
+  useEffect(() => {
+    if (!submitConfirmed || !submitReceipt || !address) return;
+    for (const log of submitReceipt.logs) {
+      try {
+        const { args } = decodeEventLog({ abi: PRICE_EVIDENCE_ABI, eventName: 'Submitted', data: log.data, topics: log.topics });
+        if (args.submitter?.toLowerCase() === address.toLowerCase())
+          localStorage.setItem(`pe_sub_${address}`, args.id.toString());
+      } catch {}
+    }
+  }, [submitConfirmed, submitReceipt, address]);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -41,170 +77,271 @@ function PriceEvidenceCard() {
     setPreview(URL.createObjectURL(file));
   };
 
-  const handleSubmit = async () => {
-    if (!photo) return;
-    setSubmitting(true);
+  const handleSubmitEvidence = async () => {
+    if (!photo || !priceInput || !wallet || !contractAddr) return;
+    setPinning(true);
+    setPinError(null);
     try {
       const form = new FormData();
       form.append('file', photo);
       form.append('pinataMetadata', JSON.stringify({
         name: `price-evidence-${Date.now()}`,
-        keyvalues: { submittedBy: wallet, source: 'homestead-price-evidence' },
+        keyvalues: { submittedBy: wallet, claimedPrice: priceInput, source: 'homestead-price-evidence' },
       }));
-      await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${PINATA_JWT}` },
-        body: form,
+      const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST', headers: { Authorization: `Bearer ${PINATA_JWT}` }, body: form,
       });
-      setSubmitted(true);
-    } catch (err) {
-      console.error('Pinata upload failed:', err);
+      if (!res.ok) throw new Error('pinata');
+      const { IpfsHash } = await res.json();
+      writeSubmit({
+        address: contractAddr,
+        abi: PRICE_EVIDENCE_ABI,
+        functionName: 'submit',
+        args: [IpfsHash, BigInt(Math.round(parseFloat(priceInput) * 100)), remarks],
+      });
+    } catch {
+      setPinError('Upload failed — check your connection and try again.');
     } finally {
-      setSubmitting(false);
+      setPinning(false);
     }
   };
 
   const handleClose = () => {
-    setOpen(false);
-    setMode('view');
-    setPhoto(null);
-    setPreview(null);
-    setSubmitted(false);
+    setMode('closed');
+    setPhoto(null); setPreview(null); setPriceInput(''); setRemarks(''); setPinError(null);
   };
 
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setMode('lightbox')}
         className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm text-center w-full hover:shadow-md hover:-translate-y-0.5 transition-all group"
       >
-        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Store Brand</p>
-        <p className="text-5xl font-black text-gray-300 line-through">$6.19</p>
-        <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Unknown farm.<br />Weeks in transit.</p>
+        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">
+          {hasFeatured ? 'Cash Price · Community Reported' : 'Cash Price'}
+        </p>
+        <p className="text-5xl font-black text-gray-300 line-through">{cashPrice}</p>
+        {hasFeatured && featuredRemarks && (
+          <p className="text-gray-400 text-xs font-medium mt-2">{featuredRemarks}</p>
+        )}
+        {hasFeatured && (
+          <p className="text-gray-400 text-[10px] font-medium mt-2">by {shortAddr(featuredSub)}</p>
+        )}
+        {!hasFeatured && (
+          <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">
+            Unknown farm.<br />Weeks in transit.
+          </p>
+        )}
         <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mt-4 group-hover:underline underline-offset-2">
           See evidence →
         </p>
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={handleClose}
-        >
-          <div
-            className="bg-white rounded-2xl overflow-hidden max-w-lg w-full shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {mode === 'view' && (
+      {mode !== 'closed' && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={handleClose}>
+          <div className="bg-white rounded-2xl overflow-hidden max-w-lg w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+
+            {mode === 'lightbox' && (
               <>
-                <img
-                  src="/store-egg-price.jpg"
-                  alt="Store shelf price tag showing $6.19 for free range eggs"
-                  className="w-full object-cover"
-                />
+                <img src={photoUrl} alt="Store price evidence" className="w-full object-cover max-h-72" />
                 <div className="px-6 py-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-start justify-between mb-4">
                     <div>
-                      <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Store shelf — $6.19</p>
-                      <p className="text-gray-400 text-xs font-medium mt-0.5">Free range, 12 large. This is what the supply chain costs you.</p>
+                      {hasFeatured ? (
+                        <>
+                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">{cashPrice} — community reported</p>
+                          {featuredRemarks && <p className="text-gray-400 text-xs mt-0.5">{featuredRemarks}</p>}
+                          <a href={`${EXPLORER}/address/${featuredSub}`} target="_blank" rel="noopener noreferrer"
+                            className="text-hub-green text-xs font-black mt-0.5 hover:underline inline-block">
+                            {shortAddr(featuredSub)} earned {rewardLabel} →
+                          </a>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Store shelf — $6.19</p>
+                          <p className="text-gray-400 text-xs mt-0.5">Free range, 12 large. This is what the supply chain costs you.</p>
+                        </>
+                      )}
                     </div>
-                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 transition-colors ml-4 shrink-0">
-                      <X size={20} />
-                    </button>
+                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 ml-4 shrink-0"><X size={20} /></button>
                   </div>
                   <button
                     onClick={() => setMode('submit')}
                     className="w-full py-2.5 px-4 border-2 border-hub-green text-hub-green font-black text-xs uppercase tracking-widest rounded-lg hover:bg-hub-green hover:text-white transition-all"
                   >
-                    Submit your own price evidence → earn $EGG
+                    {hasFeatured ? `Beat this price → earn ${rewardLabel}` : `Submit evidence → earn ${rewardLabel}`}
                   </button>
                 </div>
               </>
             )}
 
-            {mode === 'submit' && !submitted && (
+            {mode === 'submit' && !submitConfirmed && (
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Submit Price Evidence</p>
-                    <p className="text-gray-400 text-xs font-medium mt-0.5">If your photo appears on the homepage, you'll receive $EGG.</p>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      {hasFeatured ? `Current cash price: ${cashPrice}. Beat it, earn ${rewardLabel}.` : `First approved photo earns ${rewardLabel}.`}
+                    </p>
                   </div>
-                  <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 transition-colors ml-4 shrink-0">
-                    <X size={20} />
-                  </button>
+                  <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 ml-4 shrink-0"><X size={20} /></button>
                 </div>
 
-                {preview ? (
-                  <div className="relative mb-4">
-                    <img src={preview} alt="Preview" className="w-full rounded-lg object-cover max-h-48" />
-                    <button
-                      onClick={() => { setPhoto(null); setPreview(null); }}
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
-                    >
-                      <X size={14} />
+                {!isConnected ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-sm font-medium mb-4">Connect your wallet — it's where your $EGG lands.</p>
+                    <button onClick={() => openWallet()} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg">
+                      Connect Wallet
                     </button>
                   </div>
+                ) : !meetsMinEth ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-sm font-medium mb-2">You need at least {minEthLabel} on Taiko to submit.</p>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Use our <Link to="/bridge" className="text-hub-green font-black" onClick={handleClose}>bridge</Link> to move ETH over. This proves you've got skin in the game.
+                    </p>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="w-full mb-4 py-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-black uppercase tracking-widest hover:border-hub-green hover:text-hub-green transition-all"
-                  >
-                    Tap to upload photo
-                  </button>
+                  <>
+                    {preview ? (
+                      <div className="relative mb-4">
+                        <img src={preview} alt="Preview" className="w-full rounded-lg object-cover max-h-48" />
+                        <button onClick={() => { setPhoto(null); setPreview(null); }} className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1"><X size={14} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => fileRef.current?.click()} className="w-full mb-4 py-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-black uppercase tracking-widest hover:border-hub-green hover:text-hub-green transition-all">
+                        Tap to upload photo
+                      </button>
+                    )}
+                    <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+
+                    <div className="mb-3">
+                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">Price shown</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-black text-sm">$</span>
+                        <input type="number" step="0.01" min="0" value={priceInput} onChange={e => setPriceInput(e.target.value)}
+                          placeholder="6.19" className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-hub-green" />
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">
+                        Store & brand <span className="text-gray-300 normal-case font-medium">(optional)</span>
+                      </label>
+                      <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)}
+                        placeholder="e.g. Publix, Happy Egg Free Range 12ct"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-hub-green" />
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">Your wallet</label>
+                      <input type="text" value={wallet} onChange={e => setWallet(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono text-gray-700 focus:outline-none focus:border-hub-green" />
+                    </div>
+
+                    {pinError && <p className="text-red-500 text-xs mb-3">{pinError}</p>}
+
+                    <button
+                      onClick={handleSubmitEvidence}
+                      disabled={!photo || !priceInput || !wallet || pinning || submitPending}
+                      className="w-full py-3 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {pinning ? 'Uploading photo...' : submitPending ? 'Recording on-chain...' : 'Submit Evidence'}
+                    </button>
+                  </>
                 )}
-
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleFile}
-                />
-
-                <div className="mb-4">
-                  <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">
-                    Your wallet address
-                  </label>
-                  <input
-                    type="text"
-                    value={wallet}
-                    onChange={e => setWallet(e.target.value)}
-                    placeholder="0x..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono text-gray-700 focus:outline-none focus:border-hub-green"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSubmit}
-                  disabled={!photo || !wallet || submitting}
-                  className="w-full py-3 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Evidence'}
-                </button>
               </div>
             )}
 
-            {mode === 'submit' && submitted && (
+            {mode === 'submit' && submitConfirmed && (
               <div className="p-8 text-center">
                 <p className="text-hub-green font-black text-4xl mb-4">✓</p>
-                <p className="text-gray-900 font-black text-lg uppercase tracking-tight mb-2">Received.</p>
+                <p className="text-gray-900 font-black text-lg uppercase tracking-tight mb-2">On chain.</p>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed mb-6">
-                  Your evidence is under review. If your photo appears on the homepage,
-                  you'll receive $EGG directly to your wallet — no action needed.
+                  Submission recorded. If approved, {rewardLabel} lands in your wallet — and you'll have a shot at completing the full carton deal.
                 </p>
-                <button
-                  onClick={handleClose}
-                  className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all"
-                >
-                  Done
-                </button>
+                <button onClick={handleClose} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700">Done</button>
               </div>
             )}
+
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function DealCreditBanner() {
+  const { address, isConnected } = useAccount();
+  const contractAddr = ADDRESSES.PRICE_EVIDENCE;
+
+  const { data: credit, refetch: refetchCredit } = useReadContract({
+    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'eggCredit',
+    args: [address], query: { enabled: !!contractAddr && !!address },
+  });
+  const { data: usePoolMode } = useReadContract({
+    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'usePool',
+    query: { enabled: !!contractAddr },
+  });
+
+  const hasCredit   = credit && credit > 0n;
+  const submissionId = address ? localStorage.getItem(`pe_sub_${address}`) : null;
+
+  const { writeContract, data: txHash, isPending } = useWriteContract();
+  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  useEffect(() => { if (confirmed) refetchCredit(); }, [confirmed]);
+
+  if (!isConnected || !hasCredit || !contractAddr) return null;
+
+  const handleClaim = () => writeContract({
+    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'claimEgg', args: [],
+  });
+
+  const handleCompleteDeal = () => {
+    if (!submissionId) return;
+    writeContract({
+      address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'completeTheDeal',
+      args: [BigInt(submissionId)], value: 0n,
+    });
+  };
+
+  if (confirmed) return (
+    <div className="mt-6 bg-hub-green/10 border-2 border-hub-green/20 rounded-xl p-5 text-center">
+      <p className="text-hub-green font-black uppercase tracking-widest text-sm">Done. Check your wallet.</p>
+    </div>
+  );
+
+  return (
+    <div className="mt-6 bg-white border-2 border-hub-green/40 rounded-xl p-5">
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1">Your submission was approved</p>
+          <p className="text-gray-900 font-black text-lg">You have 1 $EGG credit.</p>
+          <p className="text-gray-500 text-sm font-medium mt-1 max-w-sm">
+            Claim it now, or complete the deal — get 5 more and walk away with a full carton NFT ready to redeem.
+          </p>
+          {!submissionId && (
+            <p className="text-amber-600 text-xs font-medium mt-2">Submission ID not in this browser — use "Claim 1 $EGG" to withdraw.</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 shrink-0">
+          <button
+            onClick={handleCompleteDeal}
+            disabled={isPending || !submissionId || !!usePoolMode}
+            className="py-2.5 px-5 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all disabled:opacity-40"
+          >
+            {isPending ? 'Processing...' : 'Complete the Deal →'}
+          </button>
+          <button
+            onClick={handleClaim}
+            disabled={isPending}
+            className="py-2.5 px-5 border-2 border-gray-200 text-gray-600 font-black text-xs uppercase tracking-widest rounded-lg hover:border-gray-400 transition-all disabled:opacity-40"
+          >
+            Claim 1 $EGG
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -618,65 +755,48 @@ export default function HomePage() {
         <section className="mb-12">
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-8 leading-tight">
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-2 leading-tight">
               Better food.<br />Better price — if you take the path.
             </h2>
+            <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
+              Cash is welcome — at the price on the left. That number is community-reported:
+              real shelf photos submitted by wallet holders, verified and updated when someone
+              finds a better one. Token holders pay less.
+            </p>
 
-            <div className="grid md:grid-cols-3 items-center gap-4 mb-8">
+            <div className="grid md:grid-cols-3 items-center gap-4 mb-4">
               <PriceEvidenceCard />
-
               <div className="flex items-center justify-center">
                 <ArrowRight size={36} className="text-hub-green" strokeWidth={3} />
               </div>
-
               <div className="bg-hub-green rounded-xl p-6 shadow-md text-center">
-                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-3">Community Price</p>
+                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-3">Token Price</p>
                 <p className="text-5xl font-black text-white">$6.00</p>
                 <p className="text-white/80 text-xs font-medium mt-3 leading-relaxed">Local farm.<br />Nutrient-rich. This morning.</p>
               </div>
             </div>
 
-            <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-2">
-              Token holders pay the community price for food that's actually better —
-              raised locally, harvested fresh, and sold directly. No supply chain markup,
-              no nutritional compromise from weeks in transit.
-            </p>
-            <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
-              You don't need to understand blockchain to get the deal.
-              Swap a little ETH for community tokens on our{' '}
-              <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link> — takes about five minutes.
-              Then you're a token holder, and the community price is yours.
-            </p>
-            <Link
-              to="/swap"
-              className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded"
-            >
-              Get the Deal <ArrowRight size={16} strokeWidth={3} />
-            </Link>
-          </div>
-        </section>
+            <DealCreditBanner />
 
-        {/* ── WHY NOT JUST CASH ─────────────────────────────────────────── */}
-        <section className="mb-12 bg-gray-900 rounded-2xl p-8 md:p-12 text-white">
-          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-4">
-            We take cash. At Publix's price.
-          </h2>
-          <p className="text-white/70 font-medium leading-relaxed mb-4 max-w-2xl">
-            You can hand us cash and walk away with eggs — no setup, no friction, no questions.
-            You'll just pay what the store charges. Because that's what the market says it's worth
-            when nobody's willing to do anything differently.
-          </p>
-          <p className="text-white/70 font-medium leading-relaxed mb-4 max-w-2xl">
-            The token path costs less. Not as a gimmick — as a reflection of reality.
-            We don't cut corners on feed, space, or time. We don't have to. There's no
-            distributor to please, no shelf-life requirement to engineer around, no
-            corporate margin to protect. The result is a more nutrient-dense product
-            at a lower price. That's not marketing. That's what removing the supply chain actually does.
-          </p>
-          <p className="text-white font-black leading-relaxed max-w-2xl text-lg">
-            The friction of setting it up is the cost of the difference.
-            We think that's worth it. So do the people who've done it.
-          </p>
+            <div className="mt-8 border-t border-hub-green/10 pt-8">
+              <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
+                The token path costs less — not as a gimmick, as a reflection of reality.
+                No distributor, no shelf-life engineering, no corporate margin. The result is a
+                more nutrient-dense product at a lower price. That's what removing the supply chain actually does.
+              </p>
+              <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
+                The friction of setting it up is the cost of the difference. Swap a little ETH for
+                community tokens on our{' '}
+                <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link>{' '}
+                — takes about five minutes. Or submit a store price photo and earn your first token for free.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
+                  Get the Deal <ArrowRight size={16} strokeWidth={3} />
+                </Link>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* ── BECOME THE SUPPLY ─────────────────────────────────────────── */}
