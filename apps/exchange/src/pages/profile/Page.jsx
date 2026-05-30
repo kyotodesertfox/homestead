@@ -13,6 +13,7 @@ const HUB_CHAIN_ID = 167000;
 function fmt(addr)    { return `${addr.slice(0, 6)}...${addr.slice(-4)}`; }
 function fmtEth(wei)  { return parseFloat(formatUnits(wei, 18)).toFixed(4); }
 function fmtToken(wei) { const n = parseFloat(formatUnits(wei, 18)); return n % 1 === 0 ? n.toFixed(0) : n.toFixed(4); }
+function fmtBeer(wei)  { return Math.round(parseFloat(formatUnits(wei, 18))).toLocaleString(); }
 
 const IPFS_GW = 'https://ipfs.io/ipfs/';
 const resolveIpfs = (uri) => uri?.startsWith('ipfs://') ? uri.replace('ipfs://', IPFS_GW) : uri;
@@ -37,7 +38,7 @@ export default function ProfilePage() {
   const { isConnected, address, chain } = useAccount();
   const chainId                         = useChainId();
   const [copied, setCopied]             = useState(false);
-  const [showLiquidity, setShowLiquidity] = useState(false);
+  const [openToken,     setOpenToken]     = useState(null);
   const [showMessages,  setShowMessages]  = useState(false);
   const [showStake,     setShowStake]     = useState(false);
 
@@ -198,11 +199,11 @@ export default function ProfilePage() {
 
         {/* Token balances */}
         <div className="grid grid-cols-2 gap-4">
-          <BeerCard beerRaw={beerRaw} address={address} onOpen={() => setShowLiquidity(true)} />
-          <DynamicTokenCards walletAddress={address} />
+          <BeerCard beerRaw={beerRaw} address={address} onOpen={() => setOpenToken(ADDRESSES.BEER_TOKEN)} />
+          <DynamicTokenCards walletAddress={address} onOpen={setOpenToken} />
         </div>
 
-        {showLiquidity && <LiquidityModal onClose={() => setShowLiquidity(false)} />}
+        {openToken && <TokenModal tokenAddress={openToken} walletAddress={address} onClose={() => setOpenToken(null)} />}
 
         {/* NFT Listings */}
         <MyListingsSection address={address} />
@@ -523,9 +524,7 @@ function TokenBalanceCard({ tokenAddress, walletAddress, onClick }) {
   );
 }
 
-function DynamicTokenCards({ walletAddress }) {
-  const [openToken, setOpenToken] = useState(null);
-
+function DynamicTokenCards({ walletAddress, onOpen }) {
   const { data: allTokens } = useReadContract({
     address: ADDRESSES.TOKEN_DEPLOYER,
     abi: TOKEN_DEPLOYER_ABI,
@@ -543,12 +542,8 @@ function DynamicTokenCards({ walletAddress }) {
     <>
       {tokens.map(addr => (
         <TokenBalanceCard key={addr} tokenAddress={addr} walletAddress={walletAddress}
-          onClick={() => setOpenToken(addr)} />
+          onClick={() => onOpen(addr)} />
       ))}
-      {openToken && (
-        <TokenModal tokenAddress={openToken} walletAddress={walletAddress}
-          onClose={() => setOpenToken(null)} />
-      )}
     </>
   );
 }
@@ -1208,15 +1203,18 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
   const { writeContract: writeRemove,  data: removeHash }  = useWriteContract();
   const { writeContract: writeOpenLot, data: openLotHash } = useWriteContract();
   const { writeContract: writeMint,    data: mintTxHash }  = useWriteContract();
+  const { writeContract: writeSync,    data: syncHash }    = useWriteContract();
 
   const { isLoading: approving, isSuccess: approved }  = useWaitForTransactionReceipt({ hash: approveHash });
   const { isLoading: adding,    isSuccess: addDone }   = useWaitForTransactionReceipt({ hash: addHash });
   const { isLoading: removing,  isSuccess: removeDone }= useWaitForTransactionReceipt({ hash: removeHash });
   const { isLoading: openingLot,isSuccess: lotOpened } = useWaitForTransactionReceipt({ hash: openLotHash, query: { enabled: !!openLotHash } });
   const { isLoading: minting,   isSuccess: mintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash });
+  const { isLoading: syncing,   isSuccess: syncDone }   = useWaitForTransactionReceipt({ hash: syncHash });
 
   const mintDisabled = minting || !mintAmount || Number(mintAmount) <= 0
-    || (mintDest === 'wallet' && !/^0x[0-9a-fA-F]{40}$/.test(mintRecipient));
+    || (mintDest === 'wallet' && !/^0x[0-9a-fA-F]{40}$/.test(mintRecipient))
+    || (mintDest === 'pool'   && !hasPair);
 
   useEffect(() => {
     if (!approved) return;
@@ -1462,10 +1460,21 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                       onChange={e => setMintRecipient(e.target.value)}
                       className="w-full bg-white/10 text-white placeholder-white/30 font-mono text-sm rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors" />
                   )}
-                  <button onClick={handleMint} disabled={mintDisabled}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95">
-                    {minting ? 'Minting…' : mintConfirmed ? 'Minted ✓' : 'Mint'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={handleMint} disabled={mintDisabled}
+                      className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95">
+                      {minting ? 'Minting…' : mintConfirmed ? 'Minted ✓' : 'Mint'}
+                    </button>
+                    {hasPair && (
+                      <button
+                        onClick={() => writeSync({ address: pairAddress, abi: PAIR_ABI, functionName: 'sync' })}
+                        disabled={syncing}
+                        className="px-4 py-3 border border-amber-500/40 hover:border-amber-500 text-amber-400 hover:text-amber-300 disabled:opacity-40 font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95 whitespace-nowrap"
+                      >
+                        {syncing ? '…' : syncDone ? 'Synced ✓' : 'Sync Pool'}
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[10px] font-bold text-amber-500/30 uppercase tracking-widest">
                     {mintDest === 'pool' ? `Tokens go into the ${sym}/WETH liquidity pool.`
                      : mintDest === 'wallet' ? 'Tokens go to the address entered above.'
@@ -1584,499 +1593,3 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
   );
 }
 
-// ─── Beer-specific liquidity modal ───────────────────────────────────────────
-function LiquidityModal({ onClose }) {
-  const { address } = useAccount();
-  const [tab, setTab]         = useState('holdings');
-  const [liqTab, setLiqTab]   = useState('add');
-  const [beerInput, setBeerInput] = useState('');
-  const [ethInput,  setEthInput]  = useState('');
-  const [lpInput,   setLpInput]   = useState('');
-  const [pendingAction, setPendingAction] = useState(null);
-  const [stakeBottles, setStakeBottles]   = useState('');
-  const [stakeEmit,    setStakeEmit]      = useState('');
-  const [mintAmount,    setMintAmount]    = useState('');
-  const [mintDest,      setMintDest]      = useState('self');
-  const [mintRecipient, setMintRecipient] = useState('');
-
-  const { data: isMinter } = useReadContract({
-    address: ADDRESSES.BEER_TOKEN,
-    abi:     BEER_TOKEN_ABI,
-    functionName: 'isMinter',
-    args:    [address ?? ZERO],
-    query:   { enabled: !!address },
-  });
-
-  const { writeContract: writeMint, data: mintTxHash }   = useWriteContract();
-  const { isLoading: minting, isSuccess: mintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash });
-
-  const handleMint = () => {
-    if (!mintAmount || isNaN(mintAmount) || Number(mintAmount) <= 0) return;
-    const amount = BigInt(Math.round(Number(mintAmount)));
-    if (mintDest === 'pool') {
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToPool',   args: [ADDRESSES.BEER_WETH_PAIR, amount] });
-    } else {
-      const to = mintDest === 'wallet' ? mintRecipient : address;
-      writeMint({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'mintToWallet', args: [to, amount] });
-    }
-  };
-
-  const mintDisabled = minting || !mintAmount || Number(mintAmount) <= 0
-    || (mintDest === 'wallet' && !/^0x[0-9a-fA-F]{40}$/.test(mintRecipient));
-
-  useEffect(() => { if (mintConfirmed) { setMintAmount(''); setMintRecipient(''); } }, [mintConfirmed]);
-
-  const stakeEmitNum = parseInt(stakeEmit, 10) || 0;
-
-  const { data: availableCollateral } = useReadContract({
-    address:      ADDRESSES.TREASURY,
-    abi:          TREASURY_ABI,
-    functionName: 'availableCollateral',
-    args:         [address ?? ZERO],
-    query:        { enabled: !!address && !!ADDRESSES.TREASURY },
-  });
-
-  const { data: collateralRatioBps } = useReadContract({
-    address:      ADDRESSES.TREASURY,
-    abi:          TREASURY_ABI,
-    functionName: 'collateralRatioBps',
-    query:        { enabled: !!ADDRESSES.TREASURY },
-  });
-
-  const { writeContract: writeOpenLot, data: openLotHash } = useWriteContract();
-  const { isLoading: openingLot, isSuccess: lotOpened } = useWaitForTransactionReceipt({
-    hash:  openLotHash,
-    query: { enabled: !!openLotHash },
-  });
-  const [openLotError, setOpenLotError] = useState('');
-
-  useEffect(() => { if (lotOpened) { setStakeEmit(''); setOpenLotError(''); } }, [lotOpened]);
-
-  const handleOpenLot = () => {
-    if (!stakeEmitNum || stakeEmitNum <= 0) return;
-    setOpenLotError('');
-    try {
-      writeOpenLot({
-        address:      ADDRESSES.TREASURY,
-        abi:          TREASURY_ABI,
-        functionName: 'openLot',
-        args:         [ADDRESSES.BEER_TOKEN, BigInt(stakeEmitNum)],
-      });
-    } catch (e) {
-      setOpenLotError(e.shortMessage ?? e.message ?? 'Transaction failed');
-    }
-  };
-
-  const ZERO = '0x0000000000000000000000000000000000000000';
-
-  const { data: ethBal  } = useBalance({ address, query: { enabled: !!address } });
-  const { data: beerBal } = useReadContract({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'balanceOf', args: [address ?? ZERO], query: { enabled: !!address } });
-
-  const { data: reserves,  isLoading: reservesLoading,  isError: reservesError  } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: PAIR_ABI,       functionName: 'getReserves',  query: { enabled: !!ADDRESSES.BEER_WETH_PAIR } });
-  const { data: lpBalance, isLoading: lpBalLoading,     isError: lpBalError,    refetch: refetchLp } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'balanceOf',   args: [address ?? ZERO], query: { enabled: !!address && !!ADDRESSES.BEER_WETH_PAIR } });
-  const { data: lpSupply,  isLoading: lpSupLoading,     isError: lpSupError     } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'totalSupply',  query: { enabled: !!ADDRESSES.BEER_WETH_PAIR } });
-  const { data: beerAllow, refetch: refetchBeerAllow } = useReadContract({ address: ADDRESSES.BEER_TOKEN,     abi: BEER_TOKEN_ABI, functionName: 'allowance', args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
-  const { data: lpAllow,   refetch: refetchLpAllow   } = useReadContract({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI,      functionName: 'allowance', args: [address ?? ZERO, ADDRESSES.ROUTER], query: { enabled: !!address } });
-
-  const reservesReady = !reservesLoading && !reservesError;
-  const [r0, r1]      = reserves ?? [0n, 0n];
-
-  // Stake calculator — uses live market price + on-chain collateral ratio
-  const beerPriceEth  = reservesReady && r0 > 0n
-    ? Number(formatUnits(r1, 18)) / Number(formatUnits(r0, 18))
-    : 0;
-  const ratioBps = collateralRatioBps != null ? Number(collateralRatioBps) : 11000;
-  const stakeRequired = stakeEmitNum > 0 && beerPriceEth > 0
-    ? (stakeEmitNum * beerPriceEth * ratioBps) / 10000
-    : 0;
-  const availableCollateralEth = availableCollateral != null ? Number(formatUnits(availableCollateral, 18)) : 0;
-  const collateralInsufficient = stakeRequired > 0 && availableCollateralEth < stakeRequired;
-  const hasLiquidity  = reservesReady && reserves != null && r0 > 0n && r1 > 0n;
-  const poolEmpty     = reservesReady && reserves != null && r0 === 0n && r1 === 0n;
-
-  const lpReady    = !lpBalLoading && !lpBalError && !lpSupLoading && !lpSupError;
-  const hasLp      = lpReady && (lpBalance ?? 0n) > 0n && (lpSupply ?? 0n) > 0n;
-  const lpShare    = hasLp ? Number(lpBalance) / Number(lpSupply) : 0;
-  // Only compute underlying amounts when reserves are also ready — avoids showing 0 during race
-  const lpBeer     = hasLp && reservesReady && reserves != null ? (lpBalance * r0) / lpSupply : null;
-  const lpEth      = hasLp && reservesReady && reserves != null ? (lpBalance * r1) / lpSupply : null;
-  const lpSharePct = (lpShare * 100).toFixed(4);
-
-  const beerWei = useMemo(() => { try { return beerInput ? parseUnits(beerInput, 18) : 0n; } catch { return 0n; } }, [beerInput]);
-  const ethWei  = useMemo(() => { try { return ethInput  ? parseUnits(ethInput,  18) : 0n; } catch { return 0n; } }, [ethInput]);
-  const lpWei   = useMemo(() => { try { return lpInput   ? parseUnits(lpInput,   18) : 0n; } catch { return 0n; } }, [lpInput]);
-
-  const ethRequired  = hasLiquidity && beerWei > 0n ? (beerWei * r1) / r0 : ethWei;
-  const expectedBeer = (lpSupply ?? 0n) > 0n && lpWei > 0n ? (lpWei * r0) / lpSupply : 0n;
-  const expectedEth  = (lpSupply ?? 0n) > 0n && lpWei > 0n ? (lpWei * r1) / lpSupply : 0n;
-
-  const needsBeerApproval = beerWei > 0n && (beerAllow ?? 0n) < beerWei;
-  const needsLpApproval   = lpWei   > 0n && (lpAllow   ?? 0n) < lpWei;
-
-  const { writeContract: writeApprove, data: approveHash } = useWriteContract();
-  const { writeContract: writeAdd,     data: addHash }     = useWriteContract();
-  const { writeContract: writeRemove,  data: removeHash }  = useWriteContract();
-
-  const { isLoading: approving, isSuccess: approved } = useWaitForTransactionReceipt({ hash: approveHash });
-  const { isLoading: adding,    isSuccess: addDone }  = useWaitForTransactionReceipt({ hash: addHash });
-  const { isLoading: removing,  isSuccess: removeDone}= useWaitForTransactionReceipt({ hash: removeHash });
-
-  useEffect(() => {
-    if (!approved) return;
-    if (pendingAction === 'add')    refetchBeerAllow();
-    if (pendingAction === 'remove') refetchLpAllow();
-    setPendingAction(null);
-  }, [approved]);
-
-  useEffect(() => { if (addDone || removeDone) refetchLp(); }, [addDone, removeDone]);
-
-  const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 1200);
-  const slip = (n) => n * 9900n / 10000n;
-
-  const handleAdd = () => {
-    if (!beerWei || (!hasLiquidity && !ethWei)) return;
-    if (needsBeerApproval) {
-      setPendingAction('add');
-      writeApprove({ address: ADDRESSES.BEER_TOKEN, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, beerWei] });
-      return;
-    }
-    writeAdd({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'addLiquidityETH',
-      args: [ADDRESSES.BEER_TOKEN, beerWei, slip(beerWei), slip(ethRequired), address, deadline()],
-      value: ethRequired });
-  };
-
-  const handleRemove = () => {
-    if (!lpWei) return;
-    if (needsLpApproval) {
-      setPendingAction('remove');
-      writeApprove({ address: ADDRESSES.BEER_WETH_PAIR, abi: ERC20_ABI, functionName: 'approve', args: [ADDRESSES.ROUTER, lpWei] });
-      return;
-    }
-    writeRemove({ address: ADDRESSES.ROUTER, abi: ROUTER_ABI, functionName: 'removeLiquidityETH',
-      args: [ADDRESSES.BEER_TOKEN, lpWei, slip(expectedBeer), slip(expectedEth), address, deadline()] });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-hub-dark border-2 border-hub-green/30 rounded-3xl w-full max-w-[32rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-7 pt-7 pb-4 shrink-0">
-          <h2 className="font-black uppercase tracking-tight text-white text-xl">$BEER Portfolio</h2>
-          <button onClick={onClose} className="text-stone-500 hover:text-white transition-colors"><X size={22} /></button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-white/10 px-7 shrink-0">
-          {TABS.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors -mb-px ${
-                tab === id ? 'border-hub-green text-hub-green' : 'border-transparent text-stone-500 hover:text-white'
-              }`}>
-              <Icon size={13} strokeWidth={3} />{label}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto px-7 py-6 flex-1 space-y-4">
-
-          {/* ── Holdings ── */}
-          {tab === 'holdings' && (
-            <>
-              {/* Balances */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">$BEER Balance</p>
-                  <p className="font-black text-white text-2xl">{beerBal != null ? fmtBeer(beerBal) : '—'}</p>
-                </div>
-                <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Balance</p>
-                  <p className="font-black text-white text-2xl">{ethBal ? fmtEth(ethBal.value) : '—'}</p>
-                </div>
-              </div>
-
-              {/* LP Position */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-                <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-                  <p className="text-xs font-black uppercase tracking-widest text-hub-green">LP Position — BEER/ETH</p>
-                  {hasLp && (
-                    <span className="text-[10px] font-black text-hub-green bg-hub-green/10 px-2 py-0.5 rounded-md">
-                      {lpSharePct}% of pool
-                    </span>
-                  )}
-                </div>
-                {lpBalLoading || lpSupLoading ? (
-                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">Loading…</p>
-                ) : lpBalError || lpSupError ? (
-                  <p className="px-5 pb-5 text-red-400 text-sm font-bold">Could not load LP data.</p>
-                ) : !hasLp ? (
-                  <p className="px-5 pb-5 text-stone-500 text-sm font-bold">No LP tokens in this wallet.</p>
-                ) : (
-                  <div className="px-5 pb-5 space-y-2 mt-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-400 font-bold">LP Tokens</span>
-                      <span className="text-white font-black">{parseFloat(formatUnits(lpBalance, 18)).toFixed(6)}</span>
-                    </div>
-                    <div className="h-px bg-white/10" />
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-400 font-bold">$BEER in pool</span>
-                      <span className="text-amber-400 font-black">
-                        {lpBeer == null ? (reservesLoading ? 'Loading…' : '—') : fmtBeer(lpBeer)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-400 font-bold">ETH in pool</span>
-                      <span className="text-white font-black">
-                        {lpEth == null ? (reservesLoading ? 'Loading…' : '—') : parseFloat(formatUnits(lpEth, 18)).toFixed(8)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Pool reserves */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-5">
-                <p className="text-xs font-black uppercase tracking-widest text-stone-400 mb-3">Total Pool Reserves</p>
-                {reservesLoading ? (
-                  <p className="text-stone-500 text-sm font-bold">Loading…</p>
-                ) : reservesError ? (
-                  <p className="text-red-400 text-sm font-bold">Could not load reserves.</p>
-                ) : poolEmpty ? (
-                  <p className="text-amber-400 text-sm font-bold">Pool is currently empty.</p>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-400 font-bold">$BEER</span>
-                      <span className="text-white font-black">{fmtBeer(r0)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-400 font-bold">ETH</span>
-                      <span className="text-white font-black">{parseFloat(formatUnits(r1, 18)).toFixed(8)}</span>
-                    </div>
-                    {r0 > 0n && r1 > 0n && (
-                      <div className="flex justify-between text-sm pt-1 border-t border-white/10">
-                        <span className="text-stone-400 font-bold">Price</span>
-                        <span className="text-hub-green font-black">
-                          {(Number(formatUnits(r1, 18)) / Number(formatUnits(r0, 18))).toFixed(8)} ETH / BEER
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <button onClick={() => setTab('liquidity')}
-                className="w-full py-3 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm hover:brightness-110 transition-all">
-                Manage Liquidity →
-              </button>
-            </>
-          )}
-
-          {/* ── Liquidity ── */}
-          {tab === 'liquidity' && (
-            <>
-              <div className="flex rounded-xl overflow-hidden border border-white/10">
-                {['add', 'remove'].map(t => (
-                  <button key={t} onClick={() => setLiqTab(t)}
-                    className={`flex-1 py-3 text-xs font-black uppercase tracking-widest transition-colors ${liqTab === t ? 'bg-hub-green text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-
-              {liqTab === 'add' ? (
-                <div className="space-y-3">
-                  {reservesLoading ? (
-                    <p className="text-stone-400 text-xs font-bold uppercase tracking-widest bg-white/5 rounded-xl px-3 py-2">Loading pool data…</p>
-                  ) : reservesError ? (
-                    <p className="text-red-400 text-xs font-bold uppercase tracking-widest bg-red-500/10 rounded-xl px-3 py-2">Could not load pool — check your network.</p>
-                  ) : poolEmpty ? (
-                    <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">
-                      Pool is empty — you set the initial price
-                    </p>
-                  ) : null}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">$BEER Amount</label>
-                      <span className="text-[10px] font-black text-amber-400">Balance: {beerBal != null ? Math.round(Number(safeFmt(beerBal))) : '—'}</span>
-                    </div>
-                    <input type="number" min="0" placeholder="0" value={beerInput} onChange={e => setBeerInput(e.target.value)}
-                      className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
-                    <PctButtons onSelect={p => {
-                      const n = beerBal != null ? Math.round(Number(safeFmt(beerBal)) * p / 100) : 0;
-                      setBeerInput(n > 0 ? n.toString() : '0');
-                    }} />
-                  </div>
-                  {hasLiquidity ? (
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Required (at market rate)</p>
-                      <p className="font-black text-white text-lg">{beerWei > 0n ? formatUnits(ethRequired, 18) : '—'}</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">ETH Amount (sets initial price)</label>
-                        <span className="text-[10px] font-black text-stone-400">Balance: {ethBal != null ? parseFloat(safeFmt(ethBal.value)).toFixed(4) : '—'}</span>
-                      </div>
-                      <input type="number" min="0" placeholder="0" value={ethInput} onChange={e => setEthInput(e.target.value)}
-                        className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
-                    </div>
-                  )}
-                  <button onClick={handleAdd} disabled={approving || adding || !beerWei || (!hasLiquidity && !ethWei)}
-                    className="w-full py-4 bg-hub-green hover:bg-hub-light disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95">
-                    {approving ? 'Approving…' : adding ? 'Adding Liquidity…' : needsBeerApproval ? 'Approve $BEER' : 'Add Liquidity'}
-                  </button>
-                  {addDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity added!</p>}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Your LP Balance</p>
-                    <p className="font-black text-white">{lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">LP to Remove</label>
-                      <span className="text-[10px] font-black text-hub-green">Balance: {lpBalance != null ? parseFloat(safeFmt(lpBalance)).toFixed(6) : '—'}</span>
-                    </div>
-                    <input type="number" min="0" placeholder="0" value={lpInput} onChange={e => setLpInput(e.target.value)}
-                      className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors" />
-                    <PctButtons onSelect={p => {
-                      const amount = (lpBalance ?? 0n) * BigInt(p) / 100n;
-                      setLpInput(p === 0 ? '0' : formatUnits(amount, 18));
-                    }} />
-                  </div>
-                  {lpWei > 0n && (
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">You'll receive (~)</p>
-                      <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">$BEER</span><span className="text-sm font-black text-white">{formatUnits(expectedBeer, 18)}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-white/60 font-bold">ETH</span><span className="text-sm font-black text-white">{formatUnits(expectedEth, 18)}</span></div>
-                    </div>
-                  )}
-                  <button onClick={handleRemove} disabled={approving || removing || !lpWei}
-                    className="w-full py-4 border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white disabled:opacity-40 font-black uppercase tracking-widest text-sm rounded-xl transition-all active:scale-95">
-                    {approving ? 'Approving…' : removing ? 'Removing…' : needsLpApproval ? 'Approve LP Token' : 'Remove Liquidity'}
-                  </button>
-                  {removeDone && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center">Liquidity removed!</p>}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Minting ── */}
-          {tab === 'staking' && (
-            <div className="relative">
-
-              {/* Live position cards */}
-              <StakingPositionCards address={address} />
-
-              {/* Open Lot */}
-              <div className="mt-5 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 block">
-                  $BEER to Mint
-                </label>
-                <input
-                  type="number" min="1" step="1" placeholder="e.g. 2400"
-                  value={stakeEmit}
-                  onChange={e => {
-                    const v = e.target.value;
-                    if (v === '' || /^\d+$/.test(v)) setStakeEmit(v);
-                  }}
-                  className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-hub-green transition-colors"
-                />
-                <div className="flex gap-3">
-                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Collateral Required</p>
-                    <p className="font-black text-white text-sm">
-                      {stakeRequired > 0 ? `${stakeRequired.toFixed(6)} stkHOME` : '—'}
-                    </p>
-                  </div>
-                  <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Available</p>
-                    <p className="font-black text-white text-sm">
-                      {availableCollateral != null ? `${fmtEth(availableCollateral)} stkHOME` : '—'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {openLotError && <p className="text-red-400 text-xs font-bold mt-2">{openLotError}</p>}
-              {lotOpened && <p className="text-emerald-400 text-xs font-black uppercase tracking-widest text-center mt-2">Lot opened!</p>}
-
-              <div className="mt-4">
-                <button
-                  onClick={handleOpenLot}
-                  disabled={!stakeEmitNum || openingLot || collateralInsufficient}
-                  className="w-full py-4 bg-hub-green hover:brightness-110 disabled:opacity-40 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all"
-                >
-                  {openingLot ? 'Minting…' : collateralInsufficient ? 'Insufficient Collateral' : 'Mint $BEER'}
-                </button>
-              </div>
-
-              {/* Mint — only visible to registered minters */}
-              {isMinter === true && (
-                <div className="mt-5 pt-5 border-t border-amber-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Flame size={13} className="text-amber-400 shrink-0" />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Mint $BEER</p>
-                    </div>
-                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-amber-500/40 text-amber-500/70">
-                      Admin
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      placeholder="Amount"
-                      value={mintAmount}
-                      onChange={e => setMintAmount(e.target.value)}
-                      className="flex-1 bg-white/10 text-white placeholder-white/30 font-black rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                    <div className="flex rounded-xl overflow-hidden border border-amber-500/20">
-                      {['self', 'wallet', 'pool'].map(d => (
-                        <button key={d} onClick={() => setMintDest(d)}
-                          className={`px-3 py-2.5 text-xs font-black uppercase tracking-widest transition-colors ${mintDest === d ? 'bg-amber-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {mintDest === 'wallet' && (
-                    <input
-                      type="text"
-                      placeholder="0x recipient address"
-                      value={mintRecipient}
-                      onChange={e => setMintRecipient(e.target.value)}
-                      className="w-full bg-white/10 text-white placeholder-white/30 font-mono text-sm rounded-xl px-4 py-3 border border-amber-500/20 focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                  )}
-
-                  <button
-                    onClick={handleMint}
-                    disabled={mintDisabled}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-black rounded-xl uppercase tracking-widest text-sm transition-all active:scale-95"
-                  >
-                    {minting ? 'Minting…' : mintConfirmed ? 'Minted ✓' : 'Mint'}
-                  </button>
-
-                  <p className="text-[10px] font-bold text-amber-500/30 uppercase tracking-widest">
-                    {mintDest === 'pool'   ? 'Tokens go into the BEER/WETH liquidity pool.'
-                   : mintDest === 'wallet' ? 'Tokens go to the address entered above.'
-                   :                        'Tokens land in your connected wallet.'}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-      </div>
-    </div>
-  );
-}

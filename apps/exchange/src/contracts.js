@@ -141,6 +141,7 @@ export const PAIR_ABI = [
   { name: 'totalSupply', type: 'function', stateMutability: 'view',    inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'balanceOf',   type: 'function', stateMutability: 'view',    inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'depositAndSync', type: 'function', stateMutability: 'payable', inputs: [], outputs: [] },
+  { name: 'sync',           type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
 ];
 
 export const FACTORY_ABI = [
@@ -279,14 +280,38 @@ export const TREASURY_ABI = [
   },
 ];
 
+// keccak256 of the current masterTemplate deployedBytecode from contracts/artifacts/masterTemplate.json.
+// If a deployed proxy's implementation hash differs, it's outdated and should be upgraded.
+// keccak256 of each contract's deployedBytecode from contracts/artifacts/.
+// For UUPS proxies, compare against the implementation address (read from ERC1967 slot).
+// For non-upgradeable contracts, compare against the contract address directly.
+// Update a hash here whenever the source changes and a new deployment is made.
+// keccak256 of each contract's deployedBytecode with the CBOR metadata suffix stripped.
+// Stripping the suffix makes hashes stable across compiler/toolchain upgrades that
+// only affect metadata — only actual logic changes will rotate a hash.
+// For UUPS proxies compare against the implementation address (read from ERC1967 slot).
+// For non-upgradeable contracts compare against the contract address directly.
+// Update a hash here after deploying a new version of that contract.
+export const ARTIFACT_HASHES = {
+  TREASURY:        '0x9f22e767f2abce4313b4b984b5f6be834148c2f699569cbd6998509d1577d40f',
+  TOKEN_DEPLOYER:  '0x87a4fd9159a96dae71b14dd60552f7587cd9a087a3a5efef4d916e297416846b',
+  NFT_DEPLOYER:    '0xc869f89abd5b85a361c0d3991308293e91cbe8e9edbd804398448ad0c0d5dd5e',
+  MARKETPLACE:     '0x337f207562a79d5680bd5881d2f5f53832c82bfebb6f60c7044ef25d7684369f',
+  ROUTER:          '0x45d33dcf2cc957cc984b5269e3f1a50b0294f823f98996f18023ac8c9396d1c2',
+  DEX_FACTORY:     '0x8a1027875d09f1980087f72e1bdb1b83d5faf75cfb2d5ef9588711ca3d6debc7',
+  MASTER_TEMPLATE: '0x6f03c489daaaed98ef2fb45d58f92360c3da9f6bf36377851e8f1a663e1c886f',
+};
+
 export const BEER_TOKEN_ABI = [
   ...ERC20_ABI,
   { name: 'owner',        type: 'function', stateMutability: 'view',        inputs: [],                                                                           outputs: [{ type: 'address' }] },
   { name: 'isMinter',     type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                              outputs: [{ type: 'bool'    }] },
   { name: 'mintToWallet', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'wallet',      type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
-  { name: 'mintToPool',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'mintToPool',         type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'mintToPoolAndSync', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'poolAddress', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { name: 'mintExact',    type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'to',          type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { name: 'setMinter',    type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'minter',      type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [] },
+  { name: 'upgradeToAndCall', type: 'function', stateMutability: 'payable', inputs: [{ name: 'newImplementation', type: 'address' }, { name: 'data', type: 'bytes' }], outputs: [] },
 ];
 
 export const MARKETPLACE_ABI = [
@@ -370,25 +395,6 @@ export const CONTRACT_URI_ABI = [
   { name: 'contractURI', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
 ];
 
-export const VERSION_ABI = [
-  { name: 'VERSION', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-];
-
-// Bump these when a contract is upgraded on-chain.
-export const EXPECTED_VERSIONS = {
-  TREASURY:       1,
-  ROUTER:         1,
-  MARKETPLACE:    1,
-  FACTORY:        1,
-  BEER_WETH_PAIR: 1,
-  EGG_WETH_PAIR:  1,
-  BEER_TOKEN:     1,
-  BEERNFT:        1,
-  EGG_TOKEN:      1,
-  EGGNFT:         1,
-  TOKEN_DEPLOYER: 1,
-  NFT_DEPLOYER:   1,
-};
 
 export const PRICE_EVIDENCE_ABI = [
   // view

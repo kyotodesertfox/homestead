@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { formatUnits, parseEther, maxUint256 } from 'viem';
+import { formatUnits, parseEther, maxUint256, keccak256 } from 'viem';
 import {
   ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
-  VERSION_ABI, EXPECTED_VERSIONS,
+  ARTIFACT_HASHES,
 } from '../../contracts';
 
 // ── Pinata ────────────────────────────────────────────────────────────────────
@@ -197,11 +197,19 @@ function useWrite() {
   return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
 }
 
-const VERSION_CHECKS = Object.entries(EXPECTED_VERSIONS).map(([key, expected]) => ({
-  key, expected, address: ADDRESSES[key],
-}));
-
 const TABS = ['Collections', 'Tokens', 'Treasury', 'Upload'];
+
+// Strip the CBOR metadata suffix before hashing so toolchain upgrades
+// that only rotate metadata don't produce false "outdated" positives.
+function stripMetadata(hex) {
+  const metaLen = parseInt(hex.slice(-4), 16);
+  return hex.slice(0, -(metaLen * 2 + 4));
+}
+
+function codeHash(bytecode) {
+  if (!bytecode || bytecode === '0x') return null;
+  return keccak256(stripMetadata(bytecode));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLLECTIONS TAB
@@ -388,11 +396,16 @@ function RoleInput({ label, buttonLabel, onSubmit, hint }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function TokensTab() {
   const publicClient = usePublicClient();
-  const [tokenList, setTokenList] = useState([]);
-  const [expanded, setExpanded]   = useState(null);
+  const [tokenList, setTokenList]   = useState([]);
+  const [expanded, setExpanded]     = useState(null);
   const [minterAddr, setMinterAddr] = useState({});
   const [spenderAddr, setSpenderAddr] = useState({});
+  const [newImplAddr, setNewImplAddr] = useState({});
+  const [implAddresses, setImplAddresses] = useState({});
+  const [implHashes, setImplHashes] = useState({});
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  const ERC1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
   const { data: allTokens, refetch } = useReadContract({
     address: ADDRESSES.TOKEN_DEPLOYER, abi: TOKEN_DEPLOYER_ABI, functionName: 'getAllTokens',
@@ -406,14 +419,38 @@ function TokensTab() {
       { address: addr, abi: ERC20_ABI, functionName: 'totalSupply' },
       { address: addr, abi: BEER_TOKEN_ABI, functionName: 'owner'  },
     ]);
-    publicClient.multicall({ contracts: calls }).then(res => {
-      setTokenList(allTokens.map((addr, i) => ({
+    publicClient.multicall({ contracts: calls }).then(async res => {
+      const list = allTokens.map((addr, i) => ({
         address:     addr,
         name:        res[i * 4 + 0]?.result ?? addr,
         symbol:      res[i * 4 + 1]?.result ?? '?',
         totalSupply: res[i * 4 + 2]?.result ?? 0n,
         owner:       res[i * 4 + 3]?.result ?? '',
-      })));
+      }));
+      setTokenList(list);
+      setSpenderAddr(prev => {
+        const next = { ...prev };
+        list.forEach(({ address }) => { if (!next[address]) next[address] = ADDRESSES.ROUTER ?? ''; });
+        return next;
+      });
+      const implSlots = await Promise.all(
+        allTokens.map(addr => publicClient.getStorageAt({ address: addr, slot: ERC1967_IMPL_SLOT }))
+      );
+      const implMap = {};
+      allTokens.forEach((addr, i) => {
+        const raw = implSlots[i];
+        implMap[addr] = raw ? '0x' + raw.slice(-40) : '';
+      });
+      setImplAddresses(implMap);
+      const implCodes = await Promise.all(
+        allTokens.map(addr => {
+          const impl = implMap[addr];
+          return impl ? publicClient.getBytecode({ address: impl }) : Promise.resolve(null);
+        })
+      );
+      const hashMap = {};
+      allTokens.forEach((addr, i) => { hashMap[addr] = codeHash(implCodes[i]); });
+      setImplHashes(hashMap);
     });
   }, [allTokens, publicClient]);
 
@@ -456,6 +493,24 @@ function TokensTab() {
                 </div>
               </div>
               <div>
+                <Label>Treasury — Trusted Caller</Label>
+                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
+                  <RoleStatusRow contract={ADDRESSES.TREASURY} abi={TREASURY_ABI} fn="isTrustedCaller" target={tok.address} label={`Trusted → ${tok.symbol}`} />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Btn
+                    onClick={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, true] })}
+                    disabled={isPending || isConfirming}
+                  >Grant</Btn>
+                  <Btn
+                    onClick={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, false] })}
+                    disabled={isPending || isConfirming}
+                    variant="danger"
+                  >Revoke</Btn>
+                </div>
+                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+              <div>
                 <Label>Minter Management</Label>
                 <div className="flex gap-2">
                   <Input
@@ -472,7 +527,7 @@ function TokensTab() {
               <div>
                 <Label>Allowance Status</Label>
                 <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
-                  <AllowanceRow tokenAddress={tok.address} spender={spenderAddr[tok.address]} label="Allowance → Router" />
+                  <AllowanceRow tokenAddress={tok.address} spender={ADDRESSES.ROUTER} label="Allowance → Router" />
                 </div>
               </div>
               <div>
@@ -493,6 +548,36 @@ function TokensTab() {
                     disabled={!spenderAddr[tok.address] || isPending || isConfirming}
                     variant="danger"
                   >Revoke</Btn>
+                </div>
+                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+              </div>
+              <div>
+                <Label>Upgrade Implementation</Label>
+                {implAddresses[tok.address] && (() => {
+                  const h = implHashes[tok.address];
+                  const ok = h && h === ARTIFACT_HASHES.MASTER_TEMPLATE;
+                  const badge = !h
+                    ? <span className="text-gray-400">checking…</span>
+                    : ok
+                      ? <span className="text-hub-green font-semibold">✓ current</span>
+                      : <span className="text-amber-500 font-semibold">upgrade available</span>;
+                  return (
+                    <p className="text-xs font-mono mb-2 truncate text-gray-400">
+                      {implAddresses[tok.address]} — {badge}
+                    </p>
+                  );
+                })()}
+                <div className="flex gap-2">
+                  <Input
+                    value={newImplAddr[tok.address] ?? ''}
+                    onChange={v => setNewImplAddr(m => ({ ...m, [tok.address]: v }))}
+                    placeholder="New impl 0x…"
+                    className="flex-1"
+                  />
+                  <Btn
+                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'upgradeToAndCall', args: [newImplAddr[tok.address], '0x'] })}
+                    disabled={!/^0x[0-9a-fA-F]{40}$/.test(newImplAddr[tok.address] ?? '') || isPending || isConfirming}
+                  >Upgrade</Btn>
                 </div>
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>
@@ -939,27 +1024,49 @@ export default function AdminPage() {
 
   const isOwner = owner && address && owner.toLowerCase() === address.toLowerCase();
 
-  const { data: versionData } = useReadContracts({
-    contracts: VERSION_CHECKS.map(c => ({
-      address: c.address, abi: VERSION_ABI, functionName: 'VERSION',
-    })),
-    query: { enabled: !!isConnected },
-  });
+  const publicClientMain = usePublicClient();
+  const [dotHashes, setDotHashes] = useState({});
+  const ERC1967 = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
-  const versionStatus = (addressKey) => {
-    const idx = VERSION_CHECKS.findIndex(c => c.key === addressKey);
-    if (idx === -1) return null;
-    const result = versionData?.[idx];
-    if (!result || result.error || result.result === undefined) return 'unknown';
-    return result.result === BigInt(VERSION_CHECKS[idx].expected) ? 'ok' : 'behind';
-  };
+  // Proxies: read impl slot then hash impl bytecode.
+  // Non-upgradeable: hash the contract bytecode directly.
+  const PROXY_KEYS    = ['TREASURY', 'TOKEN_DEPLOYER', 'NFT_DEPLOYER'];
+  const DIRECT_KEYS   = ['MARKETPLACE', 'ROUTER', 'FACTORY'];
+  const HASH_KEY_MAP  = { FACTORY: 'DEX_FACTORY' };
 
-  const VersionDot = ({ addrKey }) => {
-    const s = versionStatus(addrKey);
-    if (!s) return null;
-    const color = s === 'ok' ? 'bg-hub-green' : 'bg-red-500';
-    const title = s === 'ok' ? 'Up to date' : s === 'behind' ? 'Upgrade needed' : 'Not yet upgraded';
-    return <span className={`w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 ${color}`} title={title} />;
+  useEffect(() => {
+    if (!publicClientMain || !isConnected) return;
+    async function load() {
+      const results = {};
+      await Promise.all([
+        ...PROXY_KEYS.map(async k => {
+          const addr = ADDRESSES[k];
+          if (!addr) return;
+          const raw = await publicClientMain.getStorageAt({ address: addr, slot: ERC1967 });
+          const impl = raw ? '0x' + raw.slice(-40) : null;
+          if (!impl || impl === '0x' + '0'.repeat(40)) return;
+          const code = await publicClientMain.getBytecode({ address: impl });
+          results[k] = codeHash(code);
+        }),
+        ...DIRECT_KEYS.map(async k => {
+          const addr = ADDRESSES[k];
+          if (!addr) return;
+          const code = await publicClientMain.getBytecode({ address: addr });
+          results[k] = codeHash(code);
+        }),
+      ]);
+      setDotHashes(results);
+    }
+    load();
+  }, [publicClientMain, isConnected]);
+
+  const CodeHashDot = ({ addrKey }) => {
+    const artifactKey = HASH_KEY_MAP[addrKey] ?? addrKey;
+    const expected = ARTIFACT_HASHES[artifactKey];
+    const actual   = dotHashes[addrKey];
+    if (!expected || !actual) return <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 bg-gray-300" title="Checking…" />;
+    const ok = actual === expected;
+    return <span className={`w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 ${ok ? 'bg-hub-green' : 'bg-amber-400'}`} title={ok ? 'Up to date' : 'Upgrade available'} />;
   };
 
   if (!isConnected) {
@@ -1013,7 +1120,7 @@ export default function AdminPage() {
             ].map(([label, addr, vKey]) => (
               <React.Fragment key={label}>
                 <span className="text-xs font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
-                  <VersionDot addrKey={vKey} />{label}
+                  <CodeHashDot addrKey={vKey} />{label}
                 </span>
                 <div className="min-w-0 self-center"><CopyAddr address={addr} /></div>
               </React.Fragment>
