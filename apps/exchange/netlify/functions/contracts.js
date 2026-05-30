@@ -11,7 +11,7 @@ function parseEnv(filePath) {
 }
 
 exports.handler = async () => {
-  const env = parseEnv(path.join(__dirname, 'addresses.env'));
+  const env = parseEnv(path.join(__dirname, '.env'));
 
   return {
     statusCode: 200,

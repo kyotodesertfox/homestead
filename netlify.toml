@@ -1,6 +1,10 @@
 [build]
-  command = "bash scripts/build.sh"
-  publish = "dist"
+  command   = "bash scripts/build.sh"
+  publish   = "dist"
+  functions = "apps/exchange/netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+
+[functions]
+  included_files = [".env"]
