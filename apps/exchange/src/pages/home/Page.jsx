@@ -4,7 +4,23 @@ import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalL
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
 import { formatUnits, decodeEventLog } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI, PRICE_EVIDENCE_ABI } from '../../contracts';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI, PRICE_EVIDENCE_ABI, PAIR_ABI } from '../../contracts';
+
+let _ethUsdCached = null;
+let _ethUsdFetching = false;
+function useEthUsd() {
+  const [price, setPrice] = useState(_ethUsdCached);
+  useEffect(() => {
+    if (_ethUsdCached !== null) { setPrice(_ethUsdCached); return; }
+    if (_ethUsdFetching) return;
+    _ethUsdFetching = true;
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => { _ethUsdCached = d?.ethereum?.usd ?? null; _ethUsdFetching = false; setPrice(_ethUsdCached); })
+      .catch(() => { _ethUsdFetching = false; });
+  }, []);
+  return price;
+}
 
 const EXPLORER = 'https://hekla.taikoscan.io';
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
@@ -769,8 +785,25 @@ export default function HomePage() {
   const { open }                  = useAppKit();
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();
-  const [activeTab, setActiveTab]       = useState('Exchange');
+  const [activeTab, setActiveTab]           = useState('Exchange');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [cartonSize, setCartonSize]         = useState(12);
+
+  const ethUsd = useEthUsd();
+  const { data: eggPairReserves } = useReadContract({
+    address:      ADDRESSES.EGG_WETH_PAIR,
+    abi:          PAIR_ABI,
+    functionName: 'getReserves',
+    query:        { enabled: !!ADDRESSES.EGG_WETH_PAIR },
+  });
+  // EGG_WETH_PAIR: wethIsToken0 = true (WETH address sorts below EGG)
+  const eggUsd = (() => {
+    if (!eggPairReserves || !ethUsd) return null;
+    const [wethRes, eggRes] = eggPairReserves;
+    if (!eggRes || eggRes === 0n) return null;
+    const ethPerEgg = parseFloat(formatUnits(wethRes, 18)) / parseFloat(formatUnits(eggRes, 18));
+    return (ethPerEgg * ethUsd).toFixed(2);
+  })();
 
   const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -882,10 +915,24 @@ export default function HomePage() {
               <div className="flex items-center justify-center px-2">
                 <ArrowRight size={28} className="text-hub-green" strokeWidth={3} />
               </div>
-              <div className="bg-hub-green rounded-xl p-6 shadow-md text-center flex flex-col items-center justify-center">
-                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-3">Token Price</p>
-                <p className="text-5xl font-black text-white">$5.50</p>
-                <p className="text-white/80 text-xs font-medium mt-3 leading-relaxed">Local farm.<br />Nutrient-rich. This morning.</p>
+              <div className="border-4 border-hub-green rounded-xl p-6 text-center flex flex-col items-center justify-center bg-white">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-green opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-hub-green" />
+                  </span>
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest">Token Price</p>
+                </div>
+                <p className="text-5xl font-black text-gray-900">{cartonSize} <span className="text-hub-green">$EGG</span></p>
+                {eggUsd && <p className="text-gray-400 text-xs font-medium mt-1">≈ ${(parseFloat(eggUsd) * cartonSize).toFixed(2)} USD</p>}
+                <div className="flex gap-2 mt-4">
+                  {[1, 6, 12].map(n => (
+                    <button key={n} onClick={() => setCartonSize(n)} className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border transition-all ${cartonSize === n ? 'bg-hub-green border-hub-green text-white' : 'border-hub-green/30 text-hub-green hover:border-hub-green'}`}>
+                      {n} egg{n > 1 ? 's' : ''}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Local farm. Nutrient-rich. This morning.</p>
               </div>
             </div>
 
