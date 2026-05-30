@@ -11,7 +11,7 @@ function parseEnv(filePath) {
 }
 
 exports.handler = async () => {
-  const env = parseEnv(path.join(__dirname, 'contract_addresses.env'));
+  const env = parseEnv(path.join(process.env.LAMBDA_TASK_ROOT, 'contract_addresses.env'));
 
   return {
     statusCode: 200,
