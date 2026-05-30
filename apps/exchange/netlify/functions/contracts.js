@@ -1,4 +1,4 @@
-export default async () => {
+exports.handler = async () => {
   const addresses = {
     WETH:           process.env.VITE_WETH,
     BEER_TOKEN:     process.env.VITE_BEER_TOKEN,
@@ -17,12 +17,12 @@ export default async () => {
     PRICE_EVIDENCE: process.env.VITE_PRICE_EVIDENCE,
   };
 
-  return new Response(JSON.stringify(addresses), {
+  return {
+    statusCode: 200,
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type':                'application/json',
       'Access-Control-Allow-Origin': '*',
     },
-  });
+    body: JSON.stringify(addresses),
+  };
 };
-
-export const config = { path: '/api/contracts' };
