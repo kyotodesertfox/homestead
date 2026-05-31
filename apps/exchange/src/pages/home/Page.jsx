@@ -752,8 +752,6 @@ function DynamicPortals() {
         .map(addr => (
           <TokenPortalCard key={addr} address={addr} />
         ))}
-      <ComingSoonCard symbol="SPA" name="Spa"
-        description="Handcrafted spa goods from the homestead. Each token redeemable for the real product." />
       <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col opacity-50">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-2.5 h-2.5 rounded-full bg-gray-300 shrink-0" />
@@ -902,12 +900,13 @@ export default function HomePage() {
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-2 leading-tight">
-              Better food<br />Better price - if you pay with crypto
+              Better food<br />Priced by demand — kept by the producer
             </h2>
             <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
-              Cash is welcome - at the price on the left. That number is community-reported:
-              real shelf photos submitted by wallet holders, verified and updated when someone
-              finds a better one. Token holders pay less.
+              The price on the left is what the grocery store charges — the distributor cut,
+              the shelf fee, the corporate margin, all baked in. The token price is what that
+              food actually costs when none of that overhead exists. This platform is a hedge
+              against that system, not a participant in it.
             </p>
 
             <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-2 mb-4">
@@ -1054,11 +1053,12 @@ export default function HomePage() {
                 <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">
                   Put your goods on the market. The token price is what real demand says your
-                  production is worth - not a distributor's offer, not a grocery store margin that
-                  squeezes both sides. Cash is welcome when it beats that price. Below it is a
-                  lowball. The friction of paying in crypto is worth it because what you're buying
-                  is genuinely better: full nutrition, grown without compromise, from someone who
-                  eats what they sell. You pay a fair price directly to the producer. They keep it.
+                  production is worth — not a distributor's offer, not a grocery store margin that
+                  squeezes both sides. Pricing leverage belongs to the producer here, not the
+                  platform. The friction of paying in tokens is the cost of opting out of a system
+                  that was never designed in your favor. What you're buying is genuinely better:
+                  full nutrition, grown without compromise, from someone who eats what they sell.
+                  You pay a fair price directly to the producer. They keep it.
                   Every fulfilled order builds your on-chain track record - portable, verifiable,
                   and not controlled by any platform that can revoke it.
                 </p>
