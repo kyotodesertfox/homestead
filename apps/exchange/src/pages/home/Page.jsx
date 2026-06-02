@@ -841,6 +841,46 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── WHY WE EXIST ──────────────────────────────────────────────── */}
+        <section className="mb-12">
+          <div className="bg-gray-900 text-white rounded-2xl p-8 md:p-12">
+            <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">Why this exists</p>
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-6 leading-tight">
+              Built for the day the dollar<br />stops clearing the bill.
+            </h2>
+            <div className="grid md:grid-cols-2 gap-8 text-gray-300 text-sm font-medium leading-relaxed">
+              <div>
+                <p className="mb-4">
+                  Every transaction you've ever made — groceries, rent, wages — ran through a
+                  single intermediary: the US dollar. That intermediary has been the world's
+                  reserve currency since 1944. It isn't anymore. Central banks are quietly
+                  moving out of dollar-denominated bonds and into gold. That shift doesn't make
+                  headlines until it's too late to prepare for it.
+                </p>
+                <p>
+                  When the medium of exchange becomes unreliable — through inflation, digital-only
+                  policy, or loss of reserve status — trade doesn't stop. People still need food,
+                  labor, and goods. What breaks is the infrastructure they used to exchange them.
+                </p>
+              </div>
+              <div>
+                <p className="mb-4">
+                  Homestead is that infrastructure, built before the break. Tokens aren't a
+                  gimmick — they're a medium of exchange that doesn't require a central authority
+                  to clear. One token represents one real thing: a dozen eggs, a bottle of beer,
+                  an hour of a welder's time. The price is set by real demand, not a currency that
+                  can be inflated, frozen, or deprecated overnight.
+                </p>
+                <p>
+                  If you're asking "how much are the eggs in dollars" — that's the right question
+                  for today. This platform is the answer for when that question no longer has a
+                  stable answer.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── WHY DIFFERENT ─────────────────────────────────────────────── */}
         <section className="mb-12">
           <div className="grid md:grid-cols-3 gap-5">
