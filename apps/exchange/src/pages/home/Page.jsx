@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, LayoutDashboard, ArrowRight, X } from 'lucide-react';
+import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, Wallet, ArrowRight, X } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
 import { formatUnits, decodeEventLog } from 'viem';
@@ -784,6 +784,7 @@ export default function HomePage() {
   const { isConnected, address }  = useAccount();
   const navigate                  = useNavigate();
   const [activeTab, setActiveTab]           = useState('Exchange');
+  const [whyTab, setWhyTab]                 = useState('why');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [cartonSize, setCartonSize]         = useState(12);
 
@@ -846,43 +847,132 @@ export default function HomePage() {
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">Why this exists</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-tight">
-              The dollar is a middleman too.<br />We removed it.
+              The dollar is a middleman too.<br />We're removing it.
             </h2>
-            <div className="grid md:grid-cols-2 gap-8 text-gray-500 text-sm font-medium leading-relaxed">
-              <div>
-                <p className="mb-4">
-                  You already know the grocery store takes a cut. So does the distributor, the
-                  wholesaler, and the truck driver's employer. But the dollar itself is part of
-                  the same chain. It's controlled by institutions that create it, lend it, and
-                  spend it before it ever reaches the person who grew your food. By the time
-                  more dollars reach a farmer, everything they buy already costs more. The
-                  people doing the real work are always last in line.
-                </p>
-                <p>
-                  That system is also showing cracks. The dollar has been the world's go-to
-                  currency for decades - but that's quietly changing. Central banks are moving
-                  into gold. What happens to your grocery bill, your wages, and your savings
-                  when the dollar stops being the thing everyone agrees to use? Trade doesn't
-                  stop. But the infrastructure people relied on to do it breaks.
-                </p>
-              </div>
-              <div>
-                <p className="mb-4">
-                  Homestead is built for that gap. A token here isn't a speculation - it's a
-                  claim ticket. One token, one real thing: a dozen eggs, a bottle of beer, an
-                  hour of skilled labor. The producer creates it, sets the price, and gets paid
-                  first - before any bank, distributor, or platform takes its share. For the
-                  first time, the person who made the thing is at the front of the line, not
-                  the back.
-                </p>
-                <p>
-                  If you're asking "how much are the eggs in dollars" - that's the right
-                  question for today. This platform exists for when that question no longer
-                  has a reliable answer. It works right now. It's built to keep working
-                  when others can't.
-                </p>
-              </div>
+
+            {/* Tab pills */}
+            <div className="flex gap-2 mb-8 flex-wrap">
+              {[
+                { id: 'why',      label: 'The Problem' },
+                { id: 'who',      label: 'Who It\'s For' },
+                { id: 'standing', label: 'Your Standing' },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setWhyTab(t.id)}
+                  className={`text-[11px] font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 transition-all ${
+                    whyTab === t.id
+                      ? 'bg-hub-green border-hub-green text-white'
+                      : 'border-hub-green/30 text-hub-green hover:border-hub-green bg-transparent'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
+
+            {/* Tab: The Problem */}
+            {whyTab === 'why' && (
+              <div className="grid md:grid-cols-2 gap-8 text-gray-500 text-sm font-medium leading-relaxed">
+                <div>
+                  <p className="mb-4">
+                    You already know the grocery store takes a cut. So does the distributor, the
+                    wholesaler, and the truck driver's employer. But the dollar itself is part of
+                    the same chain. It's controlled by institutions that create it, lend it, and
+                    spend it before it ever reaches the person who grew your food. By the time
+                    more dollars filter down to a farmer, everything they buy already costs more.
+                    The people doing the real work are always last in line.
+                  </p>
+                  <p>
+                    That system is also showing cracks. The dollar has been the world's go-to
+                    currency for decades - but that's quietly changing. Central banks are moving
+                    into gold. What happens to your grocery bill, your wages, and your savings
+                    when the dollar stops being the thing everyone agrees to use? Trade doesn't
+                    stop. But the infrastructure people relied on to do it breaks.
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-4">
+                    Homestead is built for that gap. A token here isn't a speculation - it's a
+                    claim ticket. One token, one real thing: a dozen eggs, a bottle of beer, an
+                    hour of skilled labor. The producer creates it, sets the price, and gets paid
+                    first - before any bank, distributor, or platform takes its share. For the
+                    first time, the person who made the thing is at the front of the line, not
+                    the back.
+                  </p>
+                  <p>
+                    If you're asking "how much are the eggs in dollars" - that's the right
+                    question for today. This platform exists for when that question no longer
+                    has a reliable answer. It works right now. It's built to keep working
+                    when others can't.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Who It's For */}
+            {whyTab === 'who' && (
+              <div className="grid md:grid-cols-2 gap-6 text-sm">
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-3">Buyers and producers</p>
+                  <h3 className="text-gray-900 font-black uppercase tracking-tight mb-3 leading-snug">
+                    Buyers become producers.<br />That's how the market grows.
+                  </h3>
+                  <p className="text-gray-500 font-medium leading-relaxed mb-3">
+                    The neighbor who buys your eggs today could be selling you tomatoes next season.
+                    Every producer who joins brings new supply. Every buyer who holds a token signals
+                    real demand. The more people who participate - on either side - the less anyone
+                    depends on a supply chain that was never built for them.
+                  </p>
+                  <p className="text-gray-500 font-medium leading-relaxed">
+                    You don't have to grow at scale. You don't need a commercial kitchen or a
+                    distributor relationship. If you produce more than you consume, Homestead is
+                    your market.
+                  </p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-3">Not just farmers</p>
+                  <h3 className="text-gray-900 font-black uppercase tracking-tight mb-3 leading-snug">
+                    Vetted service providers.<br />Same market, same rules.
+                  </h3>
+                  <p className="text-gray-500 font-medium leading-relaxed">
+                    A carpenter. An electrician. A mechanic. Anyone who produces more than they
+                    consume - in goods or in skills - can participate. Homestead isn't limited to
+                    what grows in the ground. It's for anyone the current system undervalues.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Your Standing */}
+            {whyTab === 'standing' && (
+              <div className="grid md:grid-cols-2 gap-6 text-sm">
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-3">Your stake is your reputation</p>
+                  <h3 className="text-gray-900 font-black uppercase tracking-tight mb-3 leading-snug">
+                    Built by you.<br />Not assigned by a bank.
+                  </h3>
+                  <p className="text-gray-500 font-medium leading-relaxed">
+                    Every transaction, every delivered batch, every redeemed token adds to your
+                    on-chain standing. No credit agency decides your tier. No institution
+                    gatekeeps your access. Your history is what you've actually done - verifiable,
+                    neutral, and yours.
+                  </p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-3">Portable proof</p>
+                  <h3 className="text-gray-900 font-black uppercase tracking-tight mb-3 leading-snug">
+                    Your record goes<br />where you go.
+                  </h3>
+                  <p className="text-gray-500 font-medium leading-relaxed">
+                    Your on-chain track record isn't stored on a platform that can shut down,
+                    suspend your account, or change its terms. It lives on the chain itself.
+                    Every fulfilled order builds something no company can take from you.
+                  </p>
+                </div>
+              </div>
+            )}
+
           </div>
         </section>
 
@@ -1011,53 +1101,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── BECOME THE SUPPLY ─────────────────────────────────────────── */}
-        <section className="mb-12">
-          <div className="bg-white border border-gray-100 rounded-2xl p-8 shadow-sm">
-            <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900 mb-3">
-              Buyers become producers.<br />That's how the market grows.
-            </h2>
-            <p className="text-gray-500 font-medium leading-relaxed max-w-2xl">
-              The neighbor who buys your eggs today could be selling you tomatoes next season.
-              Every producer who joins brings new supply. Every buyer who holds a token signals
-              real demand. The more people who participate - on either side - the less anyone
-              depends on a supply chain that was never built for them.
-            </p>
-            <p className="text-gray-500 font-medium leading-relaxed max-w-2xl mt-3">
-              You don't have to grow at scale. You don't need a commercial kitchen or a distributor
-              relationship. If you produce more than you consume, Homestead is your market.
-            </p>
-          </div>
-        </section>
-
-        {/* ── REPUTATION ────────────────────────────────────────────────── */}
-        <section className="mb-12">
-          <div className="grid md:grid-cols-2 gap-5">
-            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-              <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Not just farmers</p>
-              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
-                Vetted service providers.<br />Same market, same rules.
-              </h3>
-              <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                A carpenter. An electrician. A mechanic. Anyone who produces more than they consume -
-                in goods or in skills - can participate. Homestead isn't limited to what grows in the ground.
-                It's for anyone the current system undervalues.
-              </p>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-              <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Your stake is your reputation</p>
-              <h3 className="text-gray-900 font-black uppercase tracking-tight mb-2 leading-snug">
-                Built by you.<br />Not assigned by a bank.
-              </h3>
-              <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                Every transaction, every delivered batch, every redeemed token adds to your on-chain
-                standing. No credit agency decides your tier. No institution gatekeeps your access.
-                Your history is what you've actually done - verifiable, neutral, and yours.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* ── HOW TO GET IN ─────────────────────────────────────────────── */}
         <section className="mb-12 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="border-b border-gray-100 px-8 py-6">
@@ -1112,35 +1155,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── PRODUCER CTA ──────────────────────────────────────────────── */}
-        <section className="mb-12 bg-white border-l-8 border-hub-green rounded-r-2xl p-8 md:p-10 shadow-sm">
-          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-3 leading-snug">
-            You grow it.<br />Demand prices it.<br />You keep it.
-          </h2>
-          <p className="text-gray-500 font-medium leading-relaxed mb-6 max-w-xl">
-            A distributor pays you their price - fixed, negotiated down, regardless of how good your
-            product is or how many people want it. On Homestead, the token price reflects real market
-            demand. When demand outpaces your supply, the price rises - and that value goes to you,
-            not the middleman who got there first.
-          </p>
-          {isConnected ? (
-            <button
-              onClick={() => navigate('/profile')}
-              className="inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md"
-            >
-              <LayoutDashboard size={16} />
-              {formatAddress(address)}
-            </button>
-          ) : (
-            <button
-              onClick={() => open()}
-              className="inline-flex items-center gap-2 bg-hub-green hover:bg-green-700 text-white font-black py-3 px-8 rounded uppercase tracking-widest transition-all shadow-md"
-            >
-              <Wallet size={16} />
-              Get Started
-            </button>
-          )}
-        </section>
 
         {/* ── EXCHANGE TOOLS ────────────────────────────────────────────── */}
         <section className="mb-4 bg-white shadow-md rounded-2xl overflow-hidden">
