@@ -843,12 +843,12 @@ export default function HomePage() {
 
         {/* ── WHY WE EXIST ──────────────────────────────────────────────── */}
         <section className="mb-12">
-          <div className="bg-gray-900 text-white rounded-2xl p-8 md:p-12">
+          <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">Why this exists</p>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-6 leading-tight">
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-tight">
               Built for the day the dollar<br />stops clearing the bill.
             </h2>
-            <div className="grid md:grid-cols-2 gap-8 text-gray-300 text-sm font-medium leading-relaxed">
+            <div className="grid md:grid-cols-2 gap-8 text-gray-500 text-sm font-medium leading-relaxed">
               <div>
                 <p className="mb-4">
                   Every transaction you've ever made — groceries, rent, wages — ran through a
