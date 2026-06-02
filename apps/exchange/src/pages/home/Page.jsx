@@ -846,35 +846,40 @@ export default function HomePage() {
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">Why this exists</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-tight">
-              Built for the day the dollar<br />stops clearing the bill.
+              The dollar is a middleman too.<br />We removed it.
             </h2>
             <div className="grid md:grid-cols-2 gap-8 text-gray-500 text-sm font-medium leading-relaxed">
               <div>
                 <p className="mb-4">
-                  Every transaction you've ever made — groceries, rent, wages — ran through a
-                  single intermediary: the US dollar. That intermediary has been the world's
-                  reserve currency since 1944. It isn't anymore. Central banks are quietly
-                  moving out of dollar-denominated bonds and into gold. That shift doesn't make
-                  headlines until it's too late to prepare for it.
+                  You already know the grocery store takes a cut. So does the distributor, the
+                  wholesaler, and the truck driver's employer. But the dollar itself is part of
+                  the same chain. It's controlled by institutions that create it, lend it, and
+                  spend it before it ever reaches the person who grew your food. By the time
+                  more dollars reach a farmer, everything they buy already costs more. The
+                  people doing the real work are always last in line.
                 </p>
                 <p>
-                  When the medium of exchange becomes unreliable — through inflation, digital-only
-                  policy, or loss of reserve status — trade doesn't stop. People still need food,
-                  labor, and goods. What breaks is the infrastructure they used to exchange them.
+                  That system is also showing cracks. The dollar has been the world's go-to
+                  currency for decades - but that's quietly changing. Central banks are moving
+                  into gold. What happens to your grocery bill, your wages, and your savings
+                  when the dollar stops being the thing everyone agrees to use? Trade doesn't
+                  stop. But the infrastructure people relied on to do it breaks.
                 </p>
               </div>
               <div>
                 <p className="mb-4">
-                  Homestead is that infrastructure, built before the break. Tokens aren't a
-                  gimmick — they're a medium of exchange that doesn't require a central authority
-                  to clear. One token represents one real thing: a dozen eggs, a bottle of beer,
-                  an hour of a welder's time. The price is set by real demand, not a currency that
-                  can be inflated, frozen, or deprecated overnight.
+                  Homestead is built for that gap. A token here isn't a speculation - it's a
+                  claim ticket. One token, one real thing: a dozen eggs, a bottle of beer, an
+                  hour of skilled labor. The producer creates it, sets the price, and gets paid
+                  first - before any bank, distributor, or platform takes its share. For the
+                  first time, the person who made the thing is at the front of the line, not
+                  the back.
                 </p>
                 <p>
-                  If you're asking "how much are the eggs in dollars" — that's the right question
-                  for today. This platform is the answer for when that question no longer has a
-                  stable answer.
+                  If you're asking "how much are the eggs in dollars" - that's the right
+                  question for today. This platform exists for when that question no longer
+                  has a reliable answer. It works right now. It's built to keep working
+                  when others can't.
                 </p>
               </div>
             </div>
@@ -940,10 +945,10 @@ export default function HomePage() {
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-2 leading-tight">
-              Better food<br />Priced by demand — kept by the producer
+              Better food<br />Priced by demand - kept by the producer
             </h2>
             <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
-              The price on the left is what the grocery store charges — the distributor cut,
+              The price on the left is what the grocery store charges - the distributor cut,
               the shelf fee, the corporate margin, all baked in. The token price is what that
               food actually costs when none of that overhead exists. This platform is a hedge
               against that system, not a participant in it.
@@ -1093,7 +1098,7 @@ export default function HomePage() {
                 <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed">
                   Put your goods on the market. The token price is what real demand says your
-                  production is worth — not a distributor's offer, not a grocery store margin that
+                  production is worth - not a distributor's offer, not a grocery store margin that
                   squeezes both sides. Pricing leverage belongs to the producer here, not the
                   platform. The friction of paying in tokens is the cost of opting out of a system
                   that was never designed in your favor. What you're buying is genuinely better:
