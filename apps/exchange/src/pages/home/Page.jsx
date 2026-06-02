@@ -785,6 +785,7 @@ export default function HomePage() {
   const navigate                  = useNavigate();
   const [activeTab, setActiveTab]           = useState('Exchange');
   const [whyTab, setWhyTab]                 = useState('why');
+  const [dealTab, setDealTab]               = useState('buyer');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [cartonSize, setCartonSize]         = useState(12);
 
@@ -878,27 +879,35 @@ export default function HomePage() {
                   <p className="mb-4">
                     You already know the grocery store takes a cut. So does the distributor, the
                     wholesaler, and the truck driver's employer. But the dollar itself is part of
-                    the same chain. It's controlled by institutions that create it, lend it, and
-                    spend it before it ever reaches the person who grew your food. By the time
-                    more dollars filter down to a farmer, everything they buy already costs more.
-                    The people doing the real work are always last in line.
+                    the same chain. It's controlled by institutions that create it out of thin air -
+                    backed by nothing - lend it, and spend it before it ever reaches the person who
+                    grew your food. Every token on Homestead is backed by something real: a bottle,
+                    a carton, an hour of skilled labor. By the time more dollars filter down to a
+                    producer, everything they buy already costs more. The people doing the real work
+                    are always last in line.
                   </p>
-                  <p>
+                  <h3 className="text-hub-green font-black uppercase tracking-wide text-sm mb-2">
+                    Homestead flips that arrangement.
+                  </h3>
+                  <p className="text-gray-700 font-semibold">
+                    Producers set the price. Buyers pay producers directly.
+                    The producer moves to the front of the line.{' '}
+                    <span className="text-hub-green font-black">The dollar loses its position in line.</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-4">
                     That system is also showing cracks. The dollar has been the world's go-to
                     currency for decades - but that's quietly changing. Central banks are moving
                     into gold. What happens to your grocery bill, your wages, and your savings
                     when the dollar stops being the thing everyone agrees to use? Trade doesn't
                     stop. But the infrastructure people relied on to do it breaks.
                   </p>
-                </div>
-                <div>
                   <p className="mb-4">
                     Homestead is built for that gap. A token here isn't a speculation - it's a
                     claim ticket. One token, one real thing: a dozen eggs, a bottle of beer, an
                     hour of skilled labor. The producer creates it, sets the price, and gets paid
-                    first - before any bank, distributor, or platform takes its share. For the
-                    first time, the person who made the thing is at the front of the line, not
-                    the back.
+                    first - before any bank, distributor, or platform takes its share.
                   </p>
                   <p>
                     If you're asking "how much are the eggs in dollars" - that's the right
@@ -1030,128 +1039,146 @@ export default function HomePage() {
           <FeaturedListings />
         </section>
 
-        {/* ── THE DEAL ──────────────────────────────────────────────────── */}
+        {/* ── THE DEAL / HOW TO PARTICIPATE ─────────────────────────────── */}
         <section className="mb-12">
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
             <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">The deal</p>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-2 leading-tight">
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-tight">
               Better food<br />Priced by demand - kept by the producer
             </h2>
-            <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
-              The price on the left is what the grocery store charges - the distributor cut,
-              the shelf fee, the corporate margin, all baked in. The token price is what that
-              food actually costs when none of that overhead exists. This platform is a hedge
-              against that system, not a participant in it.
-            </p>
 
-            <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-2 mb-4">
-              <PriceEvidenceCard />
-              <div className="flex items-center justify-center px-2">
-                <ArrowRight size={28} className="text-hub-green" strokeWidth={3} />
-              </div>
-              <div className="border-4 border-hub-green rounded-xl p-6 text-center flex flex-col items-center justify-center bg-white">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-green opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-hub-green" />
-                  </span>
-                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest">Token Price</p>
-                </div>
-                <p className="text-5xl font-black text-gray-900">{cartonSize} <span className="text-hub-green">$EGG</span></p>
-                {eggUsd && <p className="text-gray-400 text-xs font-medium mt-1">≈ ${(parseFloat(eggUsd) * cartonSize).toFixed(2)} USD</p>}
-                <div className="flex gap-2 mt-4">
-                  {[1, 6, 12].map(n => (
-                    <button key={n} onClick={() => setCartonSize(n)} className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border transition-all ${cartonSize === n ? 'bg-hub-green border-hub-green text-white' : 'border-hub-green/30 text-hub-green hover:border-hub-green'}`}>
-                      {n} egg{n > 1 ? 's' : ''}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Local farm. Nutrient-rich. This morning.</p>
-              </div>
-            </div>
-
-            <DealCreditBanner />
-
-            <div className="mt-8 border-t border-hub-green/10 pt-8">
-              <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
-                The token path costs less - not as a gimmick, as a reflection of reality.
-                No distributor, no shelf-life engineering, no corporate margin. The result is a
-                more <strong className="text-gray-900 font-black">nutrient-dense</strong> product at a lower price. That's what cutting out the middleman actually does.
-              </p>
-              <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
-                The friction of setting it up is the cost of the difference. Swap a little ETH for
-                community tokens on our{' '}
-                <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link>{' '}
-                - takes about five minutes. Or submit a store price photo and earn your first $EGG token on us. To keep the token meaningful, photo submissions require a small ETH balance in your wallet - not spent, just held. It's proof you've bridged and have skin in the game.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
-                  Get the Deal <ArrowRight size={16} strokeWidth={3} />
-                </Link>
-                <button
-                  onClick={() => setShowHowItWorks(true)}
-                  className="inline-flex items-center gap-2 border-2 border-hub-green text-hub-green font-black py-3 px-8 uppercase tracking-widest hover:bg-hub-green/5 transition-all rounded"
-                >
-                  How it works
+            {/* Tab pills */}
+            <div className="flex gap-2 mb-8 flex-wrap">
+              {[
+                { id: 'buyer',    label: 'As a Buyer' },
+                { id: 'producer', label: 'As a Producer' },
+              ].map(t => (
+                <button key={t.id} onClick={() => setDealTab(t.id)}
+                  className={`text-[11px] font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 transition-all ${
+                    dealTab === t.id
+                      ? 'bg-hub-green border-hub-green text-white'
+                      : 'border-hub-green/30 text-hub-green hover:border-hub-green bg-transparent'
+                  }`}>
+                  {t.label}
                 </button>
-              </div>
+              ))}
+            </div>
 
-              {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
-            </div>
-          </div>
-        </section>
+            {dealTab === 'buyer' && (
+              <>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
+                  The price on the left is what the grocery store charges - the distributor cut,
+                  the shelf fee, the corporate margin, all baked in. The token price is what that
+                  food actually costs when none of that overhead exists. This platform is a hedge
+                  against that system, not a participant in it.
+                </p>
 
-        {/* ── HOW TO GET IN ─────────────────────────────────────────────── */}
-        <section className="mb-12 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="border-b border-gray-100 px-8 py-6">
-            <h2 className="text-2xl font-black uppercase tracking-tighter text-gray-900">
-              How do I participate?
-            </h2>
-            <p className="text-gray-500 text-sm font-medium mt-1">
-              No application. No approval committee. No fee paid to a gatekeeper for access.
-              Your trust is an investment proven by math.
-            </p>
-          </div>
-          <div className="divide-y divide-gray-50">
-            <div className="px-8 py-6 flex gap-5">
-              <span className="text-hub-green font-black text-2xl shrink-0">01</span>
-              <div>
-                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Stake ETH</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                  Deposit ETH into the protocol. You receive a credential token that reflects your
-                  standing - not a receipt, not a yield instrument. Proof that you have skin in the game.
-                  This is your investment in your own reputation.
+                <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-2 mb-4">
+                  <PriceEvidenceCard />
+                  <div className="flex items-center justify-center px-2">
+                    <ArrowRight size={28} className="text-hub-green" strokeWidth={3} />
+                  </div>
+                  <div className="border-4 border-hub-green rounded-xl p-6 text-center flex flex-col items-center justify-center bg-white">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-green opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-hub-green" />
+                      </span>
+                      <p className="text-hub-green text-[10px] font-black uppercase tracking-widest">Token Price</p>
+                    </div>
+                    <p className="text-5xl font-black text-gray-900">{cartonSize} <span className="text-hub-green">$EGG</span></p>
+                    {eggUsd && <p className="text-gray-400 text-xs font-medium mt-1">≈ ${(parseFloat(eggUsd) * cartonSize).toFixed(2)} USD</p>}
+                    <div className="flex gap-2 mt-4">
+                      {[1, 6, 12].map(n => (
+                        <button key={n} onClick={() => setCartonSize(n)} className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border transition-all ${cartonSize === n ? 'bg-hub-green border-hub-green text-white' : 'border-hub-green/30 text-hub-green hover:border-hub-green'}`}>
+                          {n} egg{n > 1 ? 's' : ''}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Local farm. Nutrient-rich. This morning.</p>
+                  </div>
+                </div>
+
+                <DealCreditBanner />
+
+                <div className="mt-8 border-t border-hub-green/10 pt-8">
+                  <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
+                    The token path costs less - not as a gimmick, as a reflection of reality.
+                    No distributor, no shelf-life engineering, no corporate margin. The result is a
+                    more <strong className="text-gray-900 font-black">nutrient-dense</strong> product at a lower price. That's what cutting out the middleman actually does.
+                  </p>
+                  <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
+                    The friction of setting it up is the cost of the difference. Swap a little ETH for
+                    community tokens on our{' '}
+                    <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link>{' '}
+                    - takes about five minutes. Or submit a store price photo and earn your first $EGG token on us. To keep the token meaningful, photo submissions require a small ETH balance in your wallet - not spent, just held. It's proof you've bridged and have skin in the game.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
+                      Get the Deal <ArrowRight size={16} strokeWidth={3} />
+                    </Link>
+                    <button
+                      onClick={() => setShowHowItWorks(true)}
+                      className="inline-flex items-center gap-2 border-2 border-hub-green text-hub-green font-black py-3 px-8 uppercase tracking-widest hover:bg-hub-green/5 transition-all rounded"
+                    >
+                      How it works
+                    </button>
+                  </div>
+                  {showHowItWorks && <HowItWorksModal onClose={() => setShowHowItWorks(false)} />}
+                </div>
+              </>
+            )}
+
+            {dealTab === 'producer' && (
+              <>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
+                  No application. No approval committee. No fee paid to a gatekeeper for access.
+                  Your trust is an investment proven by math.
                 </p>
-              </div>
-            </div>
-            <div className="px-8 py-6 flex gap-5">
-              <span className="text-hub-green font-black text-2xl shrink-0">02</span>
-              <div>
-                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your production</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                  Open a lot against your stake. The collateral ratio is enforced by math, not a loan officer.
-                  Production tokens are minted - each one a redeemable promise backed by your stake.
-                  No rehypothecation. One token, one real thing.
-                </p>
-              </div>
-            </div>
-            <div className="px-8 py-6 flex gap-5">
-              <span className="text-hub-green font-black text-2xl shrink-0">03</span>
-              <div>
-                <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                  Put your goods on the market. The token price is what real demand says your
-                  production is worth - not a distributor's offer, not a grocery store margin that
-                  squeezes both sides. Pricing leverage belongs to the producer here, not the
-                  platform. The friction of paying in tokens is the cost of opting out of a system
-                  that was never designed in your favor. What you're buying is genuinely better:
-                  full nutrition, grown without compromise, from someone who eats what they sell.
-                  You pay a fair price directly to the producer. They keep it.
-                  Every fulfilled order builds your on-chain track record - portable, verifiable,
-                  and not controlled by any platform that can revoke it.
-                </p>
-              </div>
-            </div>
+                <div className="divide-y divide-hub-green/10">
+                  <div className="pb-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">01</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Stake ETH</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Deposit ETH into the protocol. You receive a credential token that reflects your
+                        standing - not a receipt, not a yield instrument. Proof that you have skin in the game.
+                        This is your investment in your own reputation.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="py-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">02</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your production</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Open a lot against your stake. The collateral ratio is enforced by math, not a loan officer.
+                        Production tokens are minted - each one a redeemable promise backed by your stake.
+                        No rehypothecation. One token, one real thing.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">03</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Put your goods on the market. The token price is what real demand says your
+                        production is worth - not a distributor's offer, not a grocery store margin that
+                        squeezes both sides. Pricing leverage belongs to the producer here, not the platform.
+                        Every fulfilled order builds your on-chain track record - portable, verifiable,
+                        and not controlled by any platform that can revoke it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-8 border-t border-hub-green/10 pt-8">
+                  <Link to="/profile" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
+                    I'm a Producer <ArrowRight size={16} strokeWidth={3} />
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
