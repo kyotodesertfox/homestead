@@ -8,3 +8,13 @@
 
 [functions]
   included_files = ["contract_addresses.env"]
+
+# Testnet context — deploy from Netlify dashboard using "testnet" context
+# or point a branch (e.g. "testnet") to this context.
+# Env vars here are overrides — any var not listed falls back to the site-level value.
+# To hotswap: in Netlify dashboard → Site configuration → Environment variables,
+# set VITE_CHAIN_ID and all VITE_* addresses to the testnet values from .env.testnet.
+# Switch back to mainnet by restoring values from .env.mainnet.
+
+[context.testnet]
+  command = "bash scripts/build.sh"
