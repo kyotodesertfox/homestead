@@ -81,6 +81,17 @@ interface IDEXPair {
     function earned(address account) external view returns (uint256);
 }
 
+interface IRouter {
+    function WETH() external view returns (address);
+    function swapExactTokensForETH(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] memory path,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
+}
+
 // =========================================================================
 // HOMESTEAD LIBRARY
 // Pair addresses are looked up from the Factory (not computed via CREATE2)

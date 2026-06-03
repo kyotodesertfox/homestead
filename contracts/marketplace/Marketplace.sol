@@ -35,7 +35,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     mapping(uint256 => uint256) private _listingBatch;
     // tracks which listing a token was sold from (stored as listingId+1; 0 = untracked)
     mapping(uint256 => uint256) private _tokenListingId;
-    // $BEER held in escrow per token — burned on redemption to release brewer's stake
+    // buyer's tokens held in escrow per token — swapped → ETH → producer on redemption
     mapping(uint256 => uint256) private _escrowedBeer;
 
     // Attestation relay — best-effort call after economic settlement completes.
@@ -47,7 +47,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // $FARM balance held in escrow per listing — burned per subsidized delivery message.
     mapping(uint256 => uint256) private _subsidyBalance;
 
-    uint256[39] private __gap;
+    // DEX Router — swaps buyer's escrowed tokens → ETH → producer on redemption.
+    address public router;
+
+    uint256[38] private __gap;
 
     // =========================================================================
 
@@ -63,7 +66,9 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     }
 
     event RelaySet(address indexed relay);
+    event RouterSet(address indexed router);
     event FarmTokenSet(address indexed farmToken);
+    event ProducerPaid(uint256 indexed listingId, uint256 indexed tokenId, address indexed producer, uint256 ethAmount);
     event SubsidyDeposited(uint256 indexed listingId, address indexed seller, uint256 amount);
     event SubsidyCharged(uint256 indexed listingId, uint256 fee, uint256 remaining);
     event SubsidyReclaimed(uint256 indexed listingId, address indexed to, uint256 amount);
@@ -288,6 +293,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             IERC721(nftContract).ownerOf(tokenId) == msg.sender,
             'Marketplace: NOT_OWNER'
         );
+        require(router != address(0), 'Marketplace: ROUTER_NOT_SET');
 
         INFTTemplate(nftContract).redeem(tokenId);
 
@@ -295,14 +301,34 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         if (storedId > 0) {
             uint256 listingId = storedId - 1;
 
-            // Burn escrowed $BEER — this is the unlock key for the brewer's ETH stake
             uint256 escrowed = _escrowedBeer[tokenId];
             if (escrowed > 0) {
                 delete _escrowedBeer[tokenId];
-                IBurnableToken(_listings[listingId].paymentToken).burn(escrowed);
+
+                address payToken = _listings[listingId].paymentToken;
+                address producer = _listings[listingId].proceeds;
+
+                // Swap buyer's escrowed tokens → ETH → producer.
+                // ETH always comes from the LP — producer's staked ETH in Treasury is never touched.
+                // Router collects exit fee (LP rewards + Treasury cut) before sending net ETH to producer.
+                address weth = IRouter(router).WETH();
+                address[] memory path = new address[](2);
+                path[0] = payToken;
+                path[1] = weth;
+
+                IERC20(payToken).approve(router, escrowed);
+                uint256[] memory amounts = IRouter(router).swapExactTokensForETH(
+                    escrowed,
+                    0,
+                    path,
+                    producer,
+                    block.timestamp
+                );
+
+                emit ProducerPaid(listingId, tokenId, producer, amounts[amounts.length - 1]);
             }
 
-            // Notify Treasury: mark pro-rata ETH stake claimable for this batch
+            // Treasury burns producer's escrowed tokens and marks pro-rata collateral claimable.
             uint256 batchId = _listingBatch[listingId];
             if (batchId > 0) {
                 ITreasury(feeCollector).onRedeem(batchId);
@@ -411,6 +437,11 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     function setRelay(address _relay) external onlyOwner {
         relay = _relay;
         emit RelaySet(_relay);
+    }
+
+    function setRouter(address _router) external onlyOwner {
+        router = _router;
+        emit RouterSet(_router);
     }
 
     function pause()   external onlyOwner { _pause(); }
