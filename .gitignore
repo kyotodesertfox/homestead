@@ -19,6 +19,12 @@ contracts/**/*.json
 .env.*.local
 !/.env
 
+# Claude Code memory — never commit
+.claude/
+
+# Embedded repos — handle separately
+apps/HomesteadCompanion
+
 # Deploy artifacts (generated on each deploy)
 .deploys/
 
