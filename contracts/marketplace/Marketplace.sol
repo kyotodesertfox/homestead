@@ -47,7 +47,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // $FARM balance held in escrow per listing — burned per subsidized delivery message.
     mapping(uint256 => uint256) private _subsidyBalance;
 
-    // DEX Router — swaps buyer's escrowed tokens → ETH → producer on redemption.
+    // DEX Router — swaps producer's released tokens → ETH → producer on redemption.
     address public router;
 
     uint256[38] private __gap;
@@ -162,7 +162,9 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // Transfer producer NFTs into marketplace custody.
     // Caller must approve this contract on the NFT contract first.
-    function depositInventory(uint256 listingId, uint256[] calldata tokenIds) external {
+    // nonReentrant: NFT transferFrom hands control to the recipient — a malicious contract
+    // could call back into depositInventory before state settles and double-credit inventory.
+    function depositInventory(uint256 listingId, uint256[] calldata tokenIds) external nonReentrant {
         Listing storage listing = _listings[listingId];
         require(listing.nftContract != address(0), 'Marketplace: LISTING_NOT_FOUND');
         require(
@@ -183,7 +185,9 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     }
 
     // Pull unsold NFTs back from custody.
-    function withdrawInventory(uint256 listingId, uint256 count) external {
+    // nonReentrant: same re-entry risk as deposit — receiver callback could pop the same
+    // token ID twice before inventory.length is updated.
+    function withdrawInventory(uint256 listingId, uint256 count) external nonReentrant {
         Listing storage listing = _listings[listingId];
         require(
             msg.sender == owner() || msg.sender == listing.proceeds,
@@ -230,14 +234,15 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
     // PURCHASE
-    // Buyer spends paymentToken; platform fee routes to Treasury immediately.
-    // Remainder held in escrow — burned on redemption to release brewer's ETH stake.
+    // Buyer spends paymentToken; full amount held in escrow.
+    // On redemption: buyer's tokens burned, producer's tokens swapped → ETH → producer.
+    // Platform revenue comes from the Router exit fee on the producer swap — no token fee here.
     // Caller must approve this contract on the payment token first.
     // =========================================================================
 
     function buy(uint256 listingId) external nonReentrant whenNotPaused {
         Listing storage listing = _listings[listingId];
-        require(listing.active,              'Marketplace: LISTING_NOT_ACTIVE');
+        require(listing.active,               'Marketplace: LISTING_NOT_ACTIVE');
         require(listing.inventory.length > 0, 'Marketplace: OUT_OF_STOCK');
 
         uint256 tokenId = listing.inventory[listing.inventory.length - 1];
@@ -249,25 +254,12 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             _tokenListingId[tokenId] = listingId + 1;
         }
 
-        uint256 fee      = (listing.price * ITreasury(feeCollector).marketplaceFeeBps()) / 10000;
-        uint256 escrowed = listing.price - fee;
-
-        // Collect full payment from buyer
+        // Full payment escrowed — burned on redemption (deflationary)
         require(
             IERC20(listing.paymentToken).transferFrom(msg.sender, address(this), listing.price),
             'Marketplace: PAYMENT_FAILED'
         );
-
-        // Platform fee → Treasury
-        if (fee > 0) {
-            require(
-                IERC20(listing.paymentToken).transfer(feeCollector, fee),
-                'Marketplace: FEE_FAILED'
-            );
-        }
-
-        // Remainder locked in escrow until physical delivery is confirmed via redeem()
-        _escrowedTokens[tokenId] = escrowed;
+        _escrowedTokens[tokenId] = listing.price;
 
         // Deliver NFT from custody to buyer
         IERC721(listing.nftContract).transferFrom(address(this), msg.sender, tokenId);
@@ -285,7 +277,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // per-token approval from the holder.
     // =========================================================================
 
-    function redeem(address nftContract, uint256 tokenId) external nonReentrant whenNotPaused {
+    function redeem(address nftContract, uint256 tokenId, uint256 minProducerEth) external nonReentrant whenNotPaused {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
             'Marketplace: UNREGISTERED_NFT'
@@ -324,10 +316,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
                     IERC20(releaseToken).approve(router, releaseAmount);
                     uint256[] memory amounts = IRouter(router).swapExactTokensForETH(
                         releaseAmount,
-                        0,
+                        minProducerEth,
                         path,
                         producer,
-                        block.timestamp
+                        block.timestamp + 300
                     );
                     emit ProducerPaid(listingId, tokenId, producer, amounts[amounts.length - 1]);
                 }
@@ -377,6 +369,10 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         if (stored == 0) return (0, 0);
         listingId = stored - 1;
         batchId   = _listingBatch[listingId];
+    }
+
+    function escrowedTokens(uint256 tokenId) external view returns (uint256) {
+        return _escrowedTokens[tokenId];
     }
 
     // =========================================================================

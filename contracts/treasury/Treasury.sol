@@ -477,7 +477,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
             if (!IProductionToken(token).transfer(msg.sender, amount)) revert TransferFailed();
         }
 
-        uint256 collateralToRelease = batch.collateralLocked / batch.totalNFTs;
+        // Final NFT releases full remainder to prevent wei-level dust from integer division
+        bool isFinalNFT = (batch.redeemedCount + batch.returnedCount == batch.totalNFTs);
+        uint256 collateralToRelease = isFinalNFT
+            ? batch.collateralLocked - batch.collateralReleased
+            : batch.collateralLocked / batch.totalNFTs;
         batch.collateralReleased += collateralToRelease;
         if (usedCollateral[batch.producer] >= collateralToRelease) {
             usedCollateral[batch.producer] -= collateralToRelease;
