@@ -35,8 +35,8 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     mapping(uint256 => uint256) private _listingBatch;
     // tracks which listing a token was sold from (stored as listingId+1; 0 = untracked)
     mapping(uint256 => uint256) private _tokenListingId;
-    // buyer's tokens held in escrow per token — swapped → ETH → producer on redemption
-    mapping(uint256 => uint256) private _escrowedBeer;
+    // buyer's tokens held in escrow per NFT token ID — burned on redemption (deflationary)
+    mapping(uint256 => uint256) private _escrowedTokens;
 
     // Attestation relay — best-effort call after economic settlement completes.
     // A Relay failure never reverts the redemption; Treasury and producer are protected first.
@@ -112,7 +112,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         uint256 price,
         uint256 batchId,
         uint256 subsidyCount  // number of quantum delivery messages seller covers; 0 = no subsidy
-    ) external whenNotPaused returns (uint256 listingId) {
+    ) external nonReentrant whenNotPaused returns (uint256 listingId) {
         require(
             INFTDeployer(nftDeployer).isRegistered(nftContract),
             'Marketplace: UNREGISTERED_NFT'
@@ -267,7 +267,7 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         }
 
         // Remainder locked in escrow until physical delivery is confirmed via redeem()
-        _escrowedBeer[tokenId] = escrowed;
+        _escrowedTokens[tokenId] = escrowed;
 
         // Deliver NFT from custody to buyer
         IERC721(listing.nftContract).transferFrom(address(this), msg.sender, tokenId);
@@ -277,8 +277,9 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
 
     // =========================================================================
     // REDEMPTION
-    // Buyer confirms physical delivery by calling redeem(). This burns escrowed
-    // $BEER (deflation) and marks the brewer's pro-rata ETH stake as claimable.
+    // Buyer confirms physical delivery by calling redeem(). Burns buyer's escrowed
+    // tokens (deflationary). Treasury releases producer's escrowed tokens, which
+    // Marketplace swaps → ETH → producer as sale proceeds.
     // Caller must be the token holder. Marketplace must be set as a redemptionOperator
     // on the nftTemplate after deployment so it can call through without a separate
     // per-token approval from the holder.
@@ -293,7 +294,6 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
             IERC721(nftContract).ownerOf(tokenId) == msg.sender,
             'Marketplace: NOT_OWNER'
         );
-        require(router != address(0), 'Marketplace: ROUTER_NOT_SET');
 
         INFTTemplate(nftContract).redeem(tokenId);
 
@@ -301,37 +301,36 @@ contract Marketplace is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         if (storedId > 0) {
             uint256 listingId = storedId - 1;
 
-            uint256 escrowed = _escrowedBeer[tokenId];
+            address payToken = _listings[listingId].paymentToken;
+            address producer = _listings[listingId].proceeds;
+
+            // Burn buyer's escrowed tokens — deflationary, ~50% of tokens touched per sale
+            uint256 escrowed = _escrowedTokens[tokenId];
             if (escrowed > 0) {
-                delete _escrowedBeer[tokenId];
-
-                address payToken = _listings[listingId].paymentToken;
-                address producer = _listings[listingId].proceeds;
-
-                // Swap buyer's escrowed tokens → ETH → producer.
-                // ETH always comes from the LP — producer's staked ETH in Treasury is never touched.
-                // Router collects exit fee (LP rewards + Treasury cut) before sending net ETH to producer.
-                address weth = IRouter(router).WETH();
-                address[] memory path = new address[](2);
-                path[0] = payToken;
-                path[1] = weth;
-
-                IERC20(payToken).approve(router, escrowed);
-                uint256[] memory amounts = IRouter(router).swapExactTokensForETH(
-                    escrowed,
-                    0,
-                    path,
-                    producer,
-                    block.timestamp
-                );
-
-                emit ProducerPaid(listingId, tokenId, producer, amounts[amounts.length - 1]);
+                delete _escrowedTokens[tokenId];
+                IBurnableToken(payToken).burn(escrowed);
             }
 
-            // Treasury burns producer's escrowed tokens and marks pro-rata collateral claimable.
+            // Treasury releases producer's escrowed tokens (held since mintLotNFTs).
+            // Marketplace swaps them → ETH → producer as sale proceeds.
             uint256 batchId = _listingBatch[listingId];
             if (batchId > 0) {
-                ITreasury(feeCollector).onRedeem(batchId);
+                (address releaseToken, uint256 releaseAmount) = ITreasury(feeCollector).onRedeem(batchId);
+                if (releaseAmount > 0 && router != address(0)) {
+                    address weth = IRouter(router).WETH();
+                    address[] memory path = new address[](2);
+                    path[0] = releaseToken;
+                    path[1] = weth;
+                    IERC20(releaseToken).approve(router, releaseAmount);
+                    uint256[] memory amounts = IRouter(router).swapExactTokensForETH(
+                        releaseAmount,
+                        0,
+                        path,
+                        producer,
+                        block.timestamp
+                    );
+                    emit ProducerPaid(listingId, tokenId, producer, amounts[amounts.length - 1]);
+                }
             }
         }
 

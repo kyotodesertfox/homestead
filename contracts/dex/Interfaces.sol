@@ -67,8 +67,9 @@ interface ITreasury {
     function trustedRelay() external view returns (address);
     // Called by Marketplace when a brewer's listing is created
     function markListed(uint256 batchId, uint256 listingId) external;
-    // Called by Marketplace when a physical bottle is redeemed
-    function onRedeem(uint256 batchId) external;
+    // Called by Marketplace when a physical bottle is redeemed.
+    // Releases escrowed producer tokens to Marketplace for swap → ETH → producer.
+    function onRedeem(uint256 batchId) external returns (address token, uint256 amount);
     // Called by Marketplace.createListing to validate permissionless listings
     function validateListingCaller(uint256 batchId, address caller, address nftContract) external view returns (bool);
     // Called by DEXPair when an LP holder claims rewards

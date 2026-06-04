@@ -460,7 +460,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         emit BatchListed(batchId, listingId);
     }
 
-    function onRedeem(uint256 batchId) external {
+    function onRedeem(uint256 batchId) external returns (address token, uint256 amount) {
         if (!isTrustedCaller[msg.sender])           revert NotTrusted();
         Batch storage batch = batches[batchId];
         if (batch.producer == address(0))           revert BatchNotFound();
@@ -470,9 +470,11 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
         batch.redeemedCount++;
 
-        // Burn escrowed production tokens for this unit — physical delivery confirmed
-        if (batch.tokenPerNFT > 0) {
-            IProductionToken(batch.token).burn(batch.tokenPerNFT);
+        // Release escrowed production tokens to Marketplace — swapped → ETH → producer on delivery
+        token  = batch.token;
+        amount = batch.tokenPerNFT;
+        if (amount > 0) {
+            if (!IProductionToken(token).transfer(msg.sender, amount)) revert TransferFailed();
         }
 
         uint256 collateralToRelease = batch.collateralLocked / batch.totalNFTs;
