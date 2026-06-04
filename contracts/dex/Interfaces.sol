@@ -10,6 +10,10 @@ interface ITokenDeployer {
     function getAllTokens() external view returns (address[] memory);
 }
 
+interface IProductionToken {
+    function mintExact(address to, uint256 amount) external;
+}
+
 interface INFTDeployer {
     function isRegistered(address nftContract) external view returns (bool);
     function getAllContracts() external view returns (address[] memory);

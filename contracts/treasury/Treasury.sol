@@ -9,6 +9,7 @@ import "../dex/Interfaces.sol";
 
 interface IProductionToken {
     function mintToWallet(address to, uint256 amount) external;
+    function mintExact(address to, uint256 amount) external;
     function totalSupply() external view returns (uint256);
     function burn(uint256 amount) external;
     function transfer(address to, uint256 amount) external returns (bool);

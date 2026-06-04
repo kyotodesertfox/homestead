@@ -1,4 +1,5 @@
 export const ADDRESSES = {
+  TOKEN_ESCROW:   import.meta.env.VITE_TOKEN_ESCROW,
   WETH:           import.meta.env.VITE_WETH,
   BEER_TOKEN:     import.meta.env.VITE_BEER_TOKEN,
   BEERNFT:        import.meta.env.VITE_BEER_NFT,
@@ -464,6 +465,66 @@ export const PRICE_EVIDENCE_ABI = [
     { name: 'submitter', type: 'address', indexed: true  },
     { name: 'amount',    type: 'uint256', indexed: false },
   ]},
+];
+
+export const TOKEN_ESCROW_ABI = [
+  {
+    name: 'create', type: 'function', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'counterparty', type: 'address' },
+      { name: 'token',        type: 'address' },
+      { name: 'tokenAmount',  type: 'uint256' },
+      { name: 'ethRequired',  type: 'uint256' },
+    ],
+    outputs: [{ name: 'escrowId', type: 'uint256' }],
+  },
+  {
+    name: 'fund', type: 'function', stateMutability: 'payable',
+    inputs: [{ name: 'escrowId', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    name: 'confirm', type: 'function', stateMutability: 'nonpayable',
+    inputs: [{ name: 'escrowId', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    name: 'cancel', type: 'function', stateMutability: 'nonpayable',
+    inputs: [{ name: 'escrowId', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    name: 'getEscrow', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'escrowId', type: 'uint256' }],
+    outputs: [
+      { name: 'initiator',             type: 'address' },
+      { name: 'counterparty',          type: 'address' },
+      { name: 'token',                 type: 'address' },
+      { name: 'tokenAmount',           type: 'uint256' },
+      { name: 'ethRequired',           type: 'uint256' },
+      { name: 'ethDeposited',          type: 'uint256' },
+      { name: 'initiatorConfirmed',    type: 'bool'    },
+      { name: 'counterpartyConfirmed', type: 'bool'    },
+      { name: 'released',              type: 'bool'    },
+      { name: 'cancelled',             type: 'bool'    },
+    ],
+  },
+  {
+    name: 'nextEscrowId', type: 'function', stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'EscrowCreated', type: 'event',
+    inputs: [
+      { name: 'escrowId',    type: 'uint256', indexed: true  },
+      { name: 'initiator',   type: 'address', indexed: true  },
+      { name: 'counterparty',type: 'address', indexed: true  },
+      { name: 'token',       type: 'address', indexed: false },
+      { name: 'tokenAmount', type: 'uint256', indexed: false },
+      { name: 'ethRequired', type: 'uint256', indexed: false },
+    ],
+  },
 ];
 
 export const DEADLINE = () => BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
