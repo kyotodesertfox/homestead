@@ -92,10 +92,6 @@ contract masterTemplate is ERC20Upgradeable, ERC20PausableUpgradeable, UUPSUpgra
 
     function mintToPool(address poolAddress, uint256 amount) external onlyMinter {
         _mint(poolAddress, amount * (10 ** uint256(decimals())));
-    }
-
-    function mintToPoolAndSync(address poolAddress, uint256 amount) external onlyMinter {
-        _mint(poolAddress, amount * (10 ** uint256(decimals())));
         IDexPair(poolAddress).sync();
     }
 

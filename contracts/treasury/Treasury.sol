@@ -98,7 +98,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
     error UnregisteredNFT();
     error UnregisteredToken();
-    error FeeTooHigh();
+    error OutOfRange();
     error InsufficientFees();
     error WithdrawFailed();
     error NoEth();
@@ -240,19 +240,19 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     // =========================================================================
 
     function setDexEntryFee(uint256 _feeBps) external onlyOwner {
-        if (_feeBps > 500) revert FeeTooHigh();
+        if (_feeBps > 500) revert OutOfRange();
         dexEntryFeeBps = _feeBps;
         emit DexEntryFeeUpdated(_feeBps);
     }
 
     function setDexExitFee(uint256 _feeBps) external onlyOwner {
-        if (_feeBps > 1000) revert FeeTooHigh();
+        if (_feeBps > 1000) revert OutOfRange();
         dexExitFeeBps = _feeBps;
         emit DexExitFeeUpdated(_feeBps);
     }
 
     function setMarketplaceFee(uint256 _feeBps) external onlyOwner {
-        if (_feeBps > 1000) revert FeeTooHigh();
+        if (_feeBps > 1000) revert OutOfRange();
         marketplaceFeeBps = _feeBps;
         emit MarketplaceFeeUpdated(_feeBps);
     }
@@ -573,7 +573,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     }
 
     function setCollateralRatioBps(uint256 bps) external onlyOwner {
-        if (bps < 10000) revert FeeTooHigh();
+        if (bps < 10000) revert OutOfRange();
         collateralRatioBps = bps;
         emit CollateralRatioSet(bps);
     }
