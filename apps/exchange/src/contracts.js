@@ -351,7 +351,23 @@ export const MARKETPLACE_ABI = [
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     outputs: [{ name: 'listingId', type: 'uint256' }, { name: 'batchId', type: 'uint256' }],
   },
-  { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'nftContract', type: 'address' }, { name: 'tokenId', type: 'uint256' }], outputs: [] },
+  {
+    name: 'redeem', type: 'function', stateMutability: 'nonpayable',
+    inputs: [{ name: 'nftContract', type: 'address' }, { name: 'tokenId', type: 'uint256' }, { name: 'minProducerEth', type: 'uint256' }],
+    outputs: [],
+  },
+  { name: 'escrowedTokens',  type: 'function', stateMutability: 'view',        inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'router',          type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'relay',           type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'farmToken',       type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'feeCollector',    type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'paused',          type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'bool'    }] },
+  { name: 'setRouter',       type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_router',       type: 'address' }], outputs: [] },
+  { name: 'setRelay',        type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_relay',        type: 'address' }], outputs: [] },
+  { name: 'setFarmToken',    type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_farmToken',    type: 'address' }], outputs: [] },
+  { name: 'setFeeCollector', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_feeCollector', type: 'address' }], outputs: [] },
+  { name: 'pause',           type: 'function', stateMutability: 'nonpayable',  inputs: [], outputs: [] },
+  { name: 'unpause',         type: 'function', stateMutability: 'nonpayable',  inputs: [], outputs: [] },
 ];
 
 export const NFT_ABI = [

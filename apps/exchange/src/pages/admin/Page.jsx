@@ -4,7 +4,7 @@ import { useAccount, useReadContract, useReadContracts, useWriteContract, useWai
 import { useAppKit } from '@reown/appkit/react';
 import { formatUnits, parseEther, maxUint256, keccak256 } from 'viem';
 import {
-  ADDRESSES, TREASURY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
+  ADDRESSES, TREASURY_ABI, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
   ARTIFACT_HASHES,
 } from '../../contracts';
@@ -197,7 +197,7 @@ function useWrite() {
   return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
 }
 
-const TABS = ['Collections', 'Tokens', 'Treasury', 'Upload'];
+const TABS = ['Collections', 'Tokens', 'Treasury', 'Marketplace', 'Upload'];
 
 // Strip the CBOR metadata suffix before hashing so toolchain upgrades
 // that only rotate metadata don't produce false "outdated" positives.
@@ -1010,6 +1010,72 @@ function UploadTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MARKETPLACE TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function MarketplaceTab() {
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+  const [inputs, setInputs] = useState({});
+  const set = (key, val) => setInputs(i => ({ ...i, [key]: val }));
+
+  const { data, refetch } = useReadContracts({
+    contracts: [
+      { address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'router'       },
+      { address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'relay'        },
+      { address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'farmToken'    },
+      { address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'feeCollector' },
+      { address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'paused'       },
+    ],
+  });
+
+  const [routerAddr, relayAddr, farmAddr, feeAddr, paused] = data?.map(d => d?.result) ?? [];
+
+  const write = (fn, args) => writeContract({ address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: fn, args });
+
+  const addrRows = [
+    { label: 'Router',        key: 'router',  current: routerAddr, fn: 'setRouter',       hint: 'DEX Router. If unset, producer tokens released by Treasury on redemption are stranded in Marketplace with no swap path — producer never receives ETH.' },
+    { label: 'Relay',         key: 'relay',   current: relayAddr,  fn: 'setRelay',        hint: 'Quantum messaging relay. If unset, redemption attestations are silently skipped (best-effort — does not revert). Also required for subsidy deposits at listing creation.' },
+    { label: "Gov't Token",   key: 'farm',    current: farmAddr,   fn: 'setFarmToken',    hint: '$FARM governance token. If unset, createListing with subsidyCount > 0 reverts. Listings with subsidyCount = 0 are unaffected.' },
+    { label: 'Fee Collector', key: 'fee',     current: feeAddr,    fn: 'setFeeCollector', hint: 'Treasury address. If unset or wrong, onRedeem() calls revert and no redemptions can complete.' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${paused ? 'bg-red-400' : 'bg-hub-green'}`} />
+          <span className="text-xs font-medium text-gray-500">{paused ? 'Paused' : 'Active'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => refetch()} variant="ghost"><RefreshCw size={12} /></Btn>
+          <Btn onClick={() => write(paused ? 'unpause' : 'pause', [])} variant={paused ? 'primary' : 'danger'}>
+            {paused ? 'Unpause' : 'Pause'}
+          </Btn>
+        </div>
+      </div>
+
+      <div>
+        <Label>Contract Addresses</Label>
+        <div className="space-y-2">
+          {addrRows.map(row => (
+            <div key={row.key} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-28 shrink-0 flex items-center gap-1">
+                {row.label}
+                {row.hint && <Hint text={row.hint} />}
+              </span>
+              <div className="w-36 shrink-0 min-w-0"><CopyAddr address={row.current} /></div>
+              <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="0x…" className="flex-1" />
+              <Btn onClick={() => write(row.fn, [inputs[row.key]])} disabled={!inputs[row.key] || isPending || isConfirming}>Set</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -1097,7 +1163,7 @@ export default function AdminPage() {
     );
   }
 
-  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Upload: <Upload size={14} /> };
+  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Marketplace: <Settings size={14} />, Upload: <Upload size={14} /> };
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -1149,6 +1215,7 @@ export default function AdminPage() {
             {activeTab === 'Collections' && <CollectionsTab />}
             {activeTab === 'Tokens'      && <TokensTab />}
             {activeTab === 'Treasury'    && <TreasuryTab />}
+            {activeTab === 'Marketplace' && <MarketplaceTab />}
             {activeTab === 'Upload'      && <UploadTab />}
           </div>
         </div>
