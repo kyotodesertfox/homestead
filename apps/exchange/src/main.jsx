@@ -11,11 +11,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT;
 
+const TAIKO_RPC = [
+  'https://rpc.mainnet.taiko.xyz',
+  'https://rpc.taiko.xyz',
+  'https://rpc.ankr.com/taiko',
+  'https://taiko.drpc.org',
+  'https://taiko.api.pocket.network',
+  'https://taiko-json-rpc.stakely.io',
+];
+
 const taikoMainnet = {
   ...taiko,
   rpcUrls: {
-    default: { http: ['https://rpc.mainnet.taiko.xyz'] },
-    public:  { http: ['https://rpc.mainnet.taiko.xyz'] },
+    default: { http: TAIKO_RPC },
+    public:  { http: TAIKO_RPC },
   }
 }
 

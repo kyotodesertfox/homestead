@@ -70,7 +70,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
 
     // =========================================================================
 
-    uint256 public constant VERSION  = 2;
+    uint256 public constant VERSION  = 1;
     uint8   public constant TIER_NONE     = 0;
     uint8 public constant TIER_HOLDER   = 1;
     uint8 public constant TIER_PRODUCER   = 2;

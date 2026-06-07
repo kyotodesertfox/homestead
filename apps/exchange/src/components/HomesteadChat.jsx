@@ -13,7 +13,20 @@ import { ADDRESSES, RELAY_ABI, ERC20_ABI, TREASURY_ABI } from '../contracts.js';
 const keySignMsg         = (address) => `HomesteadChat Key:${address}`;
 const ZERO_KEY           = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const RELAY_DEPLOY_BLOCK = 7605607n;
+const LOG_CHUNK          = 9000n;
 const MSG_EVENT          = parseAbiItem('event MessageSent(address indexed from, address indexed to, bytes encryptedPayload, bool quantumReady, uint256 timestamp)');
+
+async function getLogsChunked(publicClient, params, latestBlock) {
+  const results = [];
+  let from = params.fromBlock;
+  while (from <= latestBlock) {
+    const to = from + LOG_CHUNK - 1n > latestBlock ? latestBlock : from + LOG_CHUNK - 1n;
+    const chunk = await publicClient.getLogs({ ...params, fromBlock: from, toBlock: to });
+    results.push(...chunk);
+    from = to + 1n;
+  }
+  return results;
+}
 
 function hexToBytes(hex) {
   return Uint8Array.from(Buffer.from(hex.replace('0x', ''), 'hex'));
@@ -197,10 +210,10 @@ export default function HomesteadChat() {
     if (!publicClient || !address) return;
     setLoadingInbox(true); setInboxError('');
     try {
-      const logs = await publicClient.getLogs({
-        address: ADDRESSES.RELAY, event: MSG_EVENT,
-        args: { to: address }, fromBlock: RELAY_DEPLOY_BLOCK, toBlock: 'latest',
-      });
+      const latest = await publicClient.getBlockNumber();
+      const logs = await getLogsChunked(publicClient, {
+        address: ADDRESSES.RELAY, event: MSG_EVENT, args: { to: address }, fromBlock: RELAY_DEPLOY_BLOCK,
+      }, latest);
       const map = {};
       logs.forEach(log => {
         const from = log.args.from, key = from.toLowerCase(), ts = Number(log.args.timestamp);
@@ -216,9 +229,10 @@ export default function HomesteadChat() {
     if (!publicClient || !address || !addr) return;
     setLoadingConv(true); setConvError('');
     try {
+      const latest = await publicClient.getBlockNumber();
       const [sent, received] = await Promise.all([
-        publicClient.getLogs({ address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: address, to: addr }, fromBlock: RELAY_DEPLOY_BLOCK, toBlock: 'latest' }),
-        publicClient.getLogs({ address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: addr, to: address }, fromBlock: RELAY_DEPLOY_BLOCK, toBlock: 'latest' }),
+        getLogsChunked(publicClient, { address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: address, to: addr }, fromBlock: RELAY_DEPLOY_BLOCK }, latest),
+        getLogsChunked(publicClient, { address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: addr, to: address }, fromBlock: RELAY_DEPLOY_BLOCK }, latest),
       ]);
       setConvMessages([...sent, ...received]
         .sort((a, b) => Number(a.args.timestamp) - Number(b.args.timestamp))
@@ -231,9 +245,10 @@ export default function HomesteadChat() {
   const fetchComposeThread = async () => {
     if (!publicClient || !address || !recipient || recipient.length !== 42) return;
     try {
+      const latest = await publicClient.getBlockNumber();
       const [sent, received] = await Promise.all([
-        publicClient.getLogs({ address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: address, to: recipient }, fromBlock: RELAY_DEPLOY_BLOCK, toBlock: 'latest' }),
-        publicClient.getLogs({ address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: recipient, to: address }, fromBlock: RELAY_DEPLOY_BLOCK, toBlock: 'latest' }),
+        getLogsChunked(publicClient, { address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: address, to: recipient }, fromBlock: RELAY_DEPLOY_BLOCK }, latest),
+        getLogsChunked(publicClient, { address: ADDRESSES.RELAY, event: MSG_EVENT, args: { from: recipient, to: address }, fromBlock: RELAY_DEPLOY_BLOCK }, latest),
       ]);
       setComposeMessages([...sent, ...received]
         .sort((a, b) => Number(a.args.timestamp) - Number(b.args.timestamp))
