@@ -4,7 +4,7 @@ import { useAccount, useReadContract, useReadContracts, useWriteContract, useWai
 import { useAppKit } from '@reown/appkit/react';
 import { formatUnits, parseEther, maxUint256, keccak256 } from 'viem';
 import {
-  ADDRESSES, TREASURY_ABI, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
+  ADDRESSES, TREASURY_ABI, MARKETPLACE_ABI, RELAY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
   ARTIFACT_HASHES,
 } from '../../contracts';
@@ -197,7 +197,7 @@ function useWrite() {
   return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
 }
 
-const TABS = ['Collections', 'Tokens', 'Treasury', 'Marketplace', 'Upload'];
+const TABS = ['Collections', 'Tokens', 'Treasury', 'Marketplace', 'Relay', 'Upload'];
 
 // Strip the CBOR metadata suffix before hashing so toolchain upgrades
 // that only rotate metadata don't produce false "outdated" positives.
@@ -727,7 +727,7 @@ function TreasuryTab() {
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'dexEntryFeeBps'     },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'dexExitFeeBps'      },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'marketplaceFeeBps'  },
-      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'lpRewardFeeBps'     },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'lpShareBps'         },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'collateralRatioBps' },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'stkHomestead'       },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'trustedRelay'       },
@@ -749,7 +749,7 @@ function TreasuryTab() {
     { label: 'DEX Entry Fee',       key: 'dexEntry',   current: dexEntryBps,  fn: 'setDexEntryFee'     },
     { label: 'DEX Exit Fee',        key: 'dexExit',    current: dexExitBps,   fn: 'setDexExitFee'      },
     { label: 'Marketplace Fee',     key: 'market',     current: marketBps,    fn: 'setMarketplaceFee'  },
-    { label: 'LP Reward Fee',       key: 'lpReward',   current: lpBps,        fn: 'setLpRewardFeeBps'  },
+    { label: 'LP Share',             key: 'lpReward',   current: lpBps,        fn: 'setLpShareBps'      },
     { label: 'Collateral Ratio',    key: 'collateral', current: collBps,      fn: 'setCollateralRatioBps' },
   ];
   const tierRows = [
@@ -1076,6 +1076,128 @@ function MarketplaceTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RELAY TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function RelayTab() {
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+  const [inputs, setInputs] = useState({});
+  const set = (key, val) => setInputs(i => ({ ...i, [key]: val }));
+
+  const enabled = !!ADDRESSES.RELAY;
+
+  const { data, refetch } = useReadContracts({
+    contracts: [
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'treasury'    },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'feeToken'    },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'quantumFee'  },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'marketplace' },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'dexPair'     },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'paused'      },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'trustedRelay' },
+    ],
+    query: { enabled },
+  });
+
+  const [treasuryAddr, feeTokenAddr, quantumFee, marketplaceAddr, dexPairAddr, paused, trustedRelayAddr] =
+    data?.map(d => d?.result) ?? [];
+
+  const ZERO = '0x0000000000000000000000000000000000000000';
+  const isSet    = addr => !!addr && addr.toLowerCase() !== ZERO;
+  const matches  = (addr, expected) => !!addr && !!expected && addr.toLowerCase() === expected.toLowerCase();
+
+
+  const writeRelay    = (fn, args) => writeContract({ address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: fn, args });
+  const writeTreasury = (fn, args) => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: fn, args });
+
+  const addrRows = [
+    { label: 'Treasury',    key: 'treasury',    current: treasuryAddr,    fn: 'setTreasury',    target: 'relay',    ok: matches(treasuryAddr, ADDRESSES.TREASURY),  hint: 'Must match the Treasury proxy. Required for attestation lookups and ETH fee forwarding.' },
+    { label: 'Marketplace', key: 'marketplace', current: marketplaceAddr, fn: 'setMarketplace', target: 'relay',    ok: isSet(marketplaceAddr),                      hint: 'Required for subsidy charging on redemptions when quantumFee > 0.' },
+    { label: 'Trusted Relay (Treasury)', key: 'trustedRelay', current: trustedRelayAddr, fn: 'setTrustedRelay', target: 'treasury', ok: matches(trustedRelayAddr, ADDRESSES.RELAY), hint: 'Set on Treasury so the Relay is authorised to call it. Required before messages can be sent.' },
+    { label: 'Fee Token',   key: 'feeToken',    current: feeTokenAddr,    fn: 'setFeeToken',    target: 'relay',    ok: isSet(feeTokenAddr),                          hint: '$QUANTUM token address. Leave unset (zero) until $QUANTUM is deployed — relay operates fee-free.' },
+    { label: 'DEX Pair',    key: 'dexPair',     current: dexPairAddr,     fn: 'setDexPair',     target: 'relay',    ok: isSet(dexPairAddr),                           hint: 'BEER/WETH pair used to price $QUANTUM fees in ETH. Required only when quantumFee > 0.' },
+  ];
+
+  if (!enabled) {
+    return (
+      <div className="py-8 text-center text-gray-400 text-sm">
+        <p className="font-mono">VITE_RELAY not set</p>
+        <p className="mt-1 text-xs">Deploy the Relay proxy and add its address to .env</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${paused ? 'bg-red-400' : 'bg-hub-green'}`} />
+          <span className="text-xs font-medium text-gray-500">{paused ? 'Paused' : 'Active'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Btn onClick={() => refetch()} variant="ghost"><RefreshCw size={12} /></Btn>
+          <Btn onClick={() => writeRelay(paused ? 'unpause' : 'pause', [])} variant={paused ? 'primary' : 'danger'}>
+            {paused ? 'Unpause' : 'Pause'}
+          </Btn>
+        </div>
+      </div>
+
+      <div>
+        <Label>Contract Addresses</Label>
+        <div className="space-y-2">
+          {addrRows.map(row => (
+            <div key={row.key} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${row.ok ? 'bg-hub-green' : 'bg-red-400'}`} />
+                {row.label}
+                {row.hint && <Hint text={row.hint} />}
+              </span>
+              <div className="w-36 shrink-0 min-w-0"><CopyAddr address={row.current} /></div>
+              <Input value={inputs[row.key] ?? ''} onChange={v => set(row.key, v)} placeholder="0x…" className="flex-1" />
+              <Btn
+                onClick={() => row.target === 'treasury'
+                  ? writeTreasury(row.fn, [inputs[row.key]])
+                  : writeRelay(row.fn, [inputs[row.key]])
+                }
+                disabled={!inputs[row.key] || isPending || isConfirming}
+              >Set</Btn>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <Label>Quantum Fee</Label>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
+            Fee (token units)
+            <Hint text="Amount of $QUANTUM burned per message. Set to 0 to operate fee-free. Uses 18 decimals — enter full units (e.g. 1 = 1e18 internally)." />
+          </span>
+          <span className="text-xs font-mono text-gray-400 w-36 shrink-0">
+            {quantumFee !== undefined ? formatUnits(quantumFee, 18) : '…'}
+          </span>
+          <Input value={inputs.quantumFee ?? ''} onChange={v => set('quantumFee', v)} placeholder="e.g. 1.0" className="flex-1" />
+          <Btn
+            onClick={() => writeRelay('setQuantumFee', [parseEther(inputs.quantumFee || '0')])}
+            disabled={!inputs.quantumFee || isPending || isConfirming}
+          >Set</Btn>
+        </div>
+      </div>
+
+      <div>
+        <Label>Exempt Wallets (fee-free)</Label>
+        <div className="flex items-center gap-3">
+          <Input value={inputs.exemptWallet ?? ''} onChange={v => set('exemptWallet', v)} placeholder="0x… wallet address" className="flex-1" />
+          <Btn onClick={() => writeRelay('setQuantumFreeRecipient', [inputs.exemptWallet, true])}  disabled={!inputs.exemptWallet || isPending || isConfirming}>Exempt</Btn>
+          <Btn onClick={() => writeRelay('setQuantumFreeRecipient', [inputs.exemptWallet, false])} disabled={!inputs.exemptWallet || isPending || isConfirming} variant="danger">Remove</Btn>
+        </div>
+      </div>
+
+      <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -1096,7 +1218,7 @@ export default function AdminPage() {
 
   // Proxies: read impl slot then hash impl bytecode.
   // Non-upgradeable: hash the contract bytecode directly.
-  const PROXY_KEYS    = ['TREASURY', 'TOKEN_DEPLOYER', 'NFT_DEPLOYER'];
+  const PROXY_KEYS    = ['TREASURY', 'TOKEN_DEPLOYER', 'NFT_DEPLOYER', 'RELAY'];
   const DIRECT_KEYS   = ['MARKETPLACE', 'ROUTER', 'FACTORY'];
   const HASH_KEY_MAP  = { FACTORY: 'DEX_FACTORY' };
 
@@ -1163,7 +1285,7 @@ export default function AdminPage() {
     );
   }
 
-  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Marketplace: <Settings size={14} />, Upload: <Upload size={14} /> };
+  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Marketplace: <Settings size={14} />, Relay: <Settings size={14} />, Upload: <Upload size={14} /> };
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -1179,6 +1301,7 @@ export default function AdminPage() {
             {[
               ['Treasury',       ADDRESSES.TREASURY,       'TREASURY'],
               ['Marketplace',    ADDRESSES.MARKETPLACE,    'MARKETPLACE'],
+              ['Relay',          ADDRESSES.RELAY,          'RELAY'],
               ['Router',         ADDRESSES.ROUTER,         'ROUTER'],
               ['DEX Factory',    ADDRESSES.FACTORY,        'FACTORY'],
               ['Token Deployer', ADDRESSES.TOKEN_DEPLOYER, 'TOKEN_DEPLOYER'],
@@ -1216,6 +1339,7 @@ export default function AdminPage() {
             {activeTab === 'Tokens'      && <TokensTab />}
             {activeTab === 'Treasury'    && <TreasuryTab />}
             {activeTab === 'Marketplace' && <MarketplaceTab />}
+            {activeTab === 'Relay'       && <RelayTab />}
             {activeTab === 'Upload'      && <UploadTab />}
           </div>
         </div>

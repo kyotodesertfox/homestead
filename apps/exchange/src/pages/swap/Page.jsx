@@ -195,7 +195,7 @@ export default function SwapPage() {
   const { data: lpRewardBps } = useReadContract({
     address: ADDRESSES.TREASURY,
     abi: TREASURY_ABI,
-    functionName: 'lpRewardFeeBps',
+    functionName: 'lpShareBps',
   });
 
   // Gross ETH before platform exit fee

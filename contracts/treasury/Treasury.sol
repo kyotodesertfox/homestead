@@ -55,7 +55,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
 
     // ---- LP REWARDS ----
     address public weth;
-    uint256 public lpRewardFeeBps;
+    uint256 public lpShareBps;
 
     mapping(uint256 => uint256) private _claimedAmount;
 
@@ -146,7 +146,7 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
     event TrustedRelaySet(address indexed relay);
     event LPRewardClaimed(address indexed to, address indexed token, uint256 ethIn, uint256 tokenOut);
     event WethSet(address indexed weth);
-    event LpRewardFeeBpsUpdated(uint256 feeBps);
+    event LpShareBpsUpdated(uint256 bps);
     event StkHomesteadSet(address indexed stk);
     event CollateralRatioSet(uint256 bps);
 
@@ -641,9 +641,9 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         emit WethSet(_weth);
     }
 
-    function setLpRewardFeeBps(uint256 bps) external onlyOwner {
+    function setLpShareBps(uint256 bps) external onlyOwner {
         if (bps > dexExitFeeBps) revert ExceedsExitFee();
-        lpRewardFeeBps = bps;
-        emit LpRewardFeeBpsUpdated(bps);
+        lpShareBps = bps;
+        emit LpShareBpsUpdated(bps);
     }
 }

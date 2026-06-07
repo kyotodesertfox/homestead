@@ -166,8 +166,8 @@ export default function RelayPage() {
                 <div className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">General Messaging</div>
                 <div className="text-white font-black uppercase tracking-tight mb-1">Quantum Upgrade</div>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  Standard messages use X25519 at no cost. Quantum upgrade costs 1 $BEER
-                  (burned, deflationary) or the ETH equivalent at DEX spot — your choice.
+                  Standard messages use X25519 at no cost. Quantum upgrade burns $QUANTUM
+                  (deflationary) or the ETH equivalent at DEX spot — your choice.
                 </p>
               </div>
             </div>

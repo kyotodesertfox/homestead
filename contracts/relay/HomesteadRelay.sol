@@ -59,14 +59,20 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     // Marketplace address — used to check and charge quantum delivery message subsidies.
     address public marketplace;
 
-    uint256[45] private __gap;
+    // Kyber-768 pubkey (1184 bytes) stored in state — required for quantumReady messages.
+    mapping(address => bytes) public kyberKey;
+
+    // Fixed ETH fee path; if set, overrides DEX spot price for the ETH payment option.
+    uint256 public ethFee;
+
+    uint256[43] private __gap;
 
     // =========================================================================
 
     uint256 public constant VERSION  = 1;
     uint8   public constant TIER_NONE     = 0;
     uint8 public constant TIER_HOLDER   = 1;
-    uint8 public constant TIER_BREWER   = 2;
+    uint8 public constant TIER_PRODUCER   = 2;
     uint8 public constant TIER_VERIFIED = 3;
 
     // Kyber-768 pubkey (1184 bytes) emitted once on registration — clients cache per recipient
@@ -109,7 +115,9 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     // --- Key Registry ---
 
     function registerKey(bytes32 _x25519Key, bytes calldata _kyberKey) external {
+        require(_kyberKey.length == 1184, "Relay: invalid kyber key");
         x25519Key[msg.sender] = _x25519Key;
+        kyberKey[msg.sender]  = _kyberKey;
         emit KeyRegistered(msg.sender, _x25519Key, _kyberKey);
     }
 
@@ -133,13 +141,13 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     // Returns the ETH equivalent of quantumFee $BEER at current DEX spot price.
     // Only called when dexPair is set and the sender chooses the ETH path.
     function ethEquivalent() public view returns (uint256) {
+        if (ethFee > 0) return ethFee;
         require(dexPair != address(0), "Relay: DEX_PAIR_NOT_SET");
         (uint112 r0, uint112 r1) = IPair(dexPair).getReserves();
         address t0 = IPair(dexPair).token0();
-        // quantumFee is in $BEER units; derive ETH cost at spot
         return t0 == feeToken
-            ? (quantumFee * uint256(r1)) / uint256(r0)   // r0=BEER r1=WETH
-            : (quantumFee * uint256(r0)) / uint256(r1);  // r0=WETH r1=BEER
+            ? (quantumFee * uint256(r1)) / uint256(r0)
+            : (quantumFee * uint256(r0)) / uint256(r1);
     }
 
     function _chargeQuantumFee(bool exempt) internal {
@@ -167,6 +175,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
         uint256 tokenId
     ) external payable {
         require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
+        require(!quantumReady || kyberKey[to].length == 1184, "Relay: recipient has no quantum key");
         if (quantumReady && quantumFee > 0) {
             bool subsidized = false;
             if (marketplace != address(0)) {
@@ -182,9 +191,12 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external payable {
-        require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
-        if (quantumReady && quantumFee > 0) {
-            _chargeQuantumFee(quantumFreeRecipient[to]);
+        if (quantumReady) {
+            require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
+            require(kyberKey[to].length == 1184,  "Relay: recipient has no quantum key");
+            if (quantumFee > 0) {
+                _chargeQuantumFee(quantumFreeRecipient[to]);
+            }
         }
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
     }
