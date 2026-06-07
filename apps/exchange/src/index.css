@@ -6,3 +6,9 @@
   --color-hub-dark: #0f2318;
   --color-hub-surface: #f0fdf4;
 }
+
+@media print {
+  nav, header, footer, .print\:hidden { display: none !important; }
+  body { background: white; }
+  @page { margin: 1.5cm 2cm; }
+}

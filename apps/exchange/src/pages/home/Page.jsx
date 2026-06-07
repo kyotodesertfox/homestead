@@ -846,7 +846,10 @@ export default function HomePage() {
         {/* ── WHY WE EXIST ──────────────────────────────────────────────── */}
         <section className="mb-12">
           <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
-            <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-4">Why this exists</p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-hub-green text-xs font-black uppercase tracking-widest">Why this exists</p>
+              <a href="/whitepaper" className="text-xs font-black uppercase tracking-widest text-hub-green hover:text-green-700 border border-hub-green/30 hover:border-hub-green px-4 py-2 rounded-full transition-all">Whitepaper →</a>
+            </div>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-6 leading-tight">
               The dollar is a middleman too.<br />We're removing it.
             </h2>

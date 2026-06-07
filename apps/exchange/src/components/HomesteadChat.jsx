@@ -107,6 +107,7 @@ export default function HomesteadChat() {
   const [keyMismatch, setKeyMismatch]     = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [registerError, setRegisterError] = useState('');
+  const [payWithEth, setPayWithEth]       = useState(false);
   const bottomRef = useRef(null);
 
   const { isConnected, address } = useAccount();
@@ -123,6 +124,7 @@ export default function HomesteadChat() {
   const { data: composePartnerKyber  } = useReadContract({ address: ADDRESSES.RELAY, abi: RELAY_ABI, functionName: 'kyberKey',  args: [recipient], query: { enabled: recipientValid } });
 
   const { data: quantumFee }    = useReadContract({ address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'quantumFee' });
+  const { data: ethFee }        = useReadContract({ address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'ethFee' });
   const { data: quantumSymbol } = useReadContract({ address: ADDRESSES.QUANTUM,  abi: ERC20_ABI,    functionName: 'symbol', query: { enabled: !!ADDRESSES.QUANTUM } });
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: ADDRESSES.QUANTUM, abi: ERC20_ABI, functionName: 'allowance',
@@ -142,8 +144,10 @@ export default function HomesteadChat() {
   const composeSecure   = myKeyRegistered && composePartnerX25519 && composePartnerX25519 !== ZERO_KEY && hasKyber(composePartnerKyber);
   const supportSecure   = myKeyRegistered && supportX25519        && supportX25519        !== ZERO_KEY && hasKyber(supportKyber);
 
-  const feeLabel  = quantumSymbol ? `$${quantumSymbol}` : '$QUANTUM';
-  const feeAmount = quantumFee !== undefined ? formatUnits(quantumFee, 18) : '1';
+  const feeLabel    = quantumSymbol ? `$${quantumSymbol}` : '$QUANTUM';
+  const feeAmount   = quantumFee !== undefined ? formatUnits(quantumFee, 18) : '1';
+  const ethFeeSet   = ethFee !== undefined && ethFee > 0n;
+  const ethFeeLabel = ethFeeSet ? `${formatUnits(ethFee, 18)} ETH` : null;
 
   const { signMessage, isPending: isSigning } = useSignMessage();
   const { writeContractAsync } = useWriteContract();
@@ -256,15 +260,26 @@ export default function HomesteadChat() {
     setError('');
     try {
       let hexPayload, quantum = false;
+      let txValue = undefined;
       if (secure && theirX25519Hex && theirX25519Hex !== ZERO_KEY && theirKyberHex) {
-        await ensureApproval(free ? 0n : (quantumFee ?? 0n));
+        if (!free) {
+          if (payWithEth && ethFeeSet) {
+            txValue = ethFee;
+          } else {
+            await ensureApproval(quantumFee ?? 0n);
+          }
+        }
         const keys = derivedKeys ?? await new Promise(res => deriveKeys(res));
         hexPayload = await buildEncryptedPayload(keys, text, theirX25519Hex, theirKyberHex);
         quantum = true;
       } else {
         hexPayload = bytesToHex(new TextEncoder().encode(text));
       }
-      await writeContractAsync({ address: ADDRESSES.RELAY, abi: RELAY_ABI, functionName: 'sendMessage', args: [to, hexPayload, quantum] });
+      await writeContractAsync({
+        address: ADDRESSES.RELAY, abi: RELAY_ABI, functionName: 'sendMessage',
+        args: [to, hexPayload, quantum],
+        ...(txValue !== undefined ? { value: txValue } : {}),
+      });
       onSuccess?.();
     } catch (e) {
       setError(e.shortMessage ?? e.message ?? 'Transaction failed');
@@ -444,11 +459,21 @@ export default function HomesteadChat() {
                           <Send size={12} />
                         </button>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Shield size={10} className={composeSecure ? 'text-hub-green' : 'text-gray-300'} />
-                        <span className="text-[10px] text-gray-400 font-medium">
-                          {composeSecure ? `Encrypted · ${feeAmount} ${feeLabel}` : 'Unencrypted'}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Shield size={10} className={composeSecure ? 'text-hub-green' : 'text-gray-300'} />
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {composeSecure
+                              ? `Encrypted · ${payWithEth && ethFeeSet ? ethFeeLabel : `${feeAmount} ${feeLabel}`}`
+                              : 'Unencrypted'}
+                          </span>
+                        </div>
+                        {composeSecure && ethFeeSet && (
+                          <button onClick={() => setPayWithEth(v => !v)}
+                            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-hub-green transition-colors">
+                            Pay with {payWithEth ? feeLabel : 'ETH'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -495,7 +520,7 @@ export default function HomesteadChat() {
                         </span>
                       </div>
                       <button
-                        disabled={!supportInput.trim() || !supportAddress}
+                        disabled={!supportInput.trim() || !supportAddress || !myKeyRegistered}
                         onClick={() => doSend({
                           to: supportAddress, text: supportInput.trim(), secure: supportSecure,
                           theirX25519Hex: supportX25519, theirKyberHex: supportKyber,
@@ -622,11 +647,21 @@ export default function HomesteadChat() {
                           <Send size={12} />
                         </button>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Shield size={10} className={convSecure ? 'text-hub-green' : 'text-gray-300'} />
-                        <span className="text-[10px] text-gray-400 font-medium">
-                          {convSecure ? `Encrypted · ${feeAmount} ${feeLabel}` : 'Unencrypted'}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Shield size={10} className={convSecure ? 'text-hub-green' : 'text-gray-300'} />
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {convSecure
+                              ? `Encrypted · ${payWithEth && ethFeeSet ? ethFeeLabel : `${feeAmount} ${feeLabel}`}`
+                              : 'Unencrypted'}
+                          </span>
+                        </div>
+                        {convSecure && ethFeeSet && (
+                          <button onClick={() => setPayWithEth(v => !v)}
+                            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-hub-green transition-colors">
+                            Pay with {payWithEth ? feeLabel : 'ETH'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

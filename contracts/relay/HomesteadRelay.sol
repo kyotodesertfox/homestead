@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ITreasury {
@@ -23,7 +24,7 @@ interface IMarketplace {
     function chargeSubsidy(address nftContract, uint256 tokenId, uint256 fee) external returns (bool);
 }
 
-contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
+contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable {
 
     // =========================================================================
     // STORAGE — DO NOT REORDER OR DELETE EXISTING VARIABLES
@@ -69,7 +70,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
 
     // =========================================================================
 
-    uint256 public constant VERSION  = 1;
+    uint256 public constant VERSION  = 2;
     uint8   public constant TIER_NONE     = 0;
     uint8 public constant TIER_HOLDER   = 1;
     uint8 public constant TIER_PRODUCER   = 2;
@@ -105,6 +106,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
         uint256 _quantumFee
     ) initializer public {
         __Ownable_init(msg.sender);
+        __Pausable_init();
         treasury   = _treasury;
         feeToken   = _feeToken;
         quantumFee = _quantumFee;
@@ -173,7 +175,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
         bool quantumReady,
         address nftContract,
         uint256 tokenId
-    ) external payable {
+    ) external payable whenNotPaused {
         require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
         require(!quantumReady || kyberKey[to].length == 1184, "Relay: recipient has no quantum key");
         if (quantumReady && quantumFee > 0) {
@@ -190,7 +192,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
     }
 
-    function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external payable {
+    function sendMessage(address to, bytes calldata encryptedPayload, bool quantumReady) external payable whenNotPaused {
         if (quantumReady) {
             require(x25519Key[to] != bytes32(0), "Relay: recipient has no key");
             require(kyberKey[to].length == 1184,  "Relay: recipient has no quantum key");
@@ -225,7 +227,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
         emit GroupJoined(groupId, msg.sender);
     }
 
-    function sendGroupMessage(uint256 groupId, bytes calldata encryptedPayload, bool quantumReady) external payable {
+    function sendGroupMessage(uint256 groupId, bytes calldata encryptedPayload, bool quantumReady) external payable whenNotPaused {
         require(isMember[groupId][msg.sender], "Relay: not a member");
         require(groups[groupId].active, "Relay: group inactive");
         if (quantumReady && quantumFee > 0) {
@@ -264,4 +266,7 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable {
     function setDexPair(address _dexPair)                          external onlyOwner { dexPair                         = _dexPair;     }
     function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;       }
     function setMarketplace(address _marketplace)                  external onlyOwner { marketplace                     = _marketplace; }
+    function setEthFee(uint256 _fee)                               external onlyOwner { ethFee                          = _fee;         }
+    function pause()                                               external onlyOwner { _pause();                                       }
+    function unpause()                                             external onlyOwner { _unpause();                                     }
 }

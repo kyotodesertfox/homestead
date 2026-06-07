@@ -737,10 +737,11 @@ function TreasuryTab() {
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [1] },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [2] },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'tierThreshold', args: [3] },
+      { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'surplus'        },
     ],
   });
 
-  const [dexEntryBps, dexExitBps, marketBps, lpBps, collBps, stkAddr, relayAddr, wethAddr, accFees, paused, tier1, tier2, tier3] =
+  const [dexEntryBps, dexExitBps, marketBps, lpBps, collBps, stkAddr, relayAddr, wethAddr, accFees, paused, tier1, tier2, tier3, surplusWei] =
     data?.map(d => d?.result) ?? [];
 
   const write = (fn, args) => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: fn, args });
@@ -839,6 +840,17 @@ function TreasuryTab() {
           <Btn onClick={() => write('setTrustedCaller', [inputs.trustedCaller, true])}  disabled={!inputs.trustedCaller || isPending || isConfirming}>Grant</Btn>
           <Btn onClick={() => write('setTrustedCaller', [inputs.trustedCaller, false])} disabled={!inputs.trustedCaller || isPending || isConfirming} variant="danger">Revoke</Btn>
         </div>
+      </div>
+
+      {/* Surplus Withdrawal */}
+      <div>
+        <Label>Protocol Surplus — Available: {surplusWei !== undefined ? parseFloat(formatUnits(surplusWei, 18)).toFixed(6) : '…'} ETH</Label>
+        <p className="text-xs text-gray-400 mb-2">ETH in Treasury not backing any staker position. Safe to withdraw without affecting the floor.</p>
+        <Btn
+          onClick={() => write('withdrawSurplus', [])}
+          disabled={!surplusWei || surplusWei === 0n || isPending || isConfirming}
+          variant="danger"
+        >Withdraw Surplus</Btn>
       </div>
 
       {/* Fee Withdrawal */}
@@ -1094,11 +1106,12 @@ function RelayTab() {
       { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'dexPair'     },
       { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'paused'      },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'trustedRelay' },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'ethFee'      },
     ],
     query: { enabled },
   });
 
-  const [treasuryAddr, feeTokenAddr, quantumFee, marketplaceAddr, dexPairAddr, paused, trustedRelayAddr] =
+  const [treasuryAddr, feeTokenAddr, quantumFee, marketplaceAddr, dexPairAddr, paused, trustedRelayAddr, ethFee] =
     data?.map(d => d?.result) ?? [];
 
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -1179,6 +1192,20 @@ function RelayTab() {
           <Btn
             onClick={() => writeRelay('setQuantumFee', [parseEther(inputs.quantumFee || '0')])}
             disabled={!inputs.quantumFee || isPending || isConfirming}
+          >Set</Btn>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
+            ETH Fee (fixed)
+            <Hint text="Fixed ETH fee per quantum message sent to Treasury. Overrides DEX spot price. Set to 0 to disable ETH path and use $QUANTUM burn only. Enter in ETH (e.g. 0.001)." />
+          </span>
+          <span className="text-xs font-mono text-gray-400 w-36 shrink-0">
+            {ethFee !== undefined ? `${formatUnits(ethFee, 18)} ETH` : '…'}
+          </span>
+          <Input value={inputs.ethFee ?? ''} onChange={v => set('ethFee', v)} placeholder="e.g. 0.001" className="flex-1" />
+          <Btn
+            onClick={() => writeRelay('setEthFee', [parseEther(inputs.ethFee || '0')])}
+            disabled={!inputs.ethFee || isPending || isConfirming}
           >Set</Btn>
         </div>
       </div>

@@ -20,6 +20,7 @@ interface IStkToken {
     function mintExact(address to, uint256 amount) external;
     function burnFromMinter(address account, uint256 amount) external;
     function balanceOf(address account) external view returns (uint256);
+    function totalSupply() external view returns (uint256);
 }
 
 interface INFTBurnable {
@@ -645,5 +646,19 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         if (bps > dexExitFeeBps) revert ExceedsExitFee();
         lpShareBps = bps;
         emit LpShareBpsUpdated(bps);
+    }
+
+    // Returns ETH in the Treasury not backing any staker position.
+    function surplus() public view returns (uint256) {
+        if (stkHomestead == address(0)) return address(this).balance;
+        uint256 floor = IStkToken(stkHomestead).totalSupply();
+        return address(this).balance > floor ? address(this).balance - floor : 0;
+    }
+
+    function withdrawSurplus() external onlyOwner nonReentrant {
+        uint256 amount = surplus();
+        require(amount > 0, "Treasury: no surplus");
+        (bool ok,) = owner().call{value: amount}("");
+        require(ok, "Treasury: transfer failed");
     }
 }

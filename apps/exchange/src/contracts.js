@@ -207,7 +207,9 @@ export const TREASURY_ABI = [
     ],
   },
   { name: 'accumulatedFees', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'floorBalance',   type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'floorBalance',      type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'surplus',           type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'withdrawSurplus',   type: 'function', stateMutability: 'nonpayable',  inputs: [], outputs: [] },
   { name: 'claimableStake', type: 'function', stateMutability: 'view',        inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
   { name: 'claimStake',     type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [] },
   { name: 'postStake',      type: 'function', stateMutability: 'payable',     inputs: [], outputs: [] },
@@ -495,6 +497,7 @@ export const RELAY_ABI = [
   { name: 'x25519Key',      type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bytes32' }] },
   { name: 'kyberKey',       type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bytes'   }] },
   { name: 'ethFee',         type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
+  { name: 'ethEquivalent', type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
   { name: 'quantumFreeRecipient', type: 'function', stateMutability: 'view',  inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bool'    }] },
   {
     name: 'sendMessage', type: 'function', stateMutability: 'payable',
