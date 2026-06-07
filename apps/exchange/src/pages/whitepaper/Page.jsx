@@ -164,7 +164,25 @@ export default function WhitepaperPage() {
           </p>
         </Section>
 
-        <Section title="6. Why Now">
+        <Section title="6. The Platform Problem">
+          <p>
+            Centralized platforms present themselves as neutral infrastructure. They are not. Every message sent through a major platform is readable by the platform, subject to algorithmic suppression, and stored indefinitely. The business model depends on this — advertising revenue requires knowing what users say and selectively amplifying what keeps them engaged.
+          </p>
+          <p>
+            When financial incentives align between platform owners and political or commercial interests, the regulatory path that might otherwise correct this closes. Antitrust enforcement requires an enforcer. When the enforcer is downstream of the same incentive structure, the correction does not come.
+          </p>
+          <p>
+            The result is a communication layer that is structurally incapable of being neutral. Content that threatens the platform's business model — or the interests of those with financial relationships to the platform — is suppressed without recourse, without transparency, and without appeal.
+          </p>
+          <p>
+            Homestead's messaging layer is the technical answer to this. A message sent through the Relay is encrypted before it touches any network. No platform reads it. No algorithm ranks it. No financial relationship suppresses it. It either reaches the recipient or it does not — and the math governing that outcome is public, auditable, and immutable.
+          </p>
+          <p>
+            The irony of building a censorship-resistant communication layer is that the act of building it is itself subject to censorship on the platforms where it might otherwise find an audience. <strong>That tension is not incidental. It is the thesis.</strong>
+          </p>
+        </Section>
+
+        <Section title="8. Why Now">
           <p>
             Quantum computing is advancing faster than public awareness of the implications. The National Institute of Standards and Technology finalized ML-KEM (Kyber) as a post-quantum key encapsulation standard in 2024. Major cloud providers are beginning to offer quantum-resistant TLS. The window to retroactively protect communications is closing.
           </p>
