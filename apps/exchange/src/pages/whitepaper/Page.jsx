@@ -1,4 +1,10 @@
+import { useEffect } from 'react';
 import { FileDown } from 'lucide-react';
+
+function setMeta(property, content) {
+  let el = document.querySelector(`meta[property="${property}"]`) || document.querySelector(`meta[name="${property}"]`);
+  if (el) el.setAttribute('content', content);
+}
 
 const Section = ({ title, children }) => (
   <section className="mb-14 print:mb-10">
@@ -14,7 +20,30 @@ const Sub = ({ title, children }) => (
   </div>
 );
 
+const TITLE = 'Homestead Protocol — Technical Whitepaper';
+const DESC  = 'A decentralized protocol for direct commerce and quantum-safe messaging. Post-quantum encrypted on-chain communication built on Taiko Mainnet.';
+const URL   = 'https://homesteaders.netlify.app/whitepaper';
+
 export default function WhitepaperPage() {
+  useEffect(() => {
+    document.title = TITLE;
+    setMeta('description',         DESC);
+    setMeta('og:title',            TITLE);
+    setMeta('og:description',      DESC);
+    setMeta('og:url',              URL);
+    setMeta('twitter:title',       TITLE);
+    setMeta('twitter:description', DESC);
+    return () => {
+      document.title = 'Homestead Exchange';
+      setMeta('og:title',            'Homestead — Grown here. Sold here.');
+      setMeta('og:description',      'A direct market for local producers. Farm-fresh eggs, craft beer, and more — bought directly from the people who make them.');
+      setMeta('og:url',              'https://homesteaders.netlify.app');
+      setMeta('twitter:title',       'Homestead — Grown here. Sold here.');
+      setMeta('twitter:description', 'A direct market for local producers. Farm-fresh eggs, craft beer, and more — bought directly from the people who make them.');
+      setMeta('description',         'Homestead — a direct market for local producers. Buy farm-fresh eggs, craft beer, and more directly from the people who make them. No middlemen.');
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16 print:py-8 print:px-0">
