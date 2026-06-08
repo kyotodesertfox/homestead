@@ -7,6 +7,10 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "../dex/Interfaces.sol";
 
+interface IMintable {
+    function isMinter(address account) external view returns (bool);
+}
+
 contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
     // =========================================================================
@@ -15,12 +19,11 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // =========================================================================
 
     address public tokenDeployer;
-    address public feeCollector;
 
     uint256 public nextEscrowId;
     mapping(uint256 => Escrow) private _escrows;
 
-    uint256[47] private __gap;
+    uint256[48] private __gap;
 
     // =========================================================================
 
@@ -42,7 +45,7 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     event EscrowCreated(uint256 indexed escrowId, address indexed initiator, address indexed counterparty, address token, uint256 tokenAmount, uint256 ethRequired);
     event Funded(uint256 indexed escrowId, address indexed counterparty, uint256 amount);
     event Confirmed(uint256 indexed escrowId, address indexed confirmedBy);
-    event Released(uint256 indexed escrowId, address indexed initiator, uint256 ethAmount, uint256 platformFee);
+    event Released(uint256 indexed escrowId, address indexed initiator, uint256 ethAmount);
     event Cancelled(uint256 indexed escrowId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -50,16 +53,12 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
         _disableInitializers();
     }
 
-    function initialize(
-        address _tokenDeployer,
-        address _feeCollector
-    ) initializer public {
+    function initialize(address _tokenDeployer) initializer public {
         __Ownable_init(msg.sender);
         __Pausable_init();
         __ReentrancyGuard_init();
 
         tokenDeployer = _tokenDeployer;
-        feeCollector  = _feeCollector;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -79,6 +78,7 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     ) external onlyOwner nonReentrant whenNotPaused returns (uint256 escrowId) {
         require(counterparty != address(0),                        'TokenEscrow: ZERO_COUNTERPARTY');
         require(ITokenDeployer(tokenDeployer).isRegistered(token), 'TokenEscrow: UNREGISTERED_TOKEN');
+        require(IMintable(token).isMinter(address(this)),          'TokenEscrow: NOT_MINTER');
         require(tokenAmount > 0,                                   'TokenEscrow: ZERO_TOKENS');
         require(ethRequired > 0,                                   'TokenEscrow: ZERO_ETH');
 
@@ -132,26 +132,17 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     }
 
     // Internal release — fires on dual confirm.
-    // Platform fee (marketplaceFeeBps) deducted from ETH → Treasury.
-    // Remainder → initiator. Tokens minted directly to counterparty.
+    // Full ETH → initiator. Tokens minted directly to counterparty.
     function _release(uint256 escrowId) internal {
         Escrow storage e = _escrows[escrowId];
         e.released = true;
 
-        uint256 fee          = (e.ethDeposited * ITreasury(feeCollector).marketplaceFeeBps()) / 10000;
-        uint256 initiatorEth = e.ethDeposited - fee;
-
-        if (fee > 0) {
-            (bool feeOk,) = feeCollector.call{value: fee}("");
-            require(feeOk, 'TokenEscrow: FEE_FAILED');
-        }
-
-        (bool ethOk,) = e.initiator.call{value: initiatorEth}("");
+        (bool ethOk,) = e.initiator.call{value: e.ethDeposited}("");
         require(ethOk, 'TokenEscrow: ETH_TRANSFER_FAILED');
 
         IProductionToken(e.token).mintExact(e.counterparty, e.tokenAmount);
 
-        emit Released(escrowId, e.initiator, initiatorEth, fee);
+        emit Released(escrowId, e.initiator, e.ethDeposited);
     }
 
     // Cancel an escrow.
@@ -235,10 +226,6 @@ contract TokenEscrow is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable
     // =========================================================================
     // ADMIN
     // =========================================================================
-
-    function setFeeCollector(address _feeCollector) external onlyOwner {
-        feeCollector = _feeCollector;
-    }
 
     function setTokenDeployer(address _tokenDeployer) external onlyOwner {
         tokenDeployer = _tokenDeployer;

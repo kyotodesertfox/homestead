@@ -7,14 +7,12 @@ Legend: DEPLOYED = on-chain matches source | PENDING = source changed, needs red
 
 ## Treasury
 - Proxy:   0x631f9D082019E25a2BfD219BF235cA0b742206EC
-- Impl:    0x857E2293Ea6b5eF87fa77Af119bf5255B83b0F44 (deployed 2026-06-06)
+- Impl:    0x1cBc456ddaaB1D097caC85e6c6FfaF315EF3fB8c (deployed 2026-06-07)
 - Source:  contracts/treasury/Treasury.sol
-- VERSION: 1 in source, 1 deployed — **PENDING UPGRADE**
+- VERSION: 1 in source, 1 deployed — **DEPLOYED** (surplus + withdrawSurplus live)
 
 ### What the deployed impl has
-Everything in the source EXCEPT the additions below.
-
-### What is in source but NOT yet deployed
+Everything in source including:
 - `IStkToken.totalSupply()` added to interface
 - `surplus() public view` — calculates ETH balance minus stkHomestead totalSupply
 - `withdrawSurplus() external onlyOwner` — pulls surplus to owner wallet

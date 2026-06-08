@@ -655,9 +655,9 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         return address(this).balance > floor ? address(this).balance - floor : 0;
     }
 
-    function withdrawSurplus() external onlyOwner nonReentrant {
-        uint256 amount = surplus();
-        require(amount > 0, "Treasury: no surplus");
+    function withdrawSurplus(uint256 amount) external onlyOwner nonReentrant {
+        require(amount > 0, "Treasury: zero amount");
+        require(amount <= surplus(), "Treasury: exceeds surplus");
         (bool ok,) = owner().call{value: amount}("");
         require(ok, "Treasury: transfer failed");
     }

@@ -66,7 +66,10 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
     // Fixed ETH fee path; if set, overrides DEX spot price for the ETH payment option.
     uint256 public ethFee;
 
-    uint256[43] private __gap;
+    // Fee for plaintext (non-quantum) messages. If 0, plaintext messages are free.
+    uint256 public ethFeePlainText;
+
+    uint256[42] private __gap;
 
     // =========================================================================
 
@@ -188,6 +191,10 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
             if (!subsidized) {
                 _chargeQuantumFee(quantumFreeRecipient[to]);
             }
+        } else if (!quantumReady && ethFeePlainText > 0) {
+            require(msg.value >= ethFeePlainText, "Relay: INSUFFICIENT_ETH_PLAINTEXT");
+            (bool ok,) = treasury.call{value: msg.value}("");
+            require(ok, "Relay: ETH_FAILED");
         }
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
     }
@@ -199,6 +206,10 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
             if (quantumFee > 0) {
                 _chargeQuantumFee(quantumFreeRecipient[to]);
             }
+        } else if (ethFeePlainText > 0) {
+            require(msg.value >= ethFeePlainText, "Relay: INSUFFICIENT_ETH_PLAINTEXT");
+            (bool ok,) = treasury.call{value: msg.value}("");
+            require(ok, "Relay: ETH_FAILED");
         }
         emit MessageSent(msg.sender, to, encryptedPayload, quantumReady, block.timestamp);
     }
@@ -232,6 +243,10 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
         require(groups[groupId].active, "Relay: group inactive");
         if (quantumReady && quantumFee > 0) {
             _chargeQuantumFee(false);
+        } else if (!quantumReady && ethFeePlainText > 0) {
+            require(msg.value >= ethFeePlainText, "Relay: INSUFFICIENT_ETH_PLAINTEXT");
+            (bool ok,) = treasury.call{value: msg.value}("");
+            require(ok, "Relay: ETH_FAILED");
         }
         emit GroupMessageSent(groupId, msg.sender, encryptedPayload, quantumReady, block.timestamp);
     }
@@ -266,7 +281,8 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
     function setDexPair(address _dexPair)                          external onlyOwner { dexPair                         = _dexPair;     }
     function setQuantumFreeRecipient(address wallet, bool exempt)  external onlyOwner { quantumFreeRecipient[wallet]    = exempt;       }
     function setMarketplace(address _marketplace)                  external onlyOwner { marketplace                     = _marketplace; }
-    function setEthFee(uint256 _fee)                               external onlyOwner { ethFee                          = _fee;         }
-    function pause()                                               external onlyOwner { _pause();                                       }
-    function unpause()                                             external onlyOwner { _unpause();                                     }
+    function setEthFee(uint256 _fee)          external onlyOwner { ethFee          = _fee; }
+    function setEthFeePlainText(uint256 _fee) external onlyOwner { ethFeePlainText = _fee; }
+    function pause()                          external onlyOwner { _pause();               }
+    function unpause()                        external onlyOwner { _unpause();             }
 }

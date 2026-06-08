@@ -16,6 +16,7 @@ export const ADDRESSES = {
   PRICE_EVIDENCE:   import.meta.env.VITE_PRICE_EVIDENCE,
   RELAY:            import.meta.env.VITE_RELAY,
   QUANTUM:          import.meta.env.VITE_QUANTUM,
+  TOKEN_ESCROW:     import.meta.env.VITE_TOKEN_ESCROW,
 };
 
 export const ERC20_ABI = [
@@ -209,7 +210,7 @@ export const TREASURY_ABI = [
   { name: 'accumulatedFees', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'floorBalance',      type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'surplus',           type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'withdrawSurplus',   type: 'function', stateMutability: 'nonpayable',  inputs: [], outputs: [] },
+  { name: 'withdrawSurplus',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] },
   { name: 'claimableStake', type: 'function', stateMutability: 'view',        inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
   { name: 'claimStake',     type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'batchId', type: 'uint256' }], outputs: [] },
   { name: 'postStake',      type: 'function', stateMutability: 'payable',     inputs: [], outputs: [] },
@@ -297,7 +298,7 @@ export const TREASURY_ABI = [
 // For non-upgradeable contracts compare against the contract address directly.
 // Update a hash here after deploying a new version of that contract.
 export const ARTIFACT_HASHES = {
-  TREASURY:        '0x0ab655000fbaf7a5499fd88d83413568ec7e061a12ebcf007ef0a1ac1a4fa529',
+  TREASURY:        '0x81157ef05f8dc0ca338f9b511944de8537457292526a921921047b1f2740bf47',
   RELAY:           '0x6fbecb1d757f5628ab833d04d896fa668feb7e5e14f0fd2bfee3d9bd107ea831',
   TOKEN_DEPLOYER:  '0x87a4fd9159a96dae71b14dd60552f7587cd9a087a3a5efef4d916e297416846b',
   NFT_DEPLOYER:    '0xc869f89abd5b85a361c0d3991308293e91cbe8e9edbd804398448ad0c0d5dd5e',
@@ -496,7 +497,8 @@ export const RELAY_ABI = [
   { name: 'paused',         type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'bool'    }] },
   { name: 'x25519Key',      type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bytes32' }] },
   { name: 'kyberKey',       type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bytes'   }] },
-  { name: 'ethFee',         type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
+  { name: 'ethFee',          type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
+  { name: 'ethFeePlainText', type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
   { name: 'ethEquivalent', type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
   { name: 'quantumFreeRecipient', type: 'function', stateMutability: 'view',  inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bool'    }] },
   {
@@ -514,7 +516,8 @@ export const RELAY_ABI = [
   { name: 'setQuantumFee',  type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_fee',         type: 'uint256' }],                         outputs: [] },
   { name: 'setMarketplace', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_marketplace', type: 'address' }],                         outputs: [] },
   { name: 'setDexPair',     type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_dexPair',     type: 'address' }],                         outputs: [] },
-  { name: 'setEthFee',     type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_fee',         type: 'uint256' }],                         outputs: [] },
+  { name: 'setEthFee',          type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_fee', type: 'uint256' }], outputs: [] },
+  { name: 'setEthFeePlainText', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_fee', type: 'uint256' }], outputs: [] },
   { name: 'setQuantumFreeRecipient', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'wallet', type: 'address' }, { name: 'exempt', type: 'bool' }], outputs: [] },
   { name: 'pause',          type: 'function', stateMutability: 'nonpayable',  inputs: [],                                                                  outputs: [] },
   { name: 'unpause',        type: 'function', stateMutability: 'nonpayable',  inputs: [],                                                                  outputs: [] },

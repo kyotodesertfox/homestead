@@ -140,6 +140,26 @@ function Hint({ text }) {
   );
 }
 
+// ── Role row with inline Grant / Revoke ──────────────────────────────────────
+function RoleActionRow({ contract, abi, fn, target, label, onGrant, onRevoke, disabled, refetchKey }) {
+  const { data, isLoading, isError, refetch } = useReadContract({
+    address: contract, abi, functionName: fn, args: [target],
+    query: { enabled: !!contract && !!target },
+  });
+  useEffect(() => { if (refetchKey) refetch(); }, [refetchKey]);
+  const isSet = Boolean(data);
+  const dot  = isLoading ? 'bg-gray-300' : isError ? 'bg-amber-400' : isSet ? 'bg-hub-green' : 'bg-red-400';
+  const text = isLoading ? 'text-gray-400' : isSet ? 'text-hub-green' : 'text-gray-500';
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+      <span className={`text-xs flex-1 ${text}`}>{label}</span>
+      {onGrant  && <Btn onClick={onGrant}  disabled={disabled} size="sm">Grant</Btn>}
+      {onRevoke && <Btn onClick={onRevoke} disabled={disabled} variant="danger" size="sm">Revoke</Btn>}
+    </div>
+  );
+}
+
 // ── Known-role status row ─────────────────────────────────────────────────────
 function RoleStatusRow({ contract, abi, fn, target, label, refetchKey }) {
   const { data, isLoading, isError, refetch } = useReadContract({
@@ -403,7 +423,10 @@ function TokensTab() {
   const [newImplAddr, setNewImplAddr] = useState({});
   const [implAddresses, setImplAddresses] = useState({});
   const [implHashes, setImplHashes] = useState({});
+  const [refetchKey, setRefetchKey] = useState(0);
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  useEffect(() => { if (isConfirmed) setTimeout(() => setRefetchKey(k => k + 1), 2000); }, [isConfirmed]);
 
   const ERC1967_IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
@@ -481,106 +504,79 @@ function TokensTab() {
           </div>
 
           {expanded === tok.address && (
-            <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50 rounded-b-xl">
-              <div>
-                <Label>Owner</Label>
+            <div className="border-t border-gray-100 p-4 space-y-4 bg-gray-50 rounded-b-xl">
+
+              {/* Owner */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-400 shrink-0">Owner</span>
                 <CopyAddr address={tok.owner} full />
               </div>
+
+              {/* Roles */}
               <div>
-                <Label>Minter Status</Label>
-                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
-                  <RoleStatusRow contract={tok.address} abi={BEER_TOKEN_ABI} fn="isMinter" target={ADDRESSES.TREASURY} label="Minter → Treasury" />
-                </div>
-              </div>
-              <div>
-                <Label>Treasury — Trusted Caller</Label>
-                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
-                  <RoleStatusRow contract={ADDRESSES.TREASURY} abi={TREASURY_ABI} fn="isTrustedCaller" target={tok.address} label={`Trusted → ${tok.symbol}`} />
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <Btn
-                    onClick={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, true] })}
-                    disabled={isPending || isConfirming}
-                  >Grant</Btn>
-                  <Btn
-                    onClick={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, false] })}
-                    disabled={isPending || isConfirming}
-                    variant="danger"
-                  >Revoke</Btn>
-                </div>
-                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
-              </div>
-              <div>
-                <Label>Minter Management</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={minterAddr[tok.address] ?? ''}
-                    onChange={v => setMinterAddr(m => ({ ...m, [tok.address]: v }))}
-                    placeholder="0x…"
-                    className="flex-1"
+                <Label>Roles & Permissions</Label>
+                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50">
+                  <RoleActionRow
+                    contract={tok.address} abi={BEER_TOKEN_ABI} fn="isMinter" target={ADDRESSES.TREASURY}
+                    label="Minter → Treasury"
+                    onGrant={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'setMinter', args: [ADDRESSES.TREASURY, true]  })}
+                    onRevoke={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'setMinter', args: [ADDRESSES.TREASURY, false] })}
+                    disabled={isPending || isConfirming} refetchKey={refetchKey}
                   />
-                  <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
-                  <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
-                </div>
-                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
-              </div>
-              <div>
-                <Label>Allowance Status</Label>
-                <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50 mb-2">
+                  {ADDRESSES.TOKEN_ESCROW && (
+                    <RoleActionRow
+                      contract={tok.address} abi={BEER_TOKEN_ABI} fn="isMinter" target={ADDRESSES.TOKEN_ESCROW}
+                      label="Minter → Token Escrow"
+                      onGrant={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'setMinter', args: [ADDRESSES.TOKEN_ESCROW, true]  })}
+                      onRevoke={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'setMinter', args: [ADDRESSES.TOKEN_ESCROW, false] })}
+                      disabled={isPending || isConfirming} refetchKey={refetchKey}
+                    />
+                  )}
+                  <RoleActionRow
+                    contract={ADDRESSES.TREASURY} abi={TREASURY_ABI} fn="isTrustedCaller" target={tok.address}
+                    label="Trusted Caller → Treasury"
+                    onGrant={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, true]  })}
+                    onRevoke={() => writeContract({ address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'setTrustedCaller', args: [tok.address, false] })}
+                    disabled={isPending || isConfirming} refetchKey={refetchKey}
+                  />
                   <AllowanceRow tokenAddress={tok.address} spender={ADDRESSES.ROUTER} label="Allowance → Router" />
                 </div>
               </div>
-              <div>
-                <Label>Approve Spender</Label>
+
+              {/* Actions */}
+              <div className="space-y-2">
                 <div className="flex gap-2">
-                  <Input
-                    value={spenderAddr[tok.address] ?? ''}
-                    onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))}
-                    placeholder="0x…"
-                    className="flex-1"
-                  />
-                  <Btn
-                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })}
-                    disabled={!spenderAddr[tok.address] || isPending || isConfirming}
-                  >Approve</Btn>
-                  <Btn
-                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], 0n] })}
-                    disabled={!spenderAddr[tok.address] || isPending || isConfirming}
-                    variant="danger"
-                  >Revoke</Btn>
+                  <Input value={minterAddr[tok.address] ?? ''} onChange={v => setMinterAddr(m => ({ ...m, [tok.address]: v }))} placeholder="Grant minter (0x…)" className="flex-1" />
+                  <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
+                  <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
                 </div>
-                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+                <div className="flex gap-2">
+                  <Input value={spenderAddr[tok.address] ?? ''} onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))} placeholder="Approve spender (0x…)" className="flex-1" />
+                  <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })} disabled={!spenderAddr[tok.address] || isPending || isConfirming}>Approve</Btn>
+                  <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], 0n]       })} disabled={!spenderAddr[tok.address] || isPending || isConfirming} variant="danger">Revoke</Btn>
+                </div>
               </div>
+
+              {/* Upgrade */}
               <div>
-                <Label>Upgrade Implementation</Label>
+                <Label>Implementation</Label>
                 {implAddresses[tok.address] && (() => {
-                  const h = implHashes[tok.address];
+                  const h  = implHashes[tok.address];
                   const ok = h && h === ARTIFACT_HASHES.MASTER_TEMPLATE;
-                  const badge = !h
-                    ? <span className="text-gray-400">checking…</span>
-                    : ok
-                      ? <span className="text-hub-green font-semibold">✓ current</span>
-                      : <span className="text-amber-500 font-semibold">upgrade available</span>;
                   return (
                     <p className="text-xs font-mono mb-2 truncate text-gray-400">
-                      {implAddresses[tok.address]} — {badge}
+                      {implAddresses[tok.address]} —{' '}
+                      {!h ? <span>checking…</span> : ok ? <span className="text-hub-green font-semibold">✓ current</span> : <span className="text-amber-500 font-semibold">upgrade available</span>}
                     </p>
                   );
                 })()}
                 <div className="flex gap-2">
-                  <Input
-                    value={newImplAddr[tok.address] ?? ''}
-                    onChange={v => setNewImplAddr(m => ({ ...m, [tok.address]: v }))}
-                    placeholder="New impl 0x…"
-                    className="flex-1"
-                  />
-                  <Btn
-                    onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'upgradeToAndCall', args: [newImplAddr[tok.address], '0x'] })}
-                    disabled={!/^0x[0-9a-fA-F]{40}$/.test(newImplAddr[tok.address] ?? '') || isPending || isConfirming}
-                  >Upgrade</Btn>
+                  <Input value={newImplAddr[tok.address] ?? ''} onChange={v => setNewImplAddr(m => ({ ...m, [tok.address]: v }))} placeholder="New impl 0x…" className="flex-1" />
+                  <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'upgradeToAndCall', args: [newImplAddr[tok.address], '0x'] })} disabled={!/^0x[0-9a-fA-F]{40}$/.test(newImplAddr[tok.address] ?? '') || isPending || isConfirming}>Upgrade</Btn>
                 </div>
-                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>
+
+              <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
             </div>
           )}
         </div>
@@ -846,11 +842,14 @@ function TreasuryTab() {
       <div>
         <Label>Protocol Surplus — Available: {surplusWei !== undefined ? parseFloat(formatUnits(surplusWei, 18)).toFixed(6) : '…'} ETH</Label>
         <p className="text-xs text-gray-400 mb-2">ETH in Treasury not backing any staker position. Safe to withdraw without affecting the floor.</p>
-        <Btn
-          onClick={() => write('withdrawSurplus', [])}
-          disabled={!surplusWei || surplusWei === 0n || isPending || isConfirming}
-          variant="danger"
-        >Withdraw Surplus</Btn>
+        <div className="flex gap-2">
+          <Input value={inputs.surplusAmt ?? ''} onChange={v => set('surplusAmt', v)} placeholder="ETH amount" className="w-40" />
+          <Btn
+            onClick={() => write('withdrawSurplus', [parseEther(inputs.surplusAmt ?? '0')])}
+            disabled={!inputs.surplusAmt || !surplusWei || surplusWei === 0n || isPending || isConfirming}
+            variant="danger"
+          >Withdraw</Btn>
+        </div>
       </div>
 
       {/* Fee Withdrawal */}
@@ -1106,12 +1105,13 @@ function RelayTab() {
       { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'dexPair'     },
       { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'paused'      },
       { address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'trustedRelay' },
-      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'ethFee'      },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'ethFee'         },
+      { address: ADDRESSES.RELAY,    abi: RELAY_ABI,    functionName: 'ethFeePlainText' },
     ],
     query: { enabled },
   });
 
-  const [treasuryAddr, feeTokenAddr, quantumFee, marketplaceAddr, dexPairAddr, paused, trustedRelayAddr, ethFee] =
+  const [treasuryAddr, feeTokenAddr, quantumFee, marketplaceAddr, dexPairAddr, paused, trustedRelayAddr, ethFee, ethFeePlainText] =
     data?.map(d => d?.result) ?? [];
 
   const ZERO = '0x0000000000000000000000000000000000000000';
@@ -1126,7 +1126,6 @@ function RelayTab() {
     { label: 'Treasury',    key: 'treasury',    current: treasuryAddr,    fn: 'setTreasury',    target: 'relay',    ok: matches(treasuryAddr, ADDRESSES.TREASURY),  hint: 'Must match the Treasury proxy. Required for attestation lookups and ETH fee forwarding.' },
     { label: 'Marketplace', key: 'marketplace', current: marketplaceAddr, fn: 'setMarketplace', target: 'relay',    ok: isSet(marketplaceAddr),                      hint: 'Required for subsidy charging on redemptions when quantumFee > 0.' },
     { label: 'Trusted Relay (Treasury)', key: 'trustedRelay', current: trustedRelayAddr, fn: 'setTrustedRelay', target: 'treasury', ok: matches(trustedRelayAddr, ADDRESSES.RELAY), hint: 'Set on Treasury so the Relay is authorised to call it. Required before messages can be sent.' },
-    { label: 'Fee Token',   key: 'feeToken',    current: feeTokenAddr,    fn: 'setFeeToken',    target: 'relay',    ok: isSet(feeTokenAddr),                          hint: '$QUANTUM token address. Leave unset (zero) until $QUANTUM is deployed — relay operates fee-free.' },
     { label: 'DEX Pair',    key: 'dexPair',     current: dexPairAddr,     fn: 'setDexPair',     target: 'relay',    ok: isSet(dexPairAddr),                           hint: 'BEER/WETH pair used to price $QUANTUM fees in ETH. Required only when quantumFee > 0.' },
   ];
 
@@ -1180,6 +1179,15 @@ function RelayTab() {
 
       <div>
         <Label>Quantum Fee</Label>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
+            Fee Token
+            <Hint text="$QUANTUM token address. Leave unset until $QUANTUM is deployed — relay operates fee-free." />
+          </span>
+          <div className="w-36 shrink-0 min-w-0"><CopyAddr address={feeTokenAddr} /></div>
+          <Input value={inputs.feeToken ?? ''} onChange={v => set('feeToken', v)} placeholder="0x…" className="flex-1" />
+          <Btn onClick={() => writeRelay('setFeeToken', [inputs.feeToken])} disabled={!inputs.feeToken || isPending || isConfirming}>Set</Btn>
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
             Fee (token units)
@@ -1189,10 +1197,7 @@ function RelayTab() {
             {quantumFee !== undefined ? formatUnits(quantumFee, 18) : '…'}
           </span>
           <Input value={inputs.quantumFee ?? ''} onChange={v => set('quantumFee', v)} placeholder="e.g. 1.0" className="flex-1" />
-          <Btn
-            onClick={() => writeRelay('setQuantumFee', [parseEther(inputs.quantumFee || '0')])}
-            disabled={!inputs.quantumFee || isPending || isConfirming}
-          >Set</Btn>
+          <Btn onClick={() => writeRelay('setQuantumFee', [parseEther(inputs.quantumFee || '0')])} disabled={!inputs.quantumFee || isPending || isConfirming}>Set</Btn>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
@@ -1203,10 +1208,18 @@ function RelayTab() {
             {ethFee !== undefined ? `${formatUnits(ethFee, 18)} ETH` : '…'}
           </span>
           <Input value={inputs.ethFee ?? ''} onChange={v => set('ethFee', v)} placeholder="e.g. 0.001" className="flex-1" />
-          <Btn
-            onClick={() => writeRelay('setEthFee', [parseEther(inputs.ethFee || '0')])}
-            disabled={!inputs.ethFee || isPending || isConfirming}
-          >Set</Btn>
+          <Btn onClick={() => writeRelay('setEthFee', [parseEther(inputs.ethFee || '0')])} disabled={!inputs.ethFee || isPending || isConfirming}>Set</Btn>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
+            Plaintext ETH Fee
+            <Hint text="ETH fee per non-quantum (plaintext) message. Set to 0 to allow free plaintext messages. Applies to sendMessage, sendDeliveryMessage, and sendGroupMessage when quantumReady=false. Enter in ETH (e.g. 0.0001)." />
+          </span>
+          <span className="text-xs font-mono text-gray-400 w-36 shrink-0">
+            {ethFeePlainText !== undefined ? `${formatUnits(ethFeePlainText, 18)} ETH` : '…'}
+          </span>
+          <Input value={inputs.ethFeePlainText ?? ''} onChange={v => set('ethFeePlainText', v)} placeholder="e.g. 0.0001" className="flex-1" />
+          <Btn onClick={() => writeRelay('setEthFeePlainText', [parseEther(inputs.ethFeePlainText || '0')])} disabled={!inputs.ethFeePlainText || isPending || isConfirming}>Set</Btn>
         </div>
       </div>
 
