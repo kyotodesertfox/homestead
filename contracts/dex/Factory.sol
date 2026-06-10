@@ -112,15 +112,6 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
         pairTreasury = _treasury;
     }
 
-    // Configure rewards on existing pairs deployed before pairTreasury was set
-    function batchConfigurePairRewards(address[] calldata pairs) external onlyOwner {
-        address _treasury = pairTreasury;
-        require(_treasury != address(0), 'DEX: TREASURY_NOT_SET');
-        for (uint256 i = 0; i < pairs.length; i++) {
-            IDEXPair(pairs[i]).setRewardsTreasury(_treasury);
-        }
-    }
-
     // Upgrade the logic for every pair simultaneously
     function upgradePairs(address newImplementation) external onlyOwner {
         UpgradeableBeacon(beacon).upgradeTo(newImplementation);
