@@ -74,7 +74,7 @@ contract Router is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         s.ammFeeBps   = AMM_FEE_BPS;
         s.entryFeeBps = ITreasury(treasury).dexEntryFeeBps();
         s.exitFeeBps  = ITreasury(treasury).dexExitFeeBps();
-        s.lpRewardBps = ITreasury(treasury).lpRewardFeeBps();
+        s.lpRewardBps = ITreasury(treasury).lpShareBps();
         s.treasuryBps = s.exitFeeBps > s.lpRewardBps ? s.exitFeeBps - s.lpRewardBps : 0;
     }
 
@@ -135,7 +135,7 @@ contract Router is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         // All fee policy lives in Treasury — read at execution time
         uint256 exitFeeBps  = ITreasury(treasury).dexExitFeeBps();
-        uint256 lpBps       = ITreasury(treasury).lpRewardFeeBps();
+        uint256 lpBps       = ITreasury(treasury).lpShareBps();
         uint256 totalFee    = (ethOut * exitFeeBps) / 10000;
         uint256 lpReward    = (ethOut * lpBps)      / 10000;
         uint256 treasuryFee = totalFee > lpReward ? totalFee - lpReward : 0;

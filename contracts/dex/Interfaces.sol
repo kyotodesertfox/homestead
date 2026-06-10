@@ -62,7 +62,7 @@ interface INFTTemplate {
 interface ITreasury {
     function dexEntryFeeBps() external view returns (uint256);
     function dexExitFeeBps() external view returns (uint256);
-    function lpRewardFeeBps() external view returns (uint256);
+    function lpShareBps() external view returns (uint256);
     function marketplaceFeeBps() external view returns (uint256);
     function trustedRelay() external view returns (address);
     // Called by Marketplace when a brewer's listing is created
