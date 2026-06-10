@@ -15,8 +15,8 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
     // =========================================================================
 
     address public beacon;
-    address public feeTo;
-    address public feeToSetter;
+    address private _reserved1; // slot 1 — formerly feeTo (address)
+    address private _reserved2; // slot 2 — formerly feeToSetter (address)
     address public tokenDeployer;
 
     mapping(address => mapping(address => address)) public getPair;
@@ -93,16 +93,6 @@ contract DEXFactory is UUPSUpgradeable, OwnableUpgradeable {
     // =========================================================================
     // ADMIN
     // =========================================================================
-
-    function setFeeTo(address _feeTo) external {
-        require(msg.sender == feeToSetter, 'DEX: FORBIDDEN');
-        feeTo = _feeTo;
-    }
-
-    function setFeeToSetter(address _feeToSetter) external {
-        require(msg.sender == feeToSetter, 'DEX: FORBIDDEN');
-        feeToSetter = _feeToSetter;
-    }
 
     function setTokenDeployer(address _tokenDeployer) external onlyOwner {
         tokenDeployer = _tokenDeployer;
