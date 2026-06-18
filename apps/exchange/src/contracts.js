@@ -17,6 +17,9 @@ export const ADDRESSES = {
   RELAY:            import.meta.env.VITE_RELAY,
   QUANTUM:          import.meta.env.VITE_QUANTUM,
   TOKEN_ESCROW:     import.meta.env.VITE_TOKEN_ESCROW,
+  SEX_TOKEN:        import.meta.env.VITE_SEX_TOKEN,
+  SEX_NFT:          import.meta.env.VITE_SEX_NFT,
+  SEX_PAIR:         import.meta.env.VITE_SEX_PAIR,
 };
 
 export const ERC20_ABI = [
@@ -408,9 +411,15 @@ export const TOKEN_DEPLOYER_ABI = [
 ];
 
 export const NFT_DEPLOYER_ABI = [
-  { name: 'getAllContracts', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address[]' }] },
-  { name: 'isRegistered',   type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
-  { name: 'totalContracts', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'getAllContracts', type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address[]' }] },
+  { name: 'isRegistered',   type: 'function', stateMutability: 'view',       inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'totalContracts', type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'deploy',         type: 'function', stateMutability: 'nonpayable', inputs: [
+    { name: '_name',         type: 'string'  },
+    { name: '_symbol',       type: 'string'  },
+    { name: '_contractCID',  type: 'string'  },
+    { name: '_initialOwner', type: 'address' },
+  ], outputs: [{ type: 'address' }] },
 ];
 
 export const CONTRACT_URI_ABI = [

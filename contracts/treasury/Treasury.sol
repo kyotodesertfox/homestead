@@ -524,6 +524,15 @@ contract Treasury is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, R
         emit StakeSlashed(batchId, batch.producer, batch.stakedAmount - _claimedAmount[batchId]);
     }
 
+    // TODO (next Treasury upgrade): add unslashStake(batchId) onlyOwner
+    // Intent: slash is a hard lock, not a permanent sentence. A review process (today: owner;
+    // future: DAO/multisig) should be able to reverse it. unslash flips batch.slashed = false,
+    // restoring all batch operations. ETH never moves — pure flag flip + audit event.
+    // Open design questions before implementing:
+    //   - Should the unslash event carry a reason string for the audit trail?
+    //   - Should there be a cooldown before batch operations resume after unslash?
+    //   - Should there be a cap on slash/unslash cycles per batch to prevent abuse?
+
     // =========================================================================
     // BURN LOT TOKENS — exit token position and free collateral
     //

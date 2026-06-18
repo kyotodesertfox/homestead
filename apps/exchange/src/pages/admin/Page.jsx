@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw, Pencil } from 'lucide-react';
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { formatUnits, parseEther, maxUint256, keccak256 } from 'viem';
@@ -232,6 +232,141 @@ function codeHash(bytecode) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function Modal({ open, onClose, title, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-black uppercase tracking-widest text-gray-900">{title}</h3>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none">&times;</button>
+        </div>
+        <div className="px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOKEN INDEX LIST (with search)
+// ─────────────────────────────────────────────────────────────────────────────
+function TokenIndexList({ ids, colAddress, tokenCidInputs, setTokenCidInputs, setTokenCid, isPending, isConfirming }) {
+  const [search, setSearch] = useState('');
+  const filtered = search.trim() === ''
+    ? ids
+    : ids.filter(id => String(id).includes(search.trim()));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <Label>Token Indexes</Label>
+        <span className="text-[10px] text-gray-400">{filtered.length} / {ids.length}</span>
+      </div>
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Filter by ID…"
+        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-hub-green transition-colors mb-2"
+      />
+      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {filtered.length === 0
+          ? <p className="text-xs text-gray-400">No tokens match.</p>
+          : filtered.map(tokenId => {
+              const inputKey = `${colAddress}-${tokenId}`;
+              return (
+                <div key={tokenId} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-gray-500 w-8 shrink-0">#{tokenId}</span>
+                  <Input
+                    value={tokenCidInputs[inputKey] ?? ''}
+                    onChange={v => setTokenCidInputs(c => ({ ...c, [inputKey]: v }))}
+                    placeholder="CID or ipfs://…"
+                    className="flex-1 text-xs"
+                  />
+                  <Btn onClick={() => setTokenCid(colAddress, tokenId)} disabled={isPending || isConfirming}>Set</Btn>
+                </div>
+              );
+            })
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEPLOY COLLECTION PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function DeployCollectionPanel({ onDeployed }) {
+  const { address } = useAccount();
+  const [open, setOpen]     = useState(false);
+  const [name, setName]     = useState('');
+  const [symbol, setSymbol] = useState('');
+  const [cid, setCid]       = useState('');
+  const [owner, setOwner]   = useState('');
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  useEffect(() => {
+    if (!isConfirmed) return;
+    onDeployed?.();
+    setName(''); setSymbol(''); setCid(''); setOwner('');
+    setTimeout(() => setOpen(false), 1500);
+  }, [isConfirmed]);
+
+  const canDeploy = name.trim() && symbol.trim() && !isPending && !isConfirming;
+
+  return (
+    <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-xs font-black uppercase tracking-widest text-hub-green">Deploy New Collection</span>
+        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Name</Label>
+              <Input value={name} onChange={setName} placeholder="Homestead Eggs" />
+            </div>
+            <div>
+              <Label>Symbol</Label>
+              <Input value={symbol} onChange={setSymbol} placeholder="EGGNFT" />
+            </div>
+          </div>
+          <div>
+            <Label>Contract CID <span className="text-gray-300 font-normal normal-case tracking-normal">(optional - set later)</span></Label>
+            <Input value={cid} onChange={setCid} placeholder="CID or ipfs://…" />
+          </div>
+          <div>
+            <Label>Owner <span className="text-gray-300 font-normal normal-case tracking-normal">(defaults to connected wallet)</span></Label>
+            <Input value={owner} onChange={setOwner} placeholder={address ?? '0x…'} />
+          </div>
+          <Btn
+            onClick={() => writeContract({
+              address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'deploy',
+              args: [name.trim(), symbol.trim(), cid.trim(), owner.trim() || address],
+            })}
+            disabled={!canDeploy}
+            size="md"
+          >Deploy Collection</Btn>
+          <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // COLLECTIONS TAB
 // ─────────────────────────────────────────────────────────────────────────────
 function CollectionsTab() {
@@ -242,9 +377,29 @@ function CollectionsTab() {
   const [contractCidInputs, setContractCidInputs] = useState({});
   const [tokenCidInputs, setTokenCidInputs]       = useState({});
   const [refetchKey, setRefetchKey]               = useState(0);
+  const [selectedToken, setSelectedToken]         = useState(null);
+  const [tokenMeta, setTokenMeta]                 = useState({});
+  const fetchedUris = React.useRef(new Set());
+  const [renameTarget, setRenameTarget]           = useState(null);
+  const [renameValue, setRenameValue]             = useState('');
+  const [renaming, setRenaming]                   = useState(false);
+  const [renamedCid, setRenamedCid]               = useState('');
+  const [renameError, setRenameError]             = useState('');
   const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
 
   useEffect(() => { if (isConfirmed) setTimeout(() => setRefetchKey(k => k + 1), 2000); }, [isConfirmed]);
+
+  useEffect(() => {
+    const uris = [...new Set(Object.values(tokens).flat().map(t => t.uri).filter(Boolean))];
+    uris.forEach(uri => {
+      if (fetchedUris.current.has(uri)) return;
+      fetchedUris.current.add(uri);
+      fetch(`https://ipfs.io/ipfs/${uri.replace('ipfs://', '')}`)
+        .then(r => r.json())
+        .then(json => setTokenMeta(m => ({ ...m, [uri]: json })))
+        .catch(() => setTokenMeta(m => ({ ...m, [uri]: null })));
+    });
+  }, [tokens]);
 
   const { data: allContracts, refetch } = useReadContract({
     address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'getAllContracts',
@@ -299,10 +454,60 @@ function CollectionsTab() {
 
   return (
     <div className="space-y-4">
+      <DeployCollectionPanel onDeployed={() => { refetch(); setRefetchKey(k => k + 1); }} />
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400 font-medium">{collections.length} collection{collections.length !== 1 ? 's' : ''} registered</p>
         <button onClick={() => { refetch(); setRefetchKey(k => k + 1); }} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
       </div>
+      <Modal
+        open={!!renameTarget}
+        onClose={() => setRenameTarget(null)}
+        title="Edit Metadata Name"
+      >
+        <div className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input value={renameValue} onChange={setRenameValue} placeholder="Bavarian Hefeweizen" />
+          </div>
+          {renamedCid && (
+            <div className="bg-green-50 border border-hub-green/30 rounded-lg p-3 space-y-1">
+              <p className="text-xs font-black text-hub-green uppercase tracking-widest">New CID Pinned</p>
+              <div className="flex items-center gap-2">
+                <code className="text-[10px] font-mono text-gray-600 flex-1 truncate">{renamedCid}</code>
+                <button onClick={() => navigator.clipboard?.writeText(renamedCid)} className="text-hub-green hover:brightness-75 shrink-0">
+                  <Copy size={12} />
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400">Use the Token Indexes panel to apply this CID to each token.</p>
+            </div>
+          )}
+          {renameError && <p className="text-xs text-red-500 font-mono">{renameError}</p>}
+          <div className="flex gap-2 justify-end pt-1">
+            <Btn onClick={() => setRenameTarget(null)} variant="ghost">Cancel</Btn>
+            <Btn
+              disabled={renaming || !renameValue.trim()}
+              onClick={async () => {
+                if (!renameTarget || !renameValue.trim()) return;
+                setRenaming(true); setRenameError(''); setRenamedCid('');
+                try {
+                  const existing = tokenMeta[renameTarget.uri] ?? {};
+                  const newMeta  = { ...existing, name: renameValue.trim() };
+                  const cid      = await pinJson(newMeta, renameValue.trim());
+                  setRenamedCid(cid);
+                  setTokenMeta(m => ({ ...m, [`ipfs://${cid}`]: newMeta }));
+                } catch (e) {
+                  setRenameError(e.message);
+                } finally {
+                  setRenaming(false);
+                }
+              }}
+            >
+              {renaming ? 'Pinning…' : 'Re-pin Metadata'}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
       {collections.map(col => (
         <div key={col.address} className="border border-gray-100 rounded-xl">
           <div
@@ -335,29 +540,86 @@ function CollectionsTab() {
                 <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
               </div>
 
-              {/* Per-token CIDs */}
+              {/* NFT styles */}
               <div>
-                <Label>Token Metadata CIDs</Label>
+                <Label>NFTs</Label>
                 {!tokens[col.address] ? (
-                  <p className="text-xs text-gray-400">Loading tokens…</p>
+                  <p className="text-xs text-gray-400">Loading…</p>
                 ) : tokens[col.address].length === 0 ? (
                   <p className="text-xs text-gray-400">No tokens minted yet</p>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {tokens[col.address].map(tok => (
-                      <div key={tok.id} className="flex items-center gap-2">
-                        <span className="text-xs font-black text-gray-500 w-8 shrink-0">#{tok.id}</span>
-                        <Input
-                          value={tokenCidInputs[`${col.address}-${tok.id}`] ?? ''}
-                          onChange={v => setTokenCidInputs(c => ({ ...c, [`${col.address}-${tok.id}`]: v }))}
-                          placeholder={tok.uri ? tok.uri.replace('ipfs://', '') : 'CID…'}
-                          className="flex-1 text-xs"
-                        />
-                        <Btn onClick={() => setTokenCid(col.address, tok.id)} disabled={isPending || isConfirming}>Set</Btn>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ) : (() => {
+                  const groups = [];
+                  const seen   = new Map();
+                  for (const tok of tokens[col.address]) {
+                    const k = tok.uri || '';
+                    if (!seen.has(k)) { seen.set(k, groups.length); groups.push({ uri: k, ids: [] }); }
+                    groups[seen.get(k)].ids.push(tok.id);
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {groups.map(({ uri, ids }) => {
+                        const groupKey = `${col.address}::${uri}`;
+                        const active   = selectedToken === groupKey;
+                        const meta     = uri ? tokenMeta[uri] : null;
+                        const name     = meta?.name ?? (meta === null ? uri.replace('ipfs://', '').slice(0, 16) + '…' : 'Loading…');
+                        const image    = meta?.image ? meta.image.replace('ipfs://', 'https://ipfs.io/ipfs/') : null;
+                        return (
+                          <div key={groupKey}>
+                            <div className={`flex items-center gap-3 p-3 border rounded-xl transition-all ${
+                              active ? 'border-hub-green bg-green-50 rounded-b-none' : 'border-gray-200 hover:border-gray-400 bg-white'
+                            }`}>
+                              <div
+                                className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                                onClick={() => setSelectedToken(active ? null : groupKey)}
+                              >
+                                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                                  {image
+                                    ? <img src={image} alt={name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                    : <span className="text-gray-300 text-lg font-black">?</span>
+                                  }
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-black text-gray-800 truncate">{name}</p>
+                                  <p className="text-xs text-gray-400">{ids.length} token{ids.length !== 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => { setRenameTarget({ uri, ids }); setRenameValue(meta?.name ?? ''); setRenamedCid(''); setRenameError(''); }}
+                                className="text-gray-300 hover:text-hub-green transition-colors shrink-0 p-1"
+                                title="Edit metadata name"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <div className="cursor-pointer shrink-0" onClick={() => setSelectedToken(active ? null : groupKey)}>
+                                {active ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                              </div>
+                            </div>
+                            {active && (
+                              <div className="border border-hub-green border-t-0 rounded-b-xl p-4 bg-white space-y-3">
+                                <div>
+                                  <span className="text-xs text-gray-400 block mb-1">IPFS CID</span>
+                                  <span className="text-[10px] font-mono text-gray-600 break-all">{uri || 'not set'}</span>
+                                </div>
+                                <div>
+                                  <TokenIndexList
+                                    ids={ids}
+                                    colAddress={col.address}
+                                    tokenCidInputs={tokenCidInputs}
+                                    setTokenCidInputs={setTokenCidInputs}
+                                    setTokenCid={setTokenCid}
+                                    isPending={isPending}
+                                    isConfirming={isConfirming}
+                                  />
+                                </div>
+                                <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Role Status */}
@@ -512,8 +774,8 @@ function TokensTab() {
                 <CopyAddr address={tok.owner} full />
               </div>
 
-              {/* Roles */}
-              <div>
+              {/* Roles & Actions card */}
+              <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
                 <Label>Roles & Permissions</Label>
                 <div className="border border-gray-100 rounded-lg px-3 divide-y divide-gray-50">
                   <RoleActionRow
@@ -541,19 +803,17 @@ function TokensTab() {
                   />
                   <AllowanceRow tokenAddress={tok.address} spender={ADDRESSES.ROUTER} label="Allowance → Router" />
                 </div>
-              </div>
-
-              {/* Actions */}
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input value={minterAddr[tok.address] ?? ''} onChange={v => setMinterAddr(m => ({ ...m, [tok.address]: v }))} placeholder="Grant minter (0x…)" className="flex-1" />
-                  <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
-                  <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
-                </div>
-                <div className="flex gap-2">
-                  <Input value={spenderAddr[tok.address] ?? ''} onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))} placeholder="Approve spender (0x…)" className="flex-1" />
-                  <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })} disabled={!spenderAddr[tok.address] || isPending || isConfirming}>Approve</Btn>
-                  <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], 0n]       })} disabled={!spenderAddr[tok.address] || isPending || isConfirming} variant="danger">Revoke</Btn>
+                <div className="space-y-2 pt-1 border-t border-gray-50">
+                  <div className="flex gap-2 pt-2">
+                    <Input value={minterAddr[tok.address] ?? ''} onChange={v => setMinterAddr(m => ({ ...m, [tok.address]: v }))} placeholder="Grant minter (0x…)" className="flex-1" />
+                    <Btn onClick={() => setMinter(tok.address, true)}  disabled={isPending || isConfirming}>Grant</Btn>
+                    <Btn onClick={() => setMinter(tok.address, false)} disabled={isPending || isConfirming} variant="danger">Revoke</Btn>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input value={spenderAddr[tok.address] ?? ''} onChange={v => setSpenderAddr(s => ({ ...s, [tok.address]: v }))} placeholder="Approve spender (0x…)" className="flex-1" />
+                    <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], maxUint256] })} disabled={!spenderAddr[tok.address] || isPending || isConfirming}>Approve</Btn>
+                    <Btn onClick={() => writeContract({ address: tok.address, abi: BEER_TOKEN_ABI, functionName: 'approve', args: [spenderAddr[tok.address], 0n]       })} disabled={!spenderAddr[tok.address] || isPending || isConfirming} variant="danger">Revoke</Btn>
+                  </div>
                 </div>
               </div>
 
