@@ -1,29 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, ArrowRight, X, ShieldCheck, Fingerprint, Lock, Gift, Sprout } from 'lucide-react';
-import { useAppKit } from '@reown/appkit/react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
-import { formatUnits, decodeEventLog } from 'viem';
-import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI, PRICE_EVIDENCE_ABI, PAIR_ABI } from '../../contracts';
-
-let _ethUsdCached = null;
-let _ethUsdFetching = false;
-function useEthUsd() {
-  const [price, setPrice] = useState(_ethUsdCached);
-  useEffect(() => {
-    if (_ethUsdCached !== null) { setPrice(_ethUsdCached); return; }
-    if (_ethUsdFetching) return;
-    _ethUsdFetching = true;
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
-      .then(r => r.json())
-      .then(d => { _ethUsdCached = d?.ethereum?.usd ?? null; _ethUsdFetching = false; setPrice(_ethUsdCached); })
-      .catch(() => { _ethUsdFetching = false; });
-  }, []);
-  return price;
-}
-
-const EXPLORER = 'https://hekla.taikoscan.io';
-const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+import { useReadContract } from 'wagmi';
+import { formatUnits } from 'viem';
+import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -42,16 +22,16 @@ const HOW_IT_WORKS_STEPS = [
   },
   {
     number: '03',
-    title:  'Swap for $EGG',
+    title:  'Swap for tokens',
     image:  '/onboarding/step-3-swap.png',
-    body:   'Once your ETH is on Taiko, head to our Swap page and trade a little of it for $EGG or any of our available tokens. $EGG is what you\'ll use to pay the community price at the farm.',
+    body:   'Once your ETH is on Taiko, head to our Swap page and trade a little of it for tokens. Tokens are the money of the circle - what you use to buy directly from a producer.',
     link:   { label: 'Go to Swap', href: '/swap', internal: true },
   },
   {
     number: '04',
     title:  'Claim Goods',
     image:  '/onboarding/step-4-redeem.png',
-    body:   'Use your $EGG tokens to purchase an egg carton NFT from our marketplace. That NFT is your claim - bring it to the farm and redeem it for the real thing. No middleman, no markup.',
+    body:   'Use your tokens to buy a claim from a producer on our marketplace - an NFT that stands for the real thing. Bring it to them and redeem it for the goods. No middleman, no markup.',
     link:   null,
   },
 ];
@@ -142,336 +122,6 @@ async function fetchMeta(tokenUri) {
   } catch { return null; }
 }
 
-function PriceEvidenceCard() {
-  const { address, isConnected } = useAccount();
-  const { open: openWallet }     = useAppKit();
-  const [mode, setMode]  = useState('closed'); // 'closed' | 'lightbox' | 'submit'
-  const [photo, setPhoto]         = useState(null);
-  const [preview, setPreview]     = useState(null);
-  const [priceInput, setPriceInput] = useState('');
-  const [remarks, setRemarks]     = useState('');
-  const [wallet, setWallet]       = useState('');
-  const [pinning, setPinning]     = useState(false);
-  const [pinError, setPinError]   = useState(null);
-  const fileRef = useRef(null);
-
-  useEffect(() => { if (address) setWallet(address); }, [address]);
-
-  const contractAddr = ADDRESSES.PRICE_EVIDENCE;
-
-  const { data: featured }    = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'getFeatured',   query: { enabled: !!contractAddr } });
-  const { data: rewardAmt }   = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'rewardAmount',  query: { enabled: !!contractAddr } });
-  const { data: minEth }      = useReadContract({ address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'minEthBalance', query: { enabled: !!contractAddr } });
-  const { data: ethBal }      = useBalance({ address, query: { enabled: !!address } });
-
-  const hasFeatured     = featured && featured[0] !== ZERO_ADDR;
-  const cashPrice       = hasFeatured ? `$${(Number(featured[2]) / 100).toFixed(2)}` : '$6.19';
-  const featuredRemarks = hasFeatured ? featured[3] : null;
-  const featuredSub     = hasFeatured ? featured[0] : null;
-  const photoUrl        = hasFeatured && featured[1] ? `https://ipfs.io/ipfs/${featured[1]}` : '/store-egg-price.jpg';
-  const rewardLabel     = rewardAmt != null ? `${rewardAmt} $EGG` : '$EGG';
-  const meetsMinEth     = !minEth || !ethBal || ethBal.value >= minEth;
-  const minEthLabel     = minEth ? `${Number(formatUnits(minEth, 18)).toFixed(3)} ETH` : 'ETH';
-  const shortAddr       = (a) => a ? `${a.slice(0,6)}...${a.slice(-4)}` : '';
-
-  const { writeContract: writeSubmit, data: submitHash, isPending: submitPending } = useWriteContract();
-  const { data: submitReceipt, isSuccess: submitConfirmed } = useWaitForTransactionReceipt({ hash: submitHash });
-
-  useEffect(() => {
-    if (!submitConfirmed || !submitReceipt || !address) return;
-    for (const log of submitReceipt.logs) {
-      try {
-        const { args } = decodeEventLog({ abi: PRICE_EVIDENCE_ABI, eventName: 'Submitted', data: log.data, topics: log.topics });
-        if (args.submitter?.toLowerCase() === address.toLowerCase())
-          localStorage.setItem(`pe_sub_${address}`, args.id.toString());
-      } catch {}
-    }
-  }, [submitConfirmed, submitReceipt, address]);
-
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhoto(file);
-    setPreview(URL.createObjectURL(file));
-  };
-
-  const handleSubmitEvidence = async () => {
-    if (!photo || !priceInput || !wallet || !contractAddr) return;
-    setPinning(true);
-    setPinError(null);
-    try {
-      const form = new FormData();
-      form.append('file', photo);
-      form.append('pinataMetadata', JSON.stringify({
-        name: `price-evidence-${Date.now()}`,
-        keyvalues: { submittedBy: wallet, claimedPrice: priceInput, source: 'homestead-price-evidence' },
-      }));
-      const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-        method: 'POST', headers: { Authorization: `Bearer ${PINATA_JWT}` }, body: form,
-      });
-      if (!res.ok) throw new Error('pinata');
-      const { IpfsHash } = await res.json();
-      writeSubmit({
-        address: contractAddr,
-        abi: PRICE_EVIDENCE_ABI,
-        functionName: 'submit',
-        args: [IpfsHash, BigInt(Math.round(parseFloat(priceInput) * 100)), remarks],
-      });
-    } catch {
-      setPinError('Upload failed - check your connection and try again.');
-    } finally {
-      setPinning(false);
-    }
-  };
-
-  const handleClose = () => {
-    setMode('closed');
-    setPhoto(null); setPreview(null); setPriceInput(''); setRemarks(''); setPinError(null);
-  };
-
-  return (
-    <>
-      <button
-        onClick={() => setMode('lightbox')}
-        className="relative rounded-xl border border-gray-200 shadow-sm text-center w-full hover:shadow-md hover:-translate-y-0.5 transition-all group overflow-hidden"
-      >
-        {/* Ghost background photo */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${photoUrl})` }}
-        />
-        <div className="absolute inset-0 bg-white/90" />
-
-        {/* Content */}
-        <div className="relative z-10 p-6">
-          <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest mb-3">
-            {hasFeatured ? 'Cash Price · Community Reported' : 'Cash Price'}
-          </p>
-          <p className="text-5xl font-black text-gray-500 line-through">{cashPrice}</p>
-          {hasFeatured && featuredRemarks && (
-            <p className="text-gray-600 text-xs font-medium mt-2">{featuredRemarks}</p>
-          )}
-          {hasFeatured && (
-            <p className="text-gray-500 text-[10px] font-medium mt-2">by {shortAddr(featuredSub)}</p>
-          )}
-          {!hasFeatured && (
-            <p className="text-gray-600 text-xs font-medium mt-3 leading-relaxed">
-              Unknown farm.<br />Weeks in transit.
-            </p>
-          )}
-          <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mt-4 group-hover:underline underline-offset-2">
-            See evidence →
-          </p>
-        </div>
-      </button>
-
-      {mode !== 'closed' && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={handleClose}>
-          <div className="bg-white rounded-2xl overflow-hidden max-w-lg w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-
-            {mode === 'lightbox' && (
-              <>
-                <img src={photoUrl} alt="Store price evidence" className="w-full object-cover max-h-72" />
-                <div className="px-6 py-4">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      {hasFeatured ? (
-                        <>
-                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">{cashPrice} - community reported</p>
-                          {featuredRemarks && <p className="text-gray-400 text-xs mt-0.5">{featuredRemarks}</p>}
-                          <a href={`${EXPLORER}/address/${featuredSub}`} target="_blank" rel="noopener noreferrer"
-                            className="text-hub-green text-xs font-black mt-0.5 hover:underline inline-block">
-                            {shortAddr(featuredSub)} earned {rewardLabel} →
-                          </a>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Store shelf - $6.19</p>
-                          <p className="text-gray-400 text-xs mt-0.5">Free range, 12 large. This is what the supply chain costs you.</p>
-                        </>
-                      )}
-                    </div>
-                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 ml-4 shrink-0"><X size={20} /></button>
-                  </div>
-                  <button
-                    onClick={() => setMode('submit')}
-                    className="w-full py-2.5 px-4 border-2 border-hub-green text-hub-green font-black text-xs uppercase tracking-widest rounded-lg hover:bg-hub-green hover:text-white transition-all"
-                  >
-                    {hasFeatured ? `Beat this price → earn ${rewardLabel}` : `Submit evidence → earn ${rewardLabel}`}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {mode === 'submit' && !submitConfirmed && (
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-gray-900 font-black text-sm uppercase tracking-widest">Submit Price Evidence</p>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      {hasFeatured ? `Current cash price: ${cashPrice}. Beat it, earn ${rewardLabel}.` : `First approved photo earns ${rewardLabel}.`}
-                    </p>
-                  </div>
-                  <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 ml-4 shrink-0"><X size={20} /></button>
-                </div>
-
-                {!isConnected ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-500 text-sm font-medium mb-4">Connect your wallet - it's where your $EGG lands.</p>
-                    <button onClick={() => openWallet()} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg">
-                      Connect Wallet
-                    </button>
-                  </div>
-                ) : !meetsMinEth ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-500 text-sm font-medium mb-2">You need at least {minEthLabel} on Taiko to submit.</p>
-                    <p className="text-gray-400 text-xs leading-relaxed">
-                      Use our <Link to="/bridge" className="text-hub-green font-black" onClick={handleClose}>bridge</Link> to move ETH over. This proves you've got skin in the game.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {preview ? (
-                      <div className="relative mb-4">
-                        <img src={preview} alt="Preview" className="w-full rounded-lg object-cover max-h-48" />
-                        <button onClick={() => { setPhoto(null); setPreview(null); }} className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1"><X size={14} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => fileRef.current?.click()} className="w-full mb-4 py-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-black uppercase tracking-widest hover:border-hub-green hover:text-hub-green transition-all">
-                        Tap to upload photo
-                      </button>
-                    )}
-                    <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
-
-                    <div className="mb-3">
-                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">Price shown</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-black text-sm">$</span>
-                        <input type="number" step="0.01" min="0" value={priceInput} onChange={e => setPriceInput(e.target.value)}
-                          placeholder="6.19" className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-hub-green" />
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">
-                        Store & brand <span className="text-gray-300 normal-case font-medium">(optional)</span>
-                      </label>
-                      <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)}
-                        placeholder="e.g. Publix, Happy Egg Free Range 12ct"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:border-hub-green" />
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1.5">Your wallet</label>
-                      <input type="text" value={wallet} onChange={e => setWallet(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono text-gray-700 focus:outline-none focus:border-hub-green" />
-                    </div>
-
-                    {pinError && <p className="text-red-500 text-xs mb-3">{pinError}</p>}
-
-                    <button
-                      onClick={handleSubmitEvidence}
-                      disabled={!photo || !priceInput || !wallet || pinning || submitPending}
-                      className="w-full py-3 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {pinning ? 'Uploading photo...' : submitPending ? 'Recording on-chain...' : 'Submit Evidence'}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {mode === 'submit' && submitConfirmed && (
-              <div className="p-8 text-center">
-                <p className="text-hub-green font-black text-4xl mb-4">✓</p>
-                <p className="text-gray-900 font-black text-lg uppercase tracking-tight mb-2">On chain.</p>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed mb-6">
-                  Submission recorded. If approved, {rewardLabel} lands in your wallet - and you'll have a shot at completing the full carton deal.
-                </p>
-                <button onClick={handleClose} className="py-2.5 px-6 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700">Done</button>
-              </div>
-            )}
-
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function DealCreditBanner() {
-  const { address, isConnected } = useAccount();
-  const contractAddr = ADDRESSES.PRICE_EVIDENCE;
-
-  const { data: credit, refetch: refetchCredit } = useReadContract({
-    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'eggCredit',
-    args: [address], query: { enabled: !!contractAddr && !!address },
-  });
-  const { data: usePoolMode } = useReadContract({
-    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'usePool',
-    query: { enabled: !!contractAddr },
-  });
-
-  const hasCredit   = credit && credit > 0n;
-  const submissionId = address ? localStorage.getItem(`pe_sub_${address}`) : null;
-
-  const { writeContract, data: txHash, isPending } = useWriteContract();
-  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
-  useEffect(() => { if (confirmed) refetchCredit(); }, [confirmed]);
-
-  if (!isConnected || !hasCredit || !contractAddr) return null;
-
-  const handleClaim = () => writeContract({
-    address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'claimEgg', args: [],
-  });
-
-  const handleCompleteDeal = () => {
-    if (!submissionId) return;
-    writeContract({
-      address: contractAddr, abi: PRICE_EVIDENCE_ABI, functionName: 'completeTheDeal',
-      args: [BigInt(submissionId)], value: 0n,
-    });
-  };
-
-  if (confirmed) return (
-    <div className="mt-6 bg-hub-green/10 border-2 border-hub-green/20 rounded-xl p-5 text-center">
-      <p className="text-hub-green font-black uppercase tracking-widest text-sm">Done. Check your wallet.</p>
-    </div>
-  );
-
-  return (
-    <div className="mt-6 bg-white border-2 border-hub-green/40 rounded-xl p-5">
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1">Your submission was approved</p>
-          <p className="text-gray-900 font-black text-lg">You have 1 $EGG credit.</p>
-          <p className="text-gray-500 text-sm font-medium mt-1 max-w-sm">
-            Claim it now, or complete the deal - get 5 more and walk away with a full carton NFT ready to redeem.
-          </p>
-          {!submissionId && (
-            <p className="text-amber-600 text-xs font-medium mt-2">Submission ID not in this browser - use "Claim 1 $EGG" to withdraw.</p>
-          )}
-        </div>
-        <div className="flex flex-col gap-2 shrink-0">
-          <button
-            onClick={handleCompleteDeal}
-            disabled={isPending || !submissionId || !!usePoolMode}
-            className="py-2.5 px-5 bg-hub-green text-white font-black text-xs uppercase tracking-widest rounded-lg hover:bg-green-700 transition-all disabled:opacity-40"
-          >
-            {isPending ? 'Processing...' : 'Complete the Deal →'}
-          </button>
-          <button
-            onClick={handleClaim}
-            disabled={isPending}
-            className="py-2.5 px-5 border-2 border-gray-200 text-gray-600 font-black text-xs uppercase tracking-widest rounded-lg hover:border-gray-400 transition-all disabled:opacity-40"
-          >
-            Claim 1 $EGG
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Lightweight listing card - teaser only, full interaction lives on /market
 function FeaturedListingCard({ id }) {
@@ -668,8 +318,8 @@ function FeaturedListings() {
       {listingIds.map(id => (
         <FeaturedListingCard key={id} id={id} />
       ))}
-      <EggFeaturedPlaceholder name="Single Farm Egg"     priceAmount={1} tokenSymbol={eggSymbol} />
-      <EggFeaturedPlaceholder name="Half Dozen Farm Eggs" priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />} />
+      <EggFeaturedPlaceholder name="Single Egg"      priceAmount={1} tokenSymbol={eggSymbol} />
+      <EggFeaturedPlaceholder name="Half Dozen Eggs" priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />} />
     </div>
   );
 }
@@ -754,18 +404,18 @@ const features = [
 const PRINCIPLES = [
   {
     icon:  <Lock size={24} strokeWidth={2} />,
-    title: 'Real stakes',
-    body:  'Producers lock ETH before they sell a thing. Their collateral stays locked until they deliver. Skin in the game, enforced by code - not a terms-of-service page nobody reads.',
+    title: 'You back your word',
+    body:  'Every producer puts up a pledge before they sell a thing, held and never spent. It stays behind their promise until they deliver. Skin in the game that is actually on the line - not a terms-of-service page nobody reads.',
   },
   {
     icon:  <Fingerprint size={24} strokeWidth={2} />,
-    title: 'A permanent record',
-    body:  'Every batch, every delivery, every redemption lives on-chain. Reputation here is not self-reported and not assigned by an agency. It is the sum of what you have actually done.',
+    title: 'A record that remembers',
+    body:  'Every batch, every delivery, every hand-off is written down for good. Your standing here is not self-reported and not handed out by an agency. It is the sum of what you have actually done.',
   },
   {
     icon:  <ShieldCheck size={24} strokeWidth={2} />,
     title: 'It cannot be bought',
-    body:  'You cannot purchase standing on Homestead, and no one can revoke it. It is earned through costly, irreversible action - and it travels with you, wherever you go.',
+    body:  'No one can buy standing here, and no one can take yours away. You earn it by delivering, again and again - and it stays with you.',
   },
 ];
 
@@ -777,25 +427,8 @@ export default function HomePage() {
   useEffect(() => { document.title = 'Homestead - Grown here. Sold here.'; }, []);
   const navigate                  = useNavigate();
   const [activeTab, setActiveTab]           = useState('Exchange');
-  const [dealTab, setDealTab]               = useState('buyer');
+  const [dealTab, setDealTab]               = useState('producer');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [cartonSize, setCartonSize]         = useState(12);
-
-  const ethUsd = useEthUsd();
-  const { data: eggPairReserves } = useReadContract({
-    address:      ADDRESSES.EGG_WETH_PAIR,
-    abi:          PAIR_ABI,
-    functionName: 'getReserves',
-    query:        { enabled: !!ADDRESSES.EGG_WETH_PAIR },
-  });
-  // EGG_WETH_PAIR: wethIsToken0 = true (WETH address sorts below EGG)
-  const eggUsd = (() => {
-    if (!eggPairReserves || !ethUsd) return null;
-    const [wethRes, eggRes] = eggPairReserves;
-    if (!eggRes || eggRes === 0n) return null;
-    const ethPerEgg = parseFloat(formatUnits(wethRes, 18)) / parseFloat(formatUnits(eggRes, 18));
-    return (ethPerEgg * ethUsd).toFixed(2);
-  })();
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -808,33 +441,66 @@ export default function HomePage() {
 
         <div className="px-8 py-16 md:px-14 md:py-20 relative">
           <p className="text-hub-light text-xs font-black uppercase tracking-[0.25em] mb-6">
-            Direct · Local · Provable
+            For the people who make things
           </p>
           <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-white leading-[0.9] mb-8">
             Grown here.<br />Sold here.
           </h1>
           <p className="text-xl text-white/90 font-semibold leading-relaxed max-w-2xl mb-4">
-            Every token is a claim on something real - and on the person who staked to make it.
+            Sell what you make without a stall to rent, a distributor to feed, or a gatekeeper to ask.
           </p>
           <p className="text-base text-white/60 font-medium leading-relaxed max-w-2xl mb-10">
-            You are not buying from a brand or a supply chain. You are buying from someone whose
-            word is on the chain, whose reputation is earned, and whose collateral is on the line
-            until you have what they promised. No distributor. No markup. No middleman.
+            Your goods, your price, your customers - direct. A storefront that stays open all week,
+            costs nothing to hold, and builds you a name that stays with you. No middleman. No markup.
+            No one deciding whether you get to sell.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Link
-              to="/market"
-              className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3.5 px-8 uppercase tracking-widest hover:bg-hub-light hover:text-hub-dark transition-all shadow-lg rounded"
-            >
-              See what's for sale <ArrowRight size={16} strokeWidth={3} />
-            </Link>
             <button
               onClick={() => navigate('/profile')}
+              className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3.5 px-8 uppercase tracking-widest hover:bg-hub-light hover:text-hub-dark transition-all shadow-lg rounded"
+            >
+              Start selling <ArrowRight size={16} strokeWidth={3} />
+            </button>
+            <Link
+              to="/market"
               className="inline-flex items-center gap-2 border-2 border-white/30 text-white font-black py-3.5 px-8 uppercase tracking-widest hover:bg-white hover:text-hub-dark transition-all rounded"
             >
-              I'm a producer
-            </button>
+              See what's for sale
+            </Link>
           </div>
+        </div>
+      </section>
+
+      {/* ── THE FARMERS MARKET HOOK ─────────────────────────────────────── */}
+      <section className="mb-16">
+        <div className="bg-white border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
+          <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Why producers use it</p>
+          <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-gray-900 mb-5 leading-tight max-w-3xl">
+            A stall charges you whether<br />the crowd shows or not.
+          </h2>
+          <p className="text-gray-500 text-base font-medium leading-relaxed max-w-2xl mb-4">
+            At the market you pay for the table, haul everything out, and sit all day hoping for foot
+            traffic. Whatever does not sell, you carry home.
+          </p>
+          <p className="text-gray-600 text-base font-medium leading-relaxed max-w-2xl">
+            Homestead is a storefront that costs nothing to keep open. You list what you have. It sells
+            when someone wants it - this week, next week, whenever. Keep your Saturday stall. This runs
+            alongside it: open all week, reaching the people who never made it to the market.
+          </p>
+        </div>
+      </section>
+
+      {/* ── WHY THE MONEY HOLDS ─────────────────────────────────────────── */}
+      <section className="mb-16">
+        <div className="bg-hub-green/5 border-2 border-hub-green/20 rounded-2xl p-8 md:p-12 text-center">
+          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-4 leading-tight max-w-3xl mx-auto">
+            Loyalty point value holds until a business folds; cash is just loyalty points from a bigger card.
+          </h2>
+          <p className="text-gray-600 text-base font-medium leading-relaxed max-w-2xl mx-auto">
+            Homestead money does not. Every token is backed by real goods a producer already made -
+            eggs, beer, a repair - and that backing is recorded on a public ledger anyone can check.
+            Not a promise you take on trust. A claim you can verify, then collect.
+          </p>
         </div>
       </section>
 
@@ -842,19 +508,19 @@ export default function HomePage() {
       <section className="mb-16">
         <div className="bg-hub-dark rounded-2xl shadow-2xl p-8 md:p-12 border border-white/5">
             <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-              <p className="text-hub-light text-xs font-black uppercase tracking-[0.25em]">Why it's different</p>
+              <p className="text-hub-light text-xs font-black uppercase tracking-[0.25em]">Why it works</p>
               <a href="/whitepaper" className="text-[11px] font-black uppercase tracking-widest text-hub-light hover:text-white border border-hub-light/30 hover:border-hub-light px-4 py-2 rounded-full transition-all">
-                Read the whitepaper →
+                Read the details →
               </a>
             </div>
             <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white leading-[0.95] mb-5 max-w-3xl">
-              Trust that costs something<br />is the only trust worth having.
+              Why a stranger trusts you<br />before they have met you.
             </h2>
             <p className="text-white/60 font-medium leading-relaxed max-w-2xl mb-10">
-              Most platforms make it free to make a promise - so a promise means nothing. Homestead is
-              built the other way around. Every action here carries a real, visible, permanent cost. When
-              someone backs their work, they have genuinely put something on the line. That is what makes
-              their word worth taking.
+              At the market, people trust you because they can see your face and your goods. At a distance
+              they cannot. Your pledge stands in for that handshake. It is what lets someone who has never
+              met you take your word, because you have put something of your own behind it - held, never
+              spent, and returned the moment you deliver.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6 mb-10">
@@ -871,11 +537,11 @@ export default function HomePage() {
             <div className="flex items-start gap-4 bg-hub-green/10 border border-hub-green/30 rounded-xl p-6">
               <div className="text-hub-light shrink-0 mt-0.5"><Gift size={22} strokeWidth={2} /></div>
               <p className="text-white/80 text-sm font-medium leading-relaxed">
-                <span className="text-white font-black">Even generosity is provable here.</span>{' '}
-                When you gift a token, your collateral stays locked until the person you gave it to
-                redeems it. So a gift on Homestead is a measurable act of conviction - you only give
-                to someone you truly believe in, because if they never follow through, it costs you.
-                You cannot fake that. You cannot buy it. It is the truest signal there is.
+                <span className="text-white font-black">Even a gift means something here.</span>{' '}
+                When you hand someone a token, your pledge stays behind it until they redeem it. So a
+                gift is a real act of belief - you only give to someone you trust to follow through,
+                because if they never do, it costs you. You cannot fake that, and you cannot buy it.
+                It is the truest signal there is.
               </p>
             </div>
           </div>
@@ -884,22 +550,22 @@ export default function HomePage() {
         {/* ── THE PROOF (live market pricing / The Deal) ────────────────── */}
         <section className="mb-16">
           <div className="bg-white border-2 border-hub-green/20 rounded-2xl p-8 md:p-12">
-            <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">What you're actually paying for</p>
+            <p className="text-hub-green text-xs font-black uppercase tracking-widest mb-3">Barter, brought forward</p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-gray-900 mb-4 leading-tight">
-              Most of the store price<br />never touches the food.
+              What you make<br />is what you spend.
             </h2>
             <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
-              The number on the shelf isn't the cost of the egg. It's the egg plus the distributor, the
-              wholesaler, the retailer, the shelf, and the corporate margin - every layer taking its cut before
-              the person who made it sees a cent. Here you pay the maker directly, in money that stays in the
-              system. The store price below isn't a number we're trying to beat. It's the tax, shown in the open.
+              Trade used to be simple - your eggs for my beer, my welding for your bread. It broke down when the
+              beer maker did not want eggs. Homestead fixes that. What you make becomes tokens anyone in the
+              circle will take, and every token is still backed by something real. Barter that finally scales,
+              with no dollar needed to close the deal.
             </p>
 
             {/* Tab pills */}
             <div className="flex gap-2 mb-8 flex-wrap">
               {[
-                { id: 'buyer',    label: 'As a Buyer' },
                 { id: 'producer', label: 'As a Producer' },
+                { id: 'buyer',    label: 'As a Buyer' },
               ].map(t => (
                 <button key={t.id} onClick={() => setDealTab(t.id)}
                   className={`text-[11px] font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 transition-all ${
@@ -914,52 +580,58 @@ export default function HomePage() {
 
             {dealTab === 'buyer' && (
               <>
-                <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-2 mb-4">
-                  <PriceEvidenceCard />
-                  <div className="flex items-center justify-center px-2">
-                    <ArrowRight size={28} className="text-hub-green rotate-90 md:rotate-0" strokeWidth={3} />
+                <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
+                  You do not have to make something to join. Buy in, and you hold the money of the circle -
+                  tokens backed by real goods from real people, not a brand, not a supply chain.
+                </p>
+                <div className="divide-y divide-hub-green/10">
+                  <div className="pb-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">01</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Get your tokens</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Trade a little ETH for tokens on the Swap page. Tokens are the money here - what everyone
+                        in the circle takes.
+                      </p>
+                    </div>
                   </div>
-                  <div className="border-4 border-hub-green rounded-xl p-6 text-center flex flex-col items-center justify-center bg-white">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-green opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-hub-green" />
-                      </span>
-                      <p className="text-hub-green text-[10px] font-black uppercase tracking-widest">Live Token Price</p>
+                  <div className="py-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">02</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Pick your maker</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Browse real goods from real producers. You are buying from the person who made it, their
+                        standing right there for you to see. Here quality is the point, not a claim you have to
+                        take on faith.
+                      </p>
                     </div>
-                    <p className="text-5xl font-black text-gray-900">{cartonSize} <span className="text-hub-green">$EGG</span></p>
-                    {eggUsd && <p className="text-gray-400 text-xs font-medium mt-1">≈ ${(parseFloat(eggUsd) * cartonSize).toFixed(2)} USD at spot</p>}
-                    <div className="flex gap-2 mt-4">
-                      {[1, 6, 12].map(n => (
-                        <button key={n} onClick={() => setCartonSize(n)} className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border transition-all ${cartonSize === n ? 'bg-hub-green border-hub-green text-white' : 'border-hub-green/30 text-hub-green hover:border-hub-green'}`}>
-                          {n} egg{n > 1 ? 's' : ''}
-                        </button>
-                      ))}
+                  </div>
+                  <div className="py-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">03</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Claim the real thing</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Spend your tokens with a maker and you receive a claim - an NFT they honor when you come to
+                        collect. One claim, one real item. No markup, no middleman.
+                      </p>
                     </div>
-                    <p className="text-gray-400 text-xs font-medium mt-3 leading-relaxed">Local farm. Nutrient-rich. This morning.</p>
+                  </div>
+                  <div className="pt-6 flex gap-5">
+                    <span className="text-hub-green font-black text-2xl shrink-0">04</span>
+                    <div>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Redeem or hold</h3>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                        Bring your claim to the maker and walk away with the goods. Or hold your tokens and spend
+                        them on anyone else in the circle - they keep their worth because real production stands
+                        behind them.
+                      </p>
+                    </div>
                   </div>
                 </div>
-
-                <DealCreditBanner />
-
                 <div className="mt-8 border-t border-hub-green/10 pt-8">
-                  <p className="text-gray-600 font-medium leading-relaxed max-w-2xl mb-3">
-                    The token path costs less - not as a gimmick, but as a reflection of reality. No distributor,
-                    no shelf-life engineering, no corporate margin. What is left is a more{' '}
-                    <strong className="text-gray-900 font-black">nutrient-dense</strong> product at a lower price.
-                    That is what cutting out the middleman actually does.
-                  </p>
-                  <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-6">
-                    Getting set up asks a few minutes of you - and a small amount of ETH, held not spent, as
-                    proof you have skin in the game. That friction is not an accident. It is the line between
-                    people who mean it and people who are just passing through. Swap a little ETH for community
-                    tokens on our{' '}
-                    <Link to="/swap" className="text-hub-green font-black hover:underline underline-offset-2">Swap page</Link>,
-                    or submit a store price photo and earn your first $EGG on us.
-                  </p>
                   <div className="flex flex-wrap gap-3">
                     <Link to="/swap" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
-                      Get the deal <ArrowRight size={16} strokeWidth={3} />
+                      Get your tokens <ArrowRight size={16} strokeWidth={3} />
                     </Link>
                     <button
                       onClick={() => setShowHowItWorks(true)}
@@ -977,29 +649,29 @@ export default function HomePage() {
               <>
                 <p className="text-gray-500 text-sm font-medium leading-relaxed max-w-2xl mb-8">
                   No application. No approval committee. No fee paid to a gatekeeper for the privilege of
-                  selling your own work. Your access is earned by putting something real on the line - and
-                  proven by math, not by permission.
+                  selling your own work. Your access is earned by putting something real behind your word -
+                  and proven by the record, not by permission.
                 </p>
                 <div className="divide-y divide-hub-green/10">
                   <div className="pb-6 flex gap-5">
                     <span className="text-hub-green font-black text-2xl shrink-0">01</span>
                     <div>
-                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Stake ETH</h3>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Make your pledge</h3>
                       <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                        Deposit ETH into the protocol. You receive a credential token that reflects your
-                        standing - not a receipt, not a yield instrument. It is proof you have skin in the game,
-                        and your investment in your own reputation.
+                        Put up a small amount of your own, held and never spent. Nobody takes a cut. It is what
+                        lets someone who has never met you trust your word - the same way showing your face does
+                        at the market. The moment you deliver, it is yours again.
                       </p>
                     </div>
                   </div>
                   <div className="py-6 flex gap-5">
                     <span className="text-hub-green font-black text-2xl shrink-0">02</span>
                     <div>
-                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your production</h3>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Back your goods</h3>
                       <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                        Open a lot against your stake. The collateral ratio is enforced by code, not a loan officer.
-                        Production tokens are minted - each one a redeemable promise backed by your locked stake.
-                        No rehypothecation. One token, one real thing.
+                        List a batch against your pledge. For every real thing you promise, one token is made
+                        that a buyer can redeem for it. One token, one real thing. You can never promise more
+                        than you can deliver.
                       </p>
                     </div>
                   </div>
@@ -1008,28 +680,30 @@ export default function HomePage() {
                     <div>
                       <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">List and sell direct</h3>
                       <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                        Put your goods on the market. The token price is what real demand says your production is
-                        worth - not a distributor's offer, not a grocery margin that squeezes both sides. Pricing
-                        leverage belongs to the producer. Every fulfilled order adds to your on-chain track record:
-                        portable, verifiable, and yours to keep.
+                        Put your goods on the market. The price is what real demand says your work is worth - not
+                        a distributor's offer, not a grocery margin that squeezes both sides. The price is yours to
+                        set. Every order you fill adds to a track record that is provable and yours to keep.
                       </p>
                     </div>
                   </div>
                   <div className="pt-6 flex gap-5">
                     <span className="text-hub-green font-black text-2xl shrink-0">04</span>
                     <div>
-                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Trade inside the circle</h3>
+                      <h3 className="text-gray-900 font-black uppercase tracking-tight mb-1">Spend it forward</h3>
                       <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                        What you earn does not leave the system. It becomes what you spend - on your neighbors'
-                        goods, in the same money. You produced your way in; now you transact in a loop that never
-                        needs a dollar to function.
+                        What you earn does not leave. It becomes what you spend - on your neighbors' goods, in the
+                        same money. You earned your way in by making something real. Now it circulates.
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="mt-8 border-t border-hub-green/10 pt-8">
+                  <p className="text-gray-400 text-xs font-medium leading-relaxed max-w-2xl mb-6">
+                    Your pledge is held in ETH, the currency the exchange runs on. You never spend it. It stays
+                    set aside while a promise is open and comes back to you the moment you deliver.
+                  </p>
                   <Link to="/profile" className="inline-flex items-center gap-2 bg-hub-green text-white font-black py-3 px-8 uppercase tracking-widest hover:bg-green-700 transition-all shadow-md rounded">
-                    Start staking <ArrowRight size={16} strokeWidth={3} />
+                    Start selling <ArrowRight size={16} strokeWidth={3} />
                   </Link>
                 </div>
               </>

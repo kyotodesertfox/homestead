@@ -20,7 +20,7 @@ const Sub = ({ title, children }) => (
   </div>
 );
 
-const TITLE = 'Homestead Protocol — Technical Whitepaper';
+const TITLE = 'Homestead Protocol - Technical Whitepaper';
 const DESC  = 'A decentralized protocol for direct commerce and quantum-safe messaging. Post-quantum encrypted on-chain communication built on Taiko Mainnet.';
 const URL   = 'https://homesteaders.netlify.app/whitepaper';
 
@@ -35,12 +35,12 @@ export default function WhitepaperPage() {
     setMeta('twitter:description', DESC);
     return () => {
       document.title = 'Homestead Exchange';
-      setMeta('og:title',            'Homestead — Grown here. Sold here.');
-      setMeta('og:description',      'A direct market for local producers. Farm-fresh eggs, craft beer, and more — bought directly from the people who make them.');
+      setMeta('og:title',            'Homestead - Grown here. Sold here.');
+      setMeta('og:description',      'A direct market for local producers. Fresh eggs, craft beer, and more - bought directly from the people who make them.');
       setMeta('og:url',              'https://homesteaders.netlify.app');
-      setMeta('twitter:title',       'Homestead — Grown here. Sold here.');
-      setMeta('twitter:description', 'A direct market for local producers. Farm-fresh eggs, craft beer, and more — bought directly from the people who make them.');
-      setMeta('description',         'Homestead — a direct market for local producers. Buy farm-fresh eggs, craft beer, and more directly from the people who make them. No middlemen.');
+      setMeta('twitter:title',       'Homestead - Grown here. Sold here.');
+      setMeta('twitter:description', 'A direct market for local producers. Fresh eggs, craft beer, and more - bought directly from the people who make them.');
+      setMeta('description',         'Homestead - a direct market for local producers. Buy fresh eggs, craft beer, and more directly from the people who make them. No middlemen.');
     };
   }, []);
 
@@ -81,10 +81,10 @@ export default function WhitepaperPage() {
 
         <Section title="1. The Problem">
           <p>
-            Modern commerce platforms sit between producers and buyers, extracting value from both sides. Fees compound across listing, sale, and settlement. Data is harvested. Messaging is surveilled. Producers of real goods — farmers, craftspeople, small-scale manufacturers — have no path to market that doesn't route through an intermediary who captures the relationship.
+            Modern commerce platforms sit between producers and buyers, extracting value from both sides. Fees compound across listing, sale, and settlement. Data is harvested. Messaging is surveilled. Producers of real goods - farmers, craftspeople, small-scale manufacturers - have no path to market that doesn't route through an intermediary who captures the relationship.
           </p>
           <p>
-            At the same time, every digital message sent today is potentially being harvested and stored. This is not a theoretical concern. The cryptographic algorithms protecting internet communications — RSA, elliptic curve — are mathematically vulnerable to sufficiently powerful quantum computers. When those computers exist, retroactively stored ciphertext becomes readable. Messages sent today will be decrypted tomorrow.
+            At the same time, every digital message sent today is potentially being harvested and stored. This is not a theoretical concern. The cryptographic algorithms protecting internet communications - RSA, elliptic curve - are mathematically vulnerable to sufficiently powerful quantum computers. When those computers exist, retroactively stored ciphertext becomes readable. Messages sent today will be decrypted tomorrow.
           </p>
           <p>
             Existing blockchain messaging protocols address neither problem adequately. They encrypt with classical algorithms only, ignore the harvest-now-decrypt-later threat model, and do not integrate with real commerce settlement.
@@ -96,14 +96,14 @@ export default function WhitepaperPage() {
             Homestead replaces the intermediary with a set of transparent, upgradeable smart contracts. A producer stakes ETH as collateral, mints production tokens against that collateral, commits those tokens to NFTs, and lists them on the marketplace. A buyer purchases the NFT, which serves as a claim ticket. On redemption, the buyer receives the physical good and the producer receives ETH. No platform holds custody of either side at any point.
           </p>
           <p>
-            All coordination between parties happens through the Homestead Relay — an on-chain messaging contract that enforces hybrid post-quantum encryption. Every message is encrypted client-side before hitting the chain. The encrypted payload lives in event logs permanently, but only the intended recipient, holding the correct private key, can ever decrypt it.
+            All coordination between parties happens through the Homestead Relay - an on-chain messaging contract that enforces hybrid post-quantum encryption. Every message is encrypted client-side before hitting the chain. The encrypted payload lives in event logs permanently, but only the intended recipient, holding the correct private key, can ever decrypt it.
           </p>
           <Sub title="Quantum-Safe Messaging">
             <p>
               The encryption scheme combines two independent algorithms: X25519 elliptic-curve Diffie-Hellman for classical security, and ML-KEM-768 (Kyber) for post-quantum security. Both produce independent shared secrets. Those secrets are merged through HKDF and used to derive a single AES-256-GCM key for the actual message encryption.
             </p>
             <p>
-              An attacker must break both algorithms to read a message. X25519 provides battle-tested classical security. ML-KEM-768 is a NIST-standardized lattice-based algorithm resistant to Shor's algorithm on quantum hardware. Neither algorithm alone is sufficient — both must be defeated simultaneously.
+              An attacker must break both algorithms to read a message. X25519 provides battle-tested classical security. ML-KEM-768 is a NIST-standardized lattice-based algorithm resistant to Shor's algorithm on quantum hardware. Neither algorithm alone is sufficient - both must be defeated simultaneously.
             </p>
             <p>
               Keys are derived from a deterministic wallet signature. No private key is ever stored. Any device can re-derive the same key pair by signing the same message with the same wallet. The public keys are registered on-chain so any sender can encrypt to any registered recipient without prior communication.
@@ -114,10 +114,10 @@ export default function WhitepaperPage() {
         <Section title="3. Protocol Architecture">
           <Sub title="Treasury">
             <p>
-              The Treasury is the economic core of the protocol. Producers deposit ETH via <code className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">postStake()</code>, receiving stkHomestead tokens 1:1 in wei. This ETH is permanently locked as the ecosystem floor — it does not leave the system under any normal operation.
+              The Treasury is the economic core of the protocol. Producers deposit ETH via <code className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">postStake()</code>, receiving stkHomestead tokens 1:1 in wei. This ETH is permanently locked as the ecosystem floor - it does not leave the system under any normal operation.
             </p>
             <p>
-              stkHomestead serves as a production credential. Producers open lots against their collateral position, mint production tokens, and commit those tokens to NFTs. As NFTs are redeemed, collateral is released and pro-rata ETH becomes claimable. The floor only grows — fees received by the Treasury in ETH accumulate as unattributed surplus above the staker floor.
+              stkHomestead serves as a production credential. Producers open lots against their collateral position, mint production tokens, and commit those tokens to NFTs. As NFTs are redeemed, collateral is released and pro-rata ETH becomes claimable. The floor only grows - fees received by the Treasury in ETH accumulate as unattributed surplus above the staker floor.
             </p>
           </Sub>
           <Sub title="Marketplace">
@@ -139,16 +139,16 @@ export default function WhitepaperPage() {
 
         <Section title="4. Token Economics">
           <p>
-            The protocol token ($QUANTUM) is burned per encrypted message sent through the Relay. Senders may alternatively pay a fixed ETH fee, which routes to the Treasury floor. The burn mechanic is deflationary — supply decreases with usage.
+            The protocol token ($QUANTUM) is burned per encrypted message sent through the Relay. Senders may alternatively pay a fixed ETH fee, which routes to the Treasury floor. The burn mechanic is deflationary - supply decreases with usage.
           </p>
           <p>
-            Production tokens are minted by producers against their collateral position and burned on NFT redemption. They are not speculative assets — their value is anchored to the goods they represent. The DEX provides price discovery and liquidity for production token swaps on settlement.
+            Production tokens are minted by producers against their collateral position and burned on NFT redemption. They are not speculative assets - their value is anchored to the goods they represent. The DEX provides price discovery and liquidity for production token swaps on settlement.
           </p>
           <p>
             stkHomestead is a non-transferable credential. It is minted 1:1 with staked ETH and burned as ETH is claimed back through the redemption cycle. It establishes production capacity and reflects cumulative commitment to the ecosystem.
           </p>
           <p>
-            The architect's surplus — ETH accumulated in the Treasury above the staker floor — is extractable by the contract owner without affecting any staker position. This is the protocol's primary revenue mechanism for its builders.
+            The architect's surplus - ETH accumulated in the Treasury above the staker floor - is extractable by the contract owner without affecting any staker position. This is the protocol's primary revenue mechanism for its builders.
           </p>
         </Section>
 
@@ -157,7 +157,7 @@ export default function WhitepaperPage() {
             Participants are assigned attestation tiers (0-3) based on their cumulative stake history. Tier thresholds are set by the protocol owner and reflect economic commitment to the ecosystem.
           </p>
           <p>
-            Attestation can also be granted manually by designated attesters — allowing trusted providers who have been onboarded through other means to participate at the appropriate tier without requiring stake as a prerequisite.
+            Attestation can also be granted manually by designated attesters - allowing trusted providers who have been onboarded through other means to participate at the appropriate tier without requiring stake as a prerequisite.
           </p>
           <p>
             No personal identity information is collected or stored at any layer. Attestation is purely on-chain and stake-derived.
@@ -166,35 +166,35 @@ export default function WhitepaperPage() {
 
         <Section title="6. The Platform Problem">
           <p>
-            Centralized platforms present themselves as neutral infrastructure. They are not. Every message sent through a major platform is readable by the platform, subject to algorithmic suppression, and stored indefinitely. The business model depends on this — advertising revenue requires knowing what users say and selectively amplifying what keeps them engaged.
+            Centralized platforms present themselves as neutral infrastructure. They are not. Every message sent through a major platform is readable by the platform, subject to algorithmic suppression, and stored indefinitely. The business model depends on this - advertising revenue requires knowing what users say and selectively amplifying what keeps them engaged.
           </p>
           <p>
             When financial incentives align between platform owners and political or commercial interests, the regulatory path that might otherwise correct this closes. Antitrust enforcement requires an enforcer. When the enforcer is downstream of the same incentive structure, the correction does not come.
           </p>
           <p>
-            The result is a communication layer that is structurally incapable of being neutral. Content that threatens the platform's business model — or the interests of those with financial relationships to the platform — is suppressed without recourse, without transparency, and without appeal.
+            The result is a communication layer that is structurally incapable of being neutral. Content that threatens the platform's business model - or the interests of those with financial relationships to the platform - is suppressed without recourse, without transparency, and without appeal.
           </p>
           <p>
-            Homestead's messaging layer is the technical answer to this. A message sent through the Relay is encrypted before it touches any network. No platform reads it. No algorithm ranks it. No financial relationship suppresses it. It either reaches the recipient or it does not — and the math governing that outcome is public, auditable, and immutable.
+            Homestead's messaging layer is the technical answer to this. A message sent through the Relay is encrypted before it touches any network. No platform reads it. No algorithm ranks it. No financial relationship suppresses it. It either reaches the recipient or it does not - and the math governing that outcome is public, auditable, and immutable.
           </p>
           <p>
             The irony of building a censorship-resistant communication layer is that the act of building it is itself subject to censorship on the platforms where it might otherwise find an audience. <strong>That tension is not incidental. It is the thesis.</strong>
           </p>
         </Section>
 
-        <Section title="8. Why Now">
+        <Section title="7. Why Now">
           <p>
             Quantum computing is advancing faster than public awareness of the implications. The National Institute of Standards and Technology finalized ML-KEM (Kyber) as a post-quantum key encapsulation standard in 2024. Major cloud providers are beginning to offer quantum-resistant TLS. The window to retroactively protect communications is closing.
           </p>
           <p>
-            Harvest-now-decrypt-later attacks are not speculative — intelligence agencies and well-resourced adversaries are storing encrypted traffic today against the day quantum hardware matures. Any message sent over a classical-only channel is potentially compromised in the future.
+            Harvest-now-decrypt-later attacks are not speculative - intelligence agencies and well-resourced adversaries are storing encrypted traffic today against the day quantum hardware matures. Any message sent over a classical-only channel is potentially compromised in the future.
           </p>
           <p>
             Homestead is built with this assumption from day one. It is the only on-chain messaging and commerce protocol that treats post-quantum security as a baseline requirement rather than a future consideration.
           </p>
         </Section>
 
-        <Section title="7. Deployment">
+        <Section title="8. Deployment">
           <p>
             All contracts are deployed on Taiko Mainnet (chainId 167000). The protocol is operational. Key contracts:
           </p>
@@ -205,13 +205,13 @@ export default function WhitepaperPage() {
             <div className="flex justify-between gap-4"><span className="text-gray-500 shrink-0">DEX Factory</span><span className="text-gray-900 break-all">0xC72096f120cBb6a8f9e942864b885e1bb5060Cf2</span></div>
           </div>
           <p>
-            All contracts are UUPS upgradeable. Source code is available in the project repository. The protocol is in active development — the Router upgrade, governance module, and companion application are in progress.
+            All contracts are UUPS upgradeable. Source code is available in the project repository. The protocol is in active development - the Router upgrade, governance module, and companion application are in progress.
           </p>
         </Section>
 
         {/* Footer */}
         <div className="border-t border-gray-100 pt-8 mt-8 text-xs text-gray-400 font-medium space-y-1 print:pt-4">
-          <p>Homestead Protocol — Taiko Mainnet</p>
+          <p>Homestead Protocol - Taiko Mainnet</p>
           <p>This document describes a live protocol. Contract addresses and parameters are subject to change through the upgrade process.</p>
         </div>
 
