@@ -510,7 +510,7 @@ export default function HomePage() {
             <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
               <p className="text-hub-light text-xs font-black uppercase tracking-[0.25em]">Why it works</p>
               <a href="/whitepaper" className="text-[11px] font-black uppercase tracking-widest text-hub-light hover:text-white border border-hub-light/30 hover:border-hub-light px-4 py-2 rounded-full transition-all">
-                Read the details →
+                📄 Whitepaper →
               </a>
             </div>
             <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white leading-[0.95] mb-5 max-w-3xl">
