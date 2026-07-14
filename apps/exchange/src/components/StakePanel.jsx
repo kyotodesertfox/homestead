@@ -16,7 +16,7 @@ const TIER_COLORS = [
 ];
 
 function fmtEth(wei) {
-  if (wei == null) return '—';
+  if (wei == null) return '-';
   return parseFloat(formatUnits(BigInt(wei), 18)).toFixed(4);
 }
 
@@ -50,7 +50,7 @@ export default function StakePanel({ onClose }) {
     if (!address || !client) return;
     setLoadingIds(true);
 
-    // ── Treasury batches — filter LotOpened events by producer address ──
+    // ── Treasury batches -filter LotOpened events by producer address ──
     if (ADDRESSES.TREASURY) {
       try {
         const lotOpenedAbi = TREASURY_ABI.find(x => x.name === 'LotOpened' && x.type === 'event');
@@ -88,7 +88,7 @@ export default function StakePanel({ onClose }) {
       }
     }
 
-    // ── Marketplace listings — runs regardless of Treasury result ──
+    // ── Marketplace listings -runs regardless of Treasury result ──
     if (ADDRESSES.MARKETPLACE) {
       try {
         // Post-incremented: first listing = ID 0. Fall back to scanning 10 IDs if
@@ -99,7 +99,7 @@ export default function StakePanel({ onClose }) {
             address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'nextListingId',
           });
           scanCount = Math.max(Number(nextListingId), 1);
-        } catch { /* pre-upgrade contract — use fallback scanCount */ }
+        } catch { /* pre-upgrade contract -use fallback scanCount */ }
         const listingResults = await Promise.all(
           Array.from({ length: scanCount }, (_, i) => i).map(id =>
             client.readContract({
@@ -211,7 +211,7 @@ export default function StakePanel({ onClose }) {
           </div>
 
           <p className="text-stone-500 text-xs font-medium leading-relaxed">
-            Cumulative ETH staked across all batches. Tier is derived on-chain from your lifetime stake — no approval needed.
+            Cumulative ETH staked across all batches. Tier is derived on-chain from your lifetime stake -no approval needed.
           </p>
 
           {/* Active batches */}
@@ -248,7 +248,7 @@ export default function StakePanel({ onClose }) {
                           </p>
                         )}
                         <p className={`font-black text-sm mt-0.5 ${hasClaim ? 'text-hub-green' : 'text-stone-600'}`}>
-                          {hasClaim ? `${fmtEth(amount)} ETH claimable` : total === 0 ? 'Floor stake — no NFTs' : 'Nothing to claim yet'}
+                          {hasClaim ? `${fmtEth(amount)} ETH claimable` : total === 0 ? 'Floor stake -no NFTs' : 'Nothing to claim yet'}
                         </p>
                       </div>
                       {hasClaim && (

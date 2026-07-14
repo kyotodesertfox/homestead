@@ -259,7 +259,7 @@ export default function SwapPage() {
     return Math.abs((midPrice - execPrice) / midPrice * 100).toFixed(2);
   }, [reserves, tokenAmountBig, netEthAmount, tokenDef]);
 
-  // AMM fee — hardcoded constant in HomesteadLibrary (9970/10000).
+  // AMM fee -hardcoded constant in HomesteadLibrary (9970/10000).
   // Replace with getFeeSchedule() read after new Router is deployed.
   const AMM_FEE_BPS = 30n;
 
@@ -402,7 +402,7 @@ export default function SwapPage() {
           <section className="bg-white border-4 border-hub-green rounded-3xl p-6 shadow-xl relative overflow-visible">
             <div className="flex flex-col gap-4">
 
-              {/* TOKEN BOX — always the editable input */}
+              {/* TOKEN BOX -always the editable input */}
               <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
@@ -442,7 +442,7 @@ export default function SwapPage() {
                 </button>
               </div>
 
-              {/* ETH BOX — display only, never editable */}
+              {/* ETH BOX -display only, never editable */}
               <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl text-left">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
@@ -493,7 +493,7 @@ export default function SwapPage() {
                 <div className="flex justify-between">
                   <span>Rate</span>
                   <span className={rateDisplay !== null ? 'text-gray-900' : 'text-gray-300'}>
-                    {rateDisplay !== null ? `1 ${tokenDef?.symbol ?? '?'} = ${rateDisplay.toFixed(6)} ETH` : '—'}
+                    {rateDisplay !== null ? `1 ${tokenDef?.symbol ?? '?'} = ${rateDisplay.toFixed(6)} ETH` : '-'}
                   </span>
                 </div>
 
@@ -501,21 +501,21 @@ export default function SwapPage() {
                   <span>Price Impact</span>
                   {priceImpact !== null
                     ? <span className={parseFloat(priceImpact) > 2 ? 'text-rose-500' : 'text-emerald-500'}>{priceImpact}%</span>
-                    : <span className="text-gray-300">—</span>
+                    : <span className="text-gray-300">-</span>
                   }
                 </div>
 
                 <div className="flex justify-between">
                   <span>Market Fee ({lpFeePercent}%)</span>
                   <span className={tokenAmountBig > 0n ? 'text-gray-900' : 'text-gray-300'}>
-                    {tokenAmountBig > 0n ? `${lpFeeDisplay} ${lpFeeCurrency}` : '—'}
+                    {tokenAmountBig > 0n ? `${lpFeeDisplay} ${lpFeeCurrency}` : '-'}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span>Treasury Fee ({exitFeePercent !== null ? `${exitFeePercent}%` : '—'})</span>
+                  <span>Treasury Fee ({exitFeePercent !== null ? `${exitFeePercent}%` : '-'})</span>
                   <span className={exitFeeDisplay ? 'text-gray-900' : 'text-gray-300'}>
-                    {exitFeeDisplay ? `${exitFeeDisplay} ETH` : '—'}
+                    {exitFeeDisplay ? `${exitFeeDisplay} ETH` : '-'}
                   </span>
                 </div>
 
@@ -527,7 +527,7 @@ export default function SwapPage() {
                 <div className="flex justify-between border-t border-gray-200 pt-2.5">
                   <span>Minimum Received</span>
                   <span className={netEthAmount > 0n ? 'text-gray-900' : 'text-gray-300'}>
-                    {netEthAmount > 0n ? minReceivedDisplay : '—'}
+                    {netEthAmount > 0n ? minReceivedDisplay : '-'}
                   </span>
                 </div>
 
@@ -554,7 +554,7 @@ export default function SwapPage() {
                 All orders include slippage protection while they confirm.
               </p>
               <p className="text-gray-500 text-xs mt-2 leading-relaxed font-medium">
-                Swap prices are live AMM rates — they rise with demand.
+                Swap prices are live AMM rates -they rise with demand.
                 Marketplace listings are priced in tokens, so buyers who got in early
                 and hold tokens at a lower cost basis pay less in real terms than
                 someone acquiring tokens at today's swap rate.

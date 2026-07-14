@@ -32,9 +32,9 @@ contract HomesteadRelay is UUPSUpgradeable, OwnableUpgradeable, PausableUpgradea
     // =========================================================================
 
     address public treasury;
-    address public feeToken;   // $BEER — burned on token path
-    uint256 public quantumFee; // canonical fee in $BEER units (e.g. 1e18 = 1 $BEER)
-    address public dexPair;    // $BEER/WETH pair — used to calculate ETH equivalent at send time
+    address public feeToken;   // $QUANTUM — burned on token path
+    uint256 public quantumFee; // canonical fee in $QUANTUM units (e.g. 1e18 = 1 $QUANTUM)
+    address public dexPair;    // $QUANTUM/WETH pair — used to calculate ETH equivalent at send time
 
     // X25519 pubkey stored in state — 32 bytes, one slot, cheap lookup
     mapping(address => bytes32) public x25519Key;

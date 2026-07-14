@@ -36,7 +36,7 @@ export default function MessagesPanel({ onClose }) {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Sidebar — conversation list; hidden on mobile when a thread is open */}
+        {/* Sidebar -conversation list; hidden on mobile when a thread is open */}
         <div className={`w-full sm:w-72 shrink-0 bg-white border-r border-gray-100 flex-col ${selected ? 'hidden sm:flex' : 'flex'}`}>
 
           {/* Tabs */}
@@ -167,7 +167,7 @@ export default function MessagesPanel({ onClose }) {
                       />
                       <span className="text-xs text-gray-500 flex items-center gap-1">
                         <Shield size={10} className="text-hub-green" />
-                        1 $BEER or ETH
+                        $QUANTUM or ETH
                       </span>
                     </label>
                     <button

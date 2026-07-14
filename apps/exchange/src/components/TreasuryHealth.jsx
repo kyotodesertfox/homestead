@@ -12,11 +12,11 @@ import {
 } from '../contracts';
 
 function fmtEth(wei) {
-  if (wei === undefined || wei === null) return '—';
+  if (wei === undefined || wei === null) return '-';
   return parseFloat(formatUnits(wei, 18)).toFixed(4);
 }
 function fmtToken(wei) {
-  if (wei === undefined || wei === null) return '—';
+  if (wei === undefined || wei === null) return '-';
   const n = parseFloat(formatUnits(wei, 18));
   return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
@@ -186,7 +186,7 @@ export default function TreasuryHealth() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label={`${beerSymbol ?? '…'} Supply`}  value={`${fmtToken(beerSupply)} ${beerSymbol ?? '…'}`}  sub="Tokens in circulation"                              accent="amber" />
                 <StatCard label={`${stkSymbol ?? '…'} Supply`}  value={`${fmtToken(stkSupply)} ${stkSymbol ?? '…'}`}   sub="Staked credentials issued"                          accent="green" />
-                <StatCard label={`${beerSymbol ?? '…'} Spot`}   value={beerSpot ? `${beerSpot.toFixed(6)} ETH` : '—'}  sub={`Per ${beerSymbol ?? '…'} — live DEX price`}         accent="sky"   />
+                <StatCard label={`${beerSymbol ?? '…'} Spot`}   value={beerSpot ? `${beerSpot.toFixed(6)} ETH` : '-'}  sub={`Per ${beerSymbol ?? '…'} -live DEX price`}         accent="sky"   />
               </div>
             )}
 

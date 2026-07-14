@@ -16,7 +16,7 @@ function addressColor(addr) {
   return `hsl(${n % 360}, 65%, 52%)`;
 }
 
-// ── Link Builder (producer side — /pay with no params) ────────────────────────
+// ── Link Builder (producer side -/pay with no params) ────────────────────────
 
 function LinkBuilder() {
   const publicClient = usePublicClient();
@@ -133,7 +133,7 @@ function LinkBuilder() {
 
             <div className="text-center">
               <p className="font-black uppercase tracking-widest text-gray-900" style={{ color }}>
-                ${token?.symbol}{ethAmount && parseFloat(ethAmount) > 0 ? ` — ${ethAmount} ETH` : ''}
+                ${token?.symbol}{ethAmount && parseFloat(ethAmount) > 0 ? ` -${ethAmount} ETH` : ''}
               </p>
               <p className="text-gray-400 text-xs font-medium mt-1">Direct pool contribution</p>
             </div>
@@ -152,7 +152,7 @@ function LinkBuilder() {
   );
 }
 
-// ── Payment screen (customer side — ?token= in URL) ───────────────────────────
+// ── Payment screen (customer side -?token= in URL) ───────────────────────────
 
 export default function PayPage() {
   const [searchParams] = useSearchParams();
@@ -269,7 +269,7 @@ function PayScreen({ tokenParam, ethParam }) {
 
           <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
             <p className="text-gray-500 text-sm font-medium leading-relaxed">
-              Your ETH goes directly into the <span className="font-black text-gray-900">{symbol}/ETH</span> pool — supporting the producer price floor.
+              Your ETH goes directly into the <span className="font-black text-gray-900">{symbol}/ETH</span> pool -supporting the producer price floor.
             </p>
           </div>
 

@@ -62,7 +62,7 @@ async function decryptMessages(messages, myKeys) {
       try { return { ...msg, text: new TextDecoder().decode(hexToBytes(msg.payload)) }; }
       catch { return { ...msg, text: '[unreadable]' }; }
     }
-    // isMine: KEM CT was encapsulated to recipient — sender cannot re-derive
+    // isMine: KEM CT was encapsulated to recipient -sender cannot re-derive
     if (msg.isMine) return { ...msg, text: '[Encrypted message]' };
     if (!myKeys)    return { ...msg, text: '[Encrypted]' };
     try {
@@ -318,7 +318,7 @@ export default function HomesteadChat() {
               <div className="flex items-center gap-2">
                 <MessageSquare size={14} className="text-hub-light" />
                 <span className="text-white font-black uppercase tracking-widest text-xs">Homestead Chat</span>
-                {keyMismatch && <AlertTriangle size={12} className="text-yellow-400" title="Key mismatch — go to Keys tab" />}
+                {keyMismatch && <AlertTriangle size={12} className="text-yellow-400" title="Key mismatch -go to Keys tab" />}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setFullscreen(f => !f)} className="text-gray-400 hover:text-white transition-colors hidden sm:block">
@@ -570,12 +570,12 @@ export default function HomesteadChat() {
                         <p className="text-xs font-black uppercase tracking-widest text-gray-900">Your Encryption Key</p>
                       </div>
                       <p className="text-xs text-gray-500 leading-relaxed">
-                        Your key pair is derived from a wallet signature — never stored anywhere. Any device can re-derive the same keys by signing the same message with the same wallet. The public half is registered on-chain so others can encrypt messages to you.
+                        Your key pair is derived from a wallet signature -never stored anywhere. Any device can re-derive the same keys by signing the same message with the same wallet. The public half is registered on-chain so others can encrypt messages to you.
                       </p>
                       <div className="mt-3 flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${myKeyRegistered ? 'bg-hub-green' : needsUpgrade ? 'bg-yellow-400' : 'bg-gray-300'}`} />
                         <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                          {myKeyRegistered ? 'X25519 + ML-KEM-768 registered' : needsUpgrade ? 'X25519 only — quantum upgrade needed' : 'No key registered'}
+                          {myKeyRegistered ? 'X25519 + ML-KEM-768 registered' : needsUpgrade ? 'X25519 only -quantum upgrade needed' : 'No key registered'}
                         </p>
                       </div>
                     </div>

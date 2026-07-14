@@ -636,7 +636,7 @@ function CollectionsTab() {
                   <RoleInput
                     label="Redemption Operator"
                     buttonLabel="Grant"
-                    hint="Grants an address the right to call redeem() on behalf of NFT holders. Must be set to the Marketplace proxy address before buyers can redeem through the platform. Required once per collection at deploy time — if missing, all redemptions will revert."
+                    hint="Grants an address the right to call redeem() on behalf of NFT holders. Must be set to the Marketplace proxy address before buyers can redeem through the platform. Required once per collection at deploy time -if missing, all redemptions will revert."
                     onSubmit={(addr, bool) =>
                       writeContract({ address: col.address, abi: NFT_ABI, functionName: 'setRedemptionOperator', args: [addr, bool] })
                     }
@@ -825,7 +825,7 @@ function TokensTab() {
                   const ok = h && h === ARTIFACT_HASHES.MASTER_TEMPLATE;
                   return (
                     <p className="text-xs font-mono mb-2 truncate text-gray-400">
-                      {implAddresses[tok.address]} —{' '}
+                      {implAddresses[tok.address]} -{' '}
                       {!h ? <span>checking…</span> : ok ? <span className="text-hub-green font-semibold">✓ current</span> : <span className="text-amber-500 font-semibold">upgrade available</span>}
                     </p>
                   );
@@ -906,13 +906,13 @@ function DEXPairsSection() {
     });
   }, [pairLength, publicClient]);
 
-  const fmt18 = (v) => v != null ? parseFloat(formatUnits(v, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
+  const fmt18 = (v) => v != null ? parseFloat(formatUnits(v, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-';
 
   return (
     <div className="mt-8 space-y-4">
       <div className="flex items-center justify-between border-t border-gray-100 pt-6">
         <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-          DEX Pairs — {loading ? '…' : `${pairs.length} pair${pairs.length !== 1 ? 's' : ''}`}
+          DEX Pairs -{loading ? '…' : `${pairs.length} pair${pairs.length !== 1 ? 's' : ''}`}
         </p>
         <button onClick={() => refetch()} className="text-gray-400 hover:text-hub-green transition-colors"><RefreshCw size={14} /></button>
       </div>
@@ -1100,7 +1100,7 @@ function TreasuryTab() {
 
       {/* Surplus Withdrawal */}
       <div>
-        <Label>Protocol Surplus — Available: {surplusWei !== undefined ? parseFloat(formatUnits(surplusWei, 18)).toFixed(6) : '…'} ETH</Label>
+        <Label>Protocol Surplus -Available: {surplusWei !== undefined ? parseFloat(formatUnits(surplusWei, 18)).toFixed(6) : '…'} ETH</Label>
         <p className="text-xs text-gray-400 mb-2">ETH in Treasury not backing any staker position. Safe to withdraw without affecting the floor.</p>
         <div className="flex gap-2">
           <Input value={inputs.surplusAmt ?? ''} onChange={v => set('surplusAmt', v)} placeholder="ETH amount" className="w-40" />
@@ -1114,7 +1114,7 @@ function TreasuryTab() {
 
       {/* Fee Withdrawal */}
       <div>
-        <Label>Withdraw Fees — Accumulated: {accFees ? parseFloat(formatUnits(accFees, 18)).toFixed(6) : '…'} ETH</Label>
+        <Label>Withdraw Fees -Accumulated: {accFees ? parseFloat(formatUnits(accFees, 18)).toFixed(6) : '…'} ETH</Label>
         <div className="flex gap-2">
           <Input value={inputs.withdrawTo ?? ''} onChange={v => set('withdrawTo', v)} placeholder="to address (0x…)" className="flex-1" />
           <Input value={inputs.withdrawAmt ?? ''} onChange={v => set('withdrawAmt', v)} placeholder="ETH amount" className="w-32" />
@@ -1191,7 +1191,7 @@ function UploadTab() {
     <div className="space-y-5">
       {!PINATA_JWT && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 font-medium">
-          VITE_PINATA_JWT not set — uploads will fail.
+          VITE_PINATA_JWT not set -uploads will fail.
         </div>
       )}
 
@@ -1262,7 +1262,7 @@ function UploadTab() {
           )}
           {metaCid && (
             <div>
-              <Label>Metadata CID — use this in setTokenCID / setContractCID</Label>
+              <Label>Metadata CID -use this in setTokenCID / setContractCID</Label>
               <div className="flex items-center gap-2">
                 <code className="text-xs font-mono text-gray-600 flex-1 truncate bg-gray-50 px-2 py-1 rounded">{metaCid}</code>
                 <button onClick={() => copy(metaCid, 'meta')} className="text-gray-400 hover:text-hub-green transition-colors">
@@ -1303,8 +1303,8 @@ function MarketplaceTab() {
   const write = (fn, args) => writeContract({ address: ADDRESSES.MARKETPLACE, abi: MARKETPLACE_ABI, functionName: fn, args });
 
   const addrRows = [
-    { label: 'Router',        key: 'router',  current: routerAddr, fn: 'setRouter',       hint: 'DEX Router. If unset, producer tokens released by Treasury on redemption are stranded in Marketplace with no swap path — producer never receives ETH.' },
-    { label: 'Relay',         key: 'relay',   current: relayAddr,  fn: 'setRelay',        hint: 'Quantum messaging relay. If unset, redemption attestations are silently skipped (best-effort — does not revert). Also required for subsidy deposits at listing creation.' },
+    { label: 'Router',        key: 'router',  current: routerAddr, fn: 'setRouter',       hint: 'DEX Router. If unset, producer tokens released by Treasury on redemption are stranded in Marketplace with no swap path -producer never receives ETH.' },
+    { label: 'Relay',         key: 'relay',   current: relayAddr,  fn: 'setRelay',        hint: 'Quantum messaging relay. If unset, redemption attestations are silently skipped (best-effort -does not revert). Also required for subsidy deposits at listing creation.' },
     { label: "Gov't Token",   key: 'farm',    current: farmAddr,   fn: 'setFarmToken',    hint: '$FARM governance token. If unset, createListing with subsidyCount > 0 reverts. Listings with subsidyCount = 0 are unaffected.' },
     { label: 'Fee Collector', key: 'fee',     current: feeAddr,    fn: 'setFeeCollector', hint: 'Treasury address. If unset or wrong, onRedeem() calls revert and no redemptions can complete.' },
   ];
@@ -1442,7 +1442,7 @@ function RelayTab() {
         <div className="flex items-center gap-3 mb-2">
           <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
             Fee Token
-            <Hint text="$QUANTUM token address. Leave unset until $QUANTUM is deployed — relay operates fee-free." />
+            <Hint text="$QUANTUM token address. Leave unset until $QUANTUM is deployed -relay operates fee-free." />
           </span>
           <div className="w-36 shrink-0 min-w-0"><CopyAddr address={feeTokenAddr} /></div>
           <Input value={inputs.feeToken ?? ''} onChange={v => set('feeToken', v)} placeholder="0x…" className="flex-1" />
@@ -1451,7 +1451,7 @@ function RelayTab() {
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 w-44 shrink-0 flex items-center gap-1">
             Fee (token units)
-            <Hint text="Amount of $QUANTUM burned per message. Set to 0 to operate fee-free. Uses 18 decimals — enter full units (e.g. 1 = 1e18 internally)." />
+            <Hint text="Amount of $QUANTUM burned per message. Set to 0 to operate fee-free. Uses 18 decimals -enter full units (e.g. 1 = 1e18 internally)." />
           </span>
           <span className="text-xs font-mono text-gray-400 w-36 shrink-0">
             {quantumFee !== undefined ? formatUnits(quantumFee, 18) : '…'}

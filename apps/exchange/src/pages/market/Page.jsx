@@ -111,7 +111,7 @@ async function pinJson(obj, name) {
 const ZERO = '0x0000000000000000000000000000000000000000';
 const tokenLabel = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '?';
 
-// Schema config keyed by on-chain ERC20 symbol — controls custom metadata fields.
+// Schema config keyed by on-chain ERC20 symbol -controls custom metadata fields.
 // Tokens without an entry get DEFAULT_SCHEMA (photo + name only).
 const NFT_SCHEMAS = {
   BEER: { imageLabel: 'Label Image', namePlaceholder: 'Homestead West Coast IPA', descPlaceholder: 'Tasting notes, ingredients, story…', hasStyle: true,  hasBrewFields: true,  hasEggFields: false },
@@ -120,8 +120,8 @@ const NFT_SCHEMAS = {
 const DEFAULT_SCHEMA = { imageLabel: 'Photo', namePlaceholder: 'Product Name', descPlaceholder: 'Description…', hasStyle: false, hasBrewFields: false, hasEggFields: false };
 
 // ─── Unified Create Listing Modal (two-step) ──────────────────────────────────
-// Step 0 — metadata builder (shown when no styles exist, or user wants a new one)
-// Step 1 — listing form    (shown once a style is ready)
+// Step 0 -metadata builder (shown when no styles exist, or user wants a new one)
+// Step 1 -listing form    (shown once a style is ready)
 function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }) {
   const { address } = useAccount();
 
@@ -372,7 +372,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                     <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Grade</label>
                     <select value={grade} onChange={e => setGrade(e.target.value)}
                       className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
-                      <option value="">—</option>
+                      <option value="">-</option>
                       <option value="AA">AA</option>
                       <option value="A">A</option>
                     </select>
@@ -381,7 +381,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                     <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Size</label>
                     <select value={eggSize} onChange={e => setEggSize(e.target.value)}
                       className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
-                      <option value="">—</option>
+                      <option value="">-</option>
                       <option value="Small">Small</option>
                       <option value="Medium">Medium</option>
                       <option value="Large">Large</option>
@@ -393,7 +393,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
                     <label className="block text-white/60 text-xs font-black uppercase tracking-widest mb-1.5">Type</label>
                     <select value={eggType} onChange={e => setEggType(e.target.value)}
                       className="w-full bg-white/10 text-white rounded-xl px-3 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-hub-green">
-                      <option value="">—</option>
+                      <option value="">-</option>
                       <option value="Free-Range">Free-Range</option>
                       <option value="Cage-Free">Cage-Free</option>
                       <option value="Organic">Organic</option>
@@ -416,7 +416,7 @@ function CreateListingModal({ onClose, onCreated, knownStyles, onStyleResolved }
 
               {upStatus === 'done' && ipfsUri && (
                 <div className="bg-hub-green/10 border border-hub-green/30 rounded-xl px-4 py-3">
-                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1.5">IPFS URI — use this when minting</p>
+                  <p className="text-hub-green text-[10px] font-black uppercase tracking-widest mb-1.5">IPFS URI -use this when minting</p>
                   <div className="flex items-center gap-2">
                     <code className="text-white text-[11px] font-mono break-all flex-1">{ipfsUri}</code>
                     <button onClick={copyUri} className="text-white/50 hover:text-hub-green shrink-0 transition-colors">
@@ -701,7 +701,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
 
   const [, paymentToken, price, proceeds, inventoryCount, active] = listing;
   const inStock  = inventoryCount != null && inventoryCount > 0n;
-  const priceStr = price != null ? formatUnits(price, 18) : '—';
+  const priceStr = price != null ? formatUnits(price, 18) : '-';
 
   const { data: rawSymbol } = useReadContract({
     address: paymentToken,
@@ -713,7 +713,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
 
   const ethUsd       = useEthUsd();
   const tokenEthRate = useTokenEthRate(paymentToken);
-  const usdValue     = ethUsd && tokenEthRate && priceStr !== '—'
+  const usdValue     = ethUsd && tokenEthRate && priceStr !== '-'
     ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   const { data: allowance, refetch: refetchAllow } = useReadContract({
@@ -760,7 +760,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
       >
         <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
 
-          {/* Left — image */}
+          {/* Left -image */}
           <div className="relative md:w-1/2 aspect-square md:aspect-auto bg-gray-50 shrink-0">
             {meta?.image && !imgErr ? (
               <img
@@ -779,7 +779,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
             </span>
           </div>
 
-          {/* Right — details + buy */}
+          {/* Right -details + buy */}
           <div className="flex flex-col p-8 overflow-y-auto flex-1 gap-5">
 
             {/* Close */}
@@ -842,7 +842,7 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
               <div>
                 <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Available</p>
                 <p className={`font-black text-xl ${inStock ? 'text-hub-green' : 'text-gray-300'}`}>
-                  {inventoryCount?.toString() ?? '—'}
+                  {inventoryCount?.toString() ?? '-'}
                 </p>
               </div>
             </div>
@@ -889,11 +889,11 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                   {!isConnected                          ? 'Connect Wallet'
                    : !inStock                            ? 'Sold Out'
                    : isPending                           ? 'Pending…'
-                   : needsApprove                        ? `Step 1 — Approve ${tokenSymbol ?? 'token'}`
+                   : needsApprove                        ? `Step 1 -Approve ${tokenSymbol ?? 'token'}`
                    :                                       'Buy Now 🍺'}
                 </button>
                 {isConnected && !needsApprove && inStock && (
-                  <p className="text-gray-400 text-[10px] text-center font-medium">{tokenSymbol ?? 'Token'} approved — one click to buy</p>
+                  <p className="text-gray-400 text-[10px] text-center font-medium">{tokenSymbol ?? 'Token'} approved -one click to buy</p>
                 )}
               </div>
             )}
@@ -997,14 +997,14 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
   const [, , price, proceeds, inventoryCount, active] = listing;
   if (!active) return null;
 
-  const priceStr = price != null ? formatUnits(price, 18) : '—';
+  const priceStr = price != null ? formatUnits(price, 18) : '-';
   const inStock  = inventoryCount != null && inventoryCount > 0n;
-  const usdValue = ethUsd && tokenEthRate && priceStr !== '—'
+  const usdValue = ethUsd && tokenEthRate && priceStr !== '-'
     ? (parseFloat(priceStr) * tokenEthRate * ethUsd).toFixed(2) : null;
 
   return (
     <>
-      {/* Card — fully clickable */}
+      {/* Card -fully clickable */}
       <div
         onClick={() => setShowModal(true)}
         className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
@@ -1209,7 +1209,7 @@ function PlaceholderListingCard({ name, tag, description, priceAmount, tokenSymb
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Price</p>
             <p className="text-gray-900 font-black text-base">
-              {priceLabel ?? '—'}
+              {priceLabel ?? '-'}
               {usdValue && <><span className="text-gray-400 font-medium normal-case tracking-normal text-xs ml-1">(≈ ${usdValue})</span><RefreshCountdown size={20} /></>}
             </p>
           </div>

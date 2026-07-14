@@ -5,19 +5,19 @@ const HOW_IT_WORKS = [
     icon: <Key size={28} />,
     step: '01',
     title: 'Register Your Key',
-    text: 'Your wallet generates a hybrid keypair — classical X25519 and post-quantum ML-KEM-768. The public key bundle is pinned to IPFS. Only the content address (CID) is stored on-chain. No raw key bytes hit the blockchain.',
+    text: 'Your wallet generates a hybrid keypair -classical X25519 and post-quantum ML-KEM-768. The public keys are registered on-chain and emitted as a permanent chain event. Any client can retrieve your public key by reading the contract or indexing the KeyRegistered event.',
   },
   {
     icon: <Lock size={28} />,
     step: '02',
     title: 'Encrypt Locally',
-    text: "Your browser fetches the recipient's public key bundle and derives two independent shared secrets. Those secrets are merged via HKDF into a single AES-256-GCM key. Encryption happens entirely in your browser — the plaintext never leaves your device.",
+    text: "Your browser fetches the recipient's public key bundle and derives two independent shared secrets. Those secrets are merged via HKDF into a single AES-256-GCM key. Encryption happens entirely in your browser -the plaintext never leaves your device.",
   },
   {
     icon: <MessageSquare size={28} />,
     step: '03',
     title: 'Deliver Through the Contract',
-    text: 'The encrypted blob is pinned to IPFS. The contract records only: sender address, recipient address, and blob CID. No message content. No metadata. The contract routes — it does not read.',
+    text: 'The encrypted payload is emitted directly in the MessageSent chain event. The contract records sender address, recipient address, the encrypted blob, and timestamp. No message content is readable by the contract -it routes the ciphertext, it does not read it.',
   },
 ];
 
@@ -30,12 +30,12 @@ const FEATURES = [
   {
     icon: <ArrowLeftRight size={22} />,
     title: 'Treasury Trust Tunnel',
-    text: 'HomesteadRelay verifies a two-way trust with the Homestead Treasury before any privileged operation. No external authority can inject itself as a middleman — the trust is cryptographically enforced between two deployed contracts.',
+    text: 'HomesteadRelay verifies a two-way trust with the Homestead Treasury before any privileged operation. No external authority can inject itself as a middleman -the trust is cryptographically enforced between two deployed contracts.',
   },
   {
     icon: <Layers size={22} />,
     title: 'Attestation Tiers',
-    text: 'Wallet holders, registered brewers, and verified members each unlock different capabilities. Attestation is a trust signal embedded by the contract — not a platform permission you ask someone to grant.',
+    text: 'Wallet holders, registered producers, and verified members each unlock different capabilities. Attestation is a trust signal embedded by the contract -not a platform permission you ask someone to grant.',
   },
   {
     icon: <Zap size={22} />,
@@ -65,7 +65,7 @@ export default function RelayPage() {
             A wallet-native communications layer built on Taiko. All messages travel through a smart contract
             that routes without reading. Your keys never leave your device. No platform can open what only
             your wallet can decrypt. The only trust relationship is between your wallet and the Homestead
-            Treasury — enforced by code, not policy.
+            Treasury -enforced by code, not policy.
           </p>
         </section>
 
@@ -78,7 +78,7 @@ export default function RelayPage() {
             <p className="text-xs font-black uppercase tracking-widest text-hub-green mb-1">Built on HomesteadRelay</p>
             <h2 className="text-3xl font-black uppercase tracking-tighter text-gray-900">Homestead Chat</h2>
             <p className="text-gray-500 font-medium text-sm mt-2 max-w-md">
-              The chat interface lives in your exchange — bottom right corner. Wallet-native. Encrypted.
+              The chat interface lives in your exchange -bottom right corner. Wallet-native. Encrypted.
               No server reads your messages. No platform holds your keys.
             </p>
           </div>
@@ -148,7 +148,7 @@ export default function RelayPage() {
                 <div className="text-white font-black uppercase tracking-tight mb-1">ML-KEM-768 (Kyber)</div>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   NIST FIPS 203. A lattice-based key encapsulation mechanism that survives quantum attacks.
-                  Combined with X25519 via HKDF — breaking the cipher requires breaking both, simultaneously.
+                  Combined with X25519 via HKDF -breaking the cipher requires breaking both, simultaneously.
                 </p>
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function RelayPage() {
                 <div className="text-white font-black uppercase tracking-tight mb-1">Quantum Upgrade</div>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   Standard messages use X25519 at no cost. Quantum upgrade burns $QUANTUM
-                  (deflationary) or the ETH equivalent at DEX spot — your choice.
+                  (deflationary) or the ETH equivalent at DEX spot -your choice.
                 </p>
               </div>
             </div>
@@ -175,7 +175,7 @@ export default function RelayPage() {
             <div className="bg-white/5 border border-white/10 rounded-xl p-6">
               <div className="text-xs font-black uppercase tracking-widest text-hub-light mb-3">The Model</div>
               <p className="text-gray-300 text-sm leading-relaxed">
-                Early adopters fund the reserve. As the Treasury matures, the quantum fee comes down —
+                Early adopters fund the reserve. As the Treasury matures, the quantum fee comes down -
                 not because the Treasury subsidizes it, but because it no longer needs the revenue from it.
                 Free quantum encryption for everyone is the end state. The fee is the path there.
               </p>
@@ -191,7 +191,7 @@ export default function RelayPage() {
           <div className="bg-white border border-gray-100 rounded-2xl p-8 shadow-sm">
             <p className="text-gray-700 font-medium leading-relaxed mb-6">
               HomesteadRelay does not trust Taiko. It does not trust any external platform, oracle, or team.
-              The only authority it recognizes is the Homestead Treasury — and that recognition is mutual.
+              The only authority it recognizes is the Homestead Treasury -and that recognition is mutual.
             </p>
             <div className="flex flex-col md:flex-row items-center gap-4 justify-center py-4">
               <div className="bg-hub-surface border-2 border-hub-green rounded-xl px-6 py-4 text-center">

@@ -44,7 +44,7 @@ createAppKit({
   projectId,
   metadata: {
     name: 'Homestead Exchange',
-    description: 'The Homestead Hub — physical goods, on-chain.',
+    description: 'The Homestead Hub -physical goods, on-chain.',
     url: window.location.origin,
     icons: ['https://avatars.githubusercontent.com/u/37784886']
   },

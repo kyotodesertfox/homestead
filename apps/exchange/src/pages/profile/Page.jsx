@@ -156,7 +156,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {/* Address — full width */}
+            {/* Address -full width */}
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 w-full">
               <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Address</p>
               <div className="flex items-center gap-2">
@@ -176,18 +176,18 @@ export default function ProfilePage() {
                 </a>
               </div>
             </div>
-            {/* ETH + Stake — side by side */}
+            {/* ETH + Stake -side by side */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH</p>
-                <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '—'}</p>
+                <p className="font-black text-white text-2xl">{ethBalance ? fmtEth(ethBalance.value) : '-'}</p>
               </div>
               <button
                 onClick={() => setShowStake(true)}
                 className="bg-white/5 hover:bg-hub-green/10 border border-hub-green/30 hover:border-hub-green rounded-2xl p-4 text-left transition-all group"
               >
                 <p className="text-[10px] font-black uppercase tracking-widest text-hub-green mb-1">Stake</p>
-                <p className="font-black text-white text-2xl">{cumulativeStake != null ? fmtEth(cumulativeStake) : '—'}</p>
+                <p className="font-black text-white text-2xl">{cumulativeStake != null ? fmtEth(cumulativeStake) : '-'}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Manage</span>
                   <ChevronRight size={10} className="text-white/30 group-hover:text-hub-green transition-colors" />
@@ -454,7 +454,7 @@ function StakingPositionCards({ address }) {
       {/* ETH Staked */}
       <div className="bg-hub-green/10 rounded-xl p-4 border border-hub-green/20">
         <p className="text-[9px] font-black uppercase tracking-widest text-hub-green/70 mb-1">ETH Staked</p>
-        <p className="font-black text-white text-2xl">{staked != null ? fmtEth(staked) : '—'}</p>
+        <p className="font-black text-white text-2xl">{staked != null ? fmtEth(staked) : '-'}</p>
         <p className="text-[9px] text-stone-500 font-bold mt-0.5">collateral posted</p>
       </div>
 
@@ -503,7 +503,7 @@ function TokenBalanceCard({ tokenAddress, walletAddress, onClick }) {
   const symbol  = meta?.[0]?.result;
   const balance = meta?.[1]?.result;
   const color   = addressColor(tokenAddress);
-  const fmt     = balance != null ? parseFloat(formatUnits(balance, 18)).toLocaleString() : '—';
+  const fmt     = balance != null ? parseFloat(formatUnits(balance, 18)).toLocaleString() : '-';
 
   return (
     <button onClick={onClick}
@@ -569,7 +569,7 @@ function BeerCard({ beerRaw, address, onOpen }) {
         <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">$BEER</p>
         <Droplets size={14} className="text-amber-500/40 group-hover:text-amber-400 transition-colors" />
       </div>
-      <p className="font-black text-white text-3xl">{beerRaw != null ? fmtBeer(beerRaw) : '—'}</p>
+      <p className="font-black text-white text-3xl">{beerRaw != null ? fmtBeer(beerRaw) : '-'}</p>
       {hasLp && (
         <p className="text-[9px] font-black uppercase tracking-widest text-hub-green/70 mt-1">
           LP: {parseFloat(formatUnits(lpBalance, 18)).toFixed(4)}
@@ -863,7 +863,7 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
   const [, , price, , inventoryCount, active] = listing;
   const inStock    = inventoryCount != null && inventoryCount > 0n;
   const maxWithdraw = Number(inventoryCount ?? 0n);
-  const priceStr   = price != null ? formatUnits(price, 18) : '—';
+  const priceStr   = price != null ? formatUnits(price, 18) : '-';
 
   const withdrawNum = parseInt(withdrawCount) || 0;
   const canWithdraw = withdrawNum > 0 && withdrawNum <= maxWithdraw;
@@ -895,7 +895,7 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
         className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
-        {/* Left — image */}
+        {/* Left -image */}
         <div className="relative md:w-2/5 aspect-square md:aspect-auto bg-gray-50 shrink-0">
           {meta?.image && !imgErr ? (
             <img
@@ -919,7 +919,7 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
           </span>
         </div>
 
-        {/* Right — details + actions */}
+        {/* Right -details + actions */}
         <div className="flex flex-col p-7 overflow-y-auto flex-1 gap-4">
 
           <button onClick={onClose} className="self-end text-gray-400 hover:text-gray-700 -mt-2 -mr-2 transition-colors">
@@ -964,7 +964,7 @@ function NFTManageModal({ id, initialMeta, onClose, onUpdate }) {
             <div>
               <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">In Stock</p>
               <p className={`font-black text-lg ${inStock ? 'text-hub-green' : 'text-gray-300'}`}>
-                {inventoryCount?.toString() ?? '—'}
+                {inventoryCount?.toString() ?? '-'}
               </p>
             </div>
           </div>
@@ -1308,18 +1308,18 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color }}>${sym} Balance</p>
                   <p className="font-black text-white text-2xl">
-                    {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '—'}
+                    {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '-'}
                   </p>
                 </div>
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
                   <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Balance</p>
-                  <p className="font-black text-white text-2xl">{ethBal ? fmtEth(ethBal.value) : '—'}</p>
+                  <p className="font-black text-white text-2xl">{ethBal ? fmtEth(ethBal.value) : '-'}</p>
                 </div>
               </div>
 
               <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
                 <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-                  <p className="text-xs font-black uppercase tracking-widest" style={{ color }}>LP Position — {sym}/ETH</p>
+                  <p className="text-xs font-black uppercase tracking-widest" style={{ color }}>LP Position -{sym}/ETH</p>
                   {hasLp && (
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={{ color, backgroundColor: `${color}1a` }}>
                       {lpSharePct}% of pool
@@ -1342,13 +1342,13 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">${sym} in pool</span>
                       <span className="font-black" style={{ color }}>
-                        {lpToken == null ? '—' : parseFloat(formatUnits(lpToken, 18)).toLocaleString()}
+                        {lpToken == null ? '-' : parseFloat(formatUnits(lpToken, 18)).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-400 font-bold">ETH in pool</span>
                       <span className="text-white font-black">
-                        {lpEth == null ? '—' : parseFloat(formatUnits(lpEth, 18)).toFixed(8)}
+                        {lpEth == null ? '-' : parseFloat(formatUnits(lpEth, 18)).toFixed(8)}
                       </span>
                     </div>
                   </div>
@@ -1412,12 +1412,12 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                 <div className="flex gap-3">
                   <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
                     <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Collateral Required</p>
-                    <p className="font-black text-white text-sm">{stakeRequired > 0 ? `${stakeRequired.toFixed(6)} stkHOME` : '—'}</p>
+                    <p className="font-black text-white text-sm">{stakeRequired > 0 ? `${stakeRequired.toFixed(6)} stkHOME` : '-'}</p>
                   </div>
                   <div className="flex-1 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
                     <p className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-0.5">Available</p>
                     <p className="font-black text-white text-sm">
-                      {availableCollateral != null ? `${fmtEth(availableCollateral)} stkHOME` : '—'}
+                      {availableCollateral != null ? `${fmtEth(availableCollateral)} stkHOME` : '-'}
                     </p>
                   </div>
                 </div>
@@ -1510,15 +1510,15 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                       {reservesLoading ? (
                         <p className="text-stone-400 text-xs font-bold uppercase tracking-widest bg-white/5 rounded-xl px-3 py-2">Loading pool data…</p>
                       ) : reservesError ? (
-                        <p className="text-red-400 text-xs font-bold uppercase tracking-widest bg-red-500/10 rounded-xl px-3 py-2">Could not load pool — check your network.</p>
+                        <p className="text-red-400 text-xs font-bold uppercase tracking-widest bg-red-500/10 rounded-xl px-3 py-2">Could not load pool -check your network.</p>
                       ) : poolEmpty ? (
-                        <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">Pool is empty — you set the initial price</p>
+                        <p className="text-amber-400 text-xs font-bold uppercase tracking-widest bg-amber-500/10 rounded-xl px-3 py-2">Pool is empty -you set the initial price</p>
                       ) : null}
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">${sym} Amount</label>
                           <span className="text-[10px] font-black" style={{ color }}>
-                            Balance: {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '—'}
+                            Balance: {tokenBal != null ? parseFloat(formatUnits(tokenBal, 18)).toLocaleString() : '-'}
                           </span>
                         </div>
                         <input type="number" min="0" placeholder="0" value={tokenInput} onChange={e => setTokenInput(e.target.value)}
@@ -1531,13 +1531,13 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                       {hasLiquidity ? (
                         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                           <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">ETH Required (at market rate)</p>
-                          <p className="font-black text-white text-lg">{tokenWei > 0n ? formatUnits(ethRequired, 18) : '—'}</p>
+                          <p className="font-black text-white text-lg">{tokenWei > 0n ? formatUnits(ethRequired, 18) : '-'}</p>
                         </div>
                       ) : (
                         <div>
                           <div className="flex items-center justify-between mb-1">
                             <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">ETH Amount (sets initial price)</label>
-                            <span className="text-[10px] font-black text-stone-400">Balance: {ethBal ? parseFloat(formatUnits(ethBal.value, 18)).toFixed(4) : '—'}</span>
+                            <span className="text-[10px] font-black text-stone-400">Balance: {ethBal ? parseFloat(formatUnits(ethBal.value, 18)).toFixed(4) : '-'}</span>
                           </div>
                           <input type="number" min="0" placeholder="0" value={ethInput} onChange={e => setEthInput(e.target.value)}
                             className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors" />
@@ -1554,12 +1554,12 @@ function TokenModal({ tokenAddress, walletAddress, onClose }) {
                     <div className="space-y-3">
                       <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                         <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Your LP Balance</p>
-                        <p className="font-black text-white">{lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</p>
+                        <p className="font-black text-white">{lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '-'}</p>
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="text-[10px] font-black uppercase tracking-widest text-stone-400">LP to Remove</label>
-                          <span className="text-[10px] font-black" style={{ color }}>Balance: {lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '—'}</span>
+                          <span className="text-[10px] font-black" style={{ color }}>Balance: {lpBalance != null ? parseFloat(formatUnits(lpBalance, 18)).toFixed(6) : '-'}</span>
                         </div>
                         <input type="number" min="0" placeholder="0" value={lpInput} onChange={e => setLpInput(e.target.value)}
                           className="w-full bg-white/10 text-white placeholder-white/20 font-black rounded-xl px-4 py-3 border border-white/10 focus:outline-none transition-colors" />

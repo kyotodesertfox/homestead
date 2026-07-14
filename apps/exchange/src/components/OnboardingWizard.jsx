@@ -102,7 +102,7 @@ export default function OnboardingWizard({ onClose }) {
           ) : (
             <>
               <p className="text-stone-400 text-sm font-medium leading-relaxed">
-                ETH deposited here is permanently locked as the ecosystem floor. You receive stkHomestead 1:1 in wei — your collateral credential.
+                ETH deposited here is permanently locked as the ecosystem floor. You receive stkHomestead 1:1 in wei -your collateral credential.
               </p>
 
               {tierT2Threshold != null && tierT2Threshold > 0n && (
@@ -138,7 +138,7 @@ export default function OnboardingWizard({ onClose }) {
                                 abi:          TREASURY_ABI,
                                 functionName: 'postStake',
                                 args:         [],
-                                value:        1n, // reference value — gas units don't vary with amount
+                                value:        1n, // reference value -gas units don't vary with amount
                                 account:      address,
                               }),
                               client.getGasPrice(),

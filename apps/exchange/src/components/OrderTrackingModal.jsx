@@ -52,7 +52,7 @@ export default function OrderTrackingModal({ tokenId, nftContract, onClose }) {
   const price   = listing?.[2];
   const seller  = listing?.[3];
 
-  const fmtAddr = a => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—';
+  const fmtAddr = a => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '-';
   const fmtEth  = v => v ? parseFloat(formatUnits(v, 18)).toFixed(4) : '0';
 
   return (

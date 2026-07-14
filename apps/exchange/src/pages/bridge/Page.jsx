@@ -67,7 +67,7 @@ function UsdConverter() {
             <span className="text-gray-400 text-xs font-medium mt-0.5">{copied ? 'copied!' : 'tap to copy'}</span>
           </button>
         ) : (
-          <span className="text-gray-600 text-lg font-black">—</span>
+          <span className="text-gray-600 text-lg font-black">-</span>
         )}
       </div>
     </div>
@@ -77,25 +77,25 @@ function UsdConverter() {
 const GATE_STEPS = [
   {
     num: '01',
-    title: 'First screen — confirm your wallet address',
+    title: 'First screen -confirm your wallet address',
     body: 'The first screen shows your connected wallet address as the destination. This is where your ETH will arrive on Taiko. Before clicking anything else, verify that address is yours.',
   },
   {
     num: '02',
-    title: 'Second screen — LayerSwap shows a deposit address',
-    body: 'This is the critical step. The second screen shows a deposit address that belongs to LayerSwap — not you. It is a temporary holding address they generate just for your transaction. You are going to send your ETH HERE from your exchange.',
+    title: 'Second screen -LayerSwap shows a deposit address',
+    body: 'This is the critical step. The second screen shows a deposit address that belongs to LayerSwap -not you. It is a temporary holding address they generate just for your transaction. You are going to send your ETH HERE from your exchange.',
     warnText: 'Failure to send to this relay address may result in a permanent loss of funds.',
     warn: true,
   },
   {
     num: '03',
-    title: 'Go to your exchange — withdraw to that address',
+    title: 'Go to your exchange -withdraw to that address',
     body: 'Open your exchange app, go to Send or Withdraw, select ETH on the Ethereum network, and paste the LayerSwap deposit address as the destination. Do not paste your own wallet address here.',
     warn: true,
   },
   {
     num: '04',
-    title: 'Wait about 2 minutes — you are done',
+    title: 'Wait about 2 minutes -you are done',
     body: 'Once your exchange processes the withdrawal, LayerSwap detects it and forwards the ETH directly to your Taiko wallet. Keep the tab open until your exchange confirms the send.',
   },
 ];
@@ -104,22 +104,22 @@ const STEPS = [
   {
     num: '01',
     title: 'Select your exchange',
-    body: 'Choose the exchange you are sending from — Coinbase, Binance, Kraken, or any other supported CEX.',
+    body: 'Choose the exchange you are sending from -Coinbase, Binance, Kraken, or any other supported CEX.',
   },
   {
     num: '02',
-    title: 'Enter the amount of ETH to transfer — tap the ETH value below to copy our $20 suggestion and paste it into the amount box',
-    body: 'Type the amount of ETH you want to bridge. Use the converter above to find the ETH equivalent of your dollar amount — tap the ETH value to copy it.',
+    title: 'Enter the amount of ETH to transfer -tap the ETH value below to copy our $20 suggestion and paste it into the amount box',
+    body: 'Type the amount of ETH you want to bridge. Use the converter above to find the ETH equivalent of your dollar amount -tap the ETH value to copy it.',
   },
   {
     num: '03',
-    title: 'Click Deposit — confirm your destination wallet',
+    title: 'Click Deposit -confirm your destination wallet',
     body: 'Before proceeding, verify the destination wallet address shown on screen is yours. This is where your ETH will arrive on Taiko.',
   },
   {
     num: '04',
-    title: '"Complete the swap" — copy the deposit address',
-    body: 'A deposit address will appear on this screen. You must copy this address — it is where you will send your funds from your exchange. Sending to any other address while bridging may result in a permanent loss of funds.',
+    title: '"Complete the swap" -copy the deposit address',
+    body: 'A deposit address will appear on this screen. You must copy this address -it is where you will send your funds from your exchange. Sending to any other address while bridging may result in a permanent loss of funds.',
     warn: true,
   },
   {
@@ -135,12 +135,12 @@ const STEPS = [
   {
     num: '07',
     title: 'Choose Ethereum as the deposit network',
-    body: 'On your exchange withdrawal screen, select Ethereum as the network. Do not use Arbitrum, Base, Optimism, or any other network — ETH on Ethereum mainnet only.',
+    body: 'On your exchange withdrawal screen, select Ethereum as the network. Do not use Arbitrum, Base, Optimism, or any other network -ETH on Ethereum mainnet only.',
   },
 ];
 
 const WARNINGS = [
-  'Screen 1 shows YOUR wallet — the destination. Screen 2 shows a LAYERSWAP address — the one you send to from your exchange. These are two different addresses.',
+  'Screen 1 shows YOUR wallet -the destination. Screen 2 shows a LAYERSWAP address -the one you send to from your exchange. These are two different addresses.',
   'On your exchange withdrawal screen, paste the LayerSwap deposit address (screen 2). Do not paste your own wallet address.',
   'The deposit address expires in roughly 30 minutes. Send promptly after generating it.',
   'Send ETH only. Do not send USDC, USDT, or any other token to this address.',
@@ -182,7 +182,7 @@ export default function BridgePage() {
               {/* Intro */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                 <p className="text-gray-700 font-medium leading-relaxed">
-                  Bridging moves ETH from your exchange account onto Taiko — the network Homestead runs on.
+                  Bridging moves ETH from your exchange account onto Taiko -the network Homestead runs on.
                   The process takes about <span className="font-black text-gray-900">2 minutes</span> once your exchange processes the withdrawal.
                   Read these steps carefully before you start.
                 </p>
@@ -228,7 +228,7 @@ export default function BridgePage() {
                 onClick={() => setReady(true)}
                 className="w-full py-4 bg-hub-green hover:brightness-110 text-white font-black uppercase tracking-widest text-sm rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md">
                 <CheckCircle2 size={16} strokeWidth={3} />
-                I understand — open the bridge
+                I understand -open the bridge
                 <ChevronRight size={16} strokeWidth={3} />
               </button>
             </>
