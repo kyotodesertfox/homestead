@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw, Pencil } from 'lucide-react';
-import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { Shield, Upload, FileCode, Settings, ImagePlus, CheckCheck, Copy, ExternalLink, ChevronDown, ChevronUp, RefreshCw, Pencil, Network } from 'lucide-react';
+import { useAccount, useReadContract, useReadContracts, usePublicClient } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
-import { formatUnits, parseEther, maxUint256, keccak256 } from 'viem';
+import { formatUnits, parseEther, maxUint256 } from 'viem';
 import {
   ADDRESSES, TREASURY_ABI, MARKETPLACE_ABI, RELAY_ABI, NFT_ABI, BEER_TOKEN_ABI, ERC20_ABI,
   NFT_DEPLOYER_ABI, TOKEN_DEPLOYER_ABI, FACTORY_ABI, PAIR_ABI,
   ARTIFACT_HASHES,
 } from '../../contracts';
+import { Label, Input, Btn, TxStatus, CopyAddr, Hint, useWrite, useCodeHashes, CodeHashDot, codeHash } from './ui';
+import MapTab from './MapTab';
 
 // ── Pinata ────────────────────────────────────────────────────────────────────
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
@@ -53,92 +55,8 @@ async function pinJson(obj, name) {
 }
 
 // ── Shared UI helpers ─────────────────────────────────────────────────────────
-function Label({ children }) {
-  return <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">{children}</p>;
-}
-function Input({ value, onChange, placeholder, className = '' }) {
-  return (
-    <input
-      value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-hub-green transition-colors ${className}`}
-    />
-  );
-}
-function Btn({ onClick, disabled, children, variant = 'primary', size = 'sm' }) {
-  const base = 'font-black uppercase tracking-widest rounded transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed';
-  const sizes = { sm: 'px-4 py-2 text-xs', md: 'px-6 py-2.5 text-xs' };
-  const variants = {
-    primary:  'bg-hub-green hover:bg-green-700 text-white',
-    danger:   'bg-red-600 hover:bg-red-700 text-white',
-    ghost:    'border border-gray-200 hover:border-hub-green text-gray-700 hover:text-hub-green',
-  };
-  return <button onClick={onClick} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]}`}>{children}</button>;
-}
-function TxStatus({ hash, isConfirming, isConfirmed, error }) {
-  if (error)       return <p className="text-xs text-red-500 mt-1 font-mono">{error.shortMessage ?? error.message}</p>;
-  if (isConfirming) return <p className="text-xs text-amber-500 mt-1">Confirming…</p>;
-  if (isConfirmed && hash) return (
-    <a href={`https://taikoscan.io/tx/${hash}`} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-xs text-hub-green mt-1 hover:underline">
-      Confirmed <ExternalLink size={10} />
-    </a>
-  );
-  return null;
-}
-
-// ── Copy address helper ───────────────────────────────────────────────────────
-function CopyAddr({ address, full = false }) {
-  const [copied, setCopied] = useState(false);
-  if (!address) return <span className="text-xs font-mono text-gray-400">…</span>;
-  const copy = async (e) => {
-    e.stopPropagation();
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(address);
-      } else {
-        const el = document.createElement('input');
-        el.value = address;
-        el.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { }
-  };
-  const display = full ? address : `${address.slice(0, 10)}…${address.slice(-8)}`;
-  return (
-    <span className="inline-flex items-center gap-1 min-w-0">
-      <span className="font-mono text-xs text-gray-600 truncate">{display}</span>
-      <button onClick={copy} className="text-hub-green hover:brightness-75 transition-all shrink-0">
-        {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
-      </button>
-      <a
-        href={`https://taikoscan.io/address/${address}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={e => e.stopPropagation()}
-        className="text-hub-green hover:brightness-75 transition-all shrink-0"
-      >
-        <ExternalLink size={13} />
-      </a>
-    </span>
-  );
-}
-
-// ── Tooltip hint ─────────────────────────────────────────────────────────────
-function Hint({ text }) {
-  return (
-    <span className="relative group inline-flex shrink-0">
-      <span className="w-3.5 h-3.5 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 text-[9px] font-black flex items-center justify-center cursor-help transition-colors select-none">?</span>
-      <span className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 text-white text-xs font-medium rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed shadow-xl normal-case tracking-normal">
-        {text}
-      </span>
-    </span>
-  );
-}
+// Label, Input, Btn, TxStatus, CopyAddr, Hint, useWrite and the code-hash
+// helpers now live in ./ui so the Map tab can share them.
 
 // ── Role row with inline Grant / Revoke ──────────────────────────────────────
 function RoleActionRow({ contract, abi, fn, target, label, onGrant, onRevoke, disabled, refetchKey }) {
@@ -210,26 +128,7 @@ function AllowanceRow({ tokenAddress, spender, label }) {
   );
 }
 
-// ── Write hook wrapper ────────────────────────────────────────────────────────
-function useWrite() {
-  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-  return { writeContract, hash, isPending, isConfirming, isConfirmed, writeError };
-}
-
-const TABS = ['Collections', 'Tokens', 'Treasury', 'Marketplace', 'Relay', 'Upload'];
-
-// Strip the CBOR metadata suffix before hashing so toolchain upgrades
-// that only rotate metadata don't produce false "outdated" positives.
-function stripMetadata(hex) {
-  const metaLen = parseInt(hex.slice(-4), 16);
-  return hex.slice(0, -(metaLen * 2 + 4));
-}
-
-function codeHash(bytecode) {
-  if (!bytecode || bytecode === '0x') return null;
-  return keccak256(stripMetadata(bytecode));
-}
+const TABS = ['Map', 'Collections', 'Tokens', 'Treasury', 'Marketplace', 'Relay', 'Upload'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODAL
@@ -1503,7 +1402,7 @@ function RelayTab() {
 export default function AdminPage() {
   const { open }               = useAppKit();
   const { isConnected, address } = useAccount();
-  const [activeTab, setActiveTab] = useState('Collections');
+  const [activeTab, setActiveTab] = useState('Map');
 
   const { data: owner } = useReadContract({
     address: ADDRESSES.TREASURY, abi: TREASURY_ABI, functionName: 'owner',
@@ -1512,50 +1411,7 @@ export default function AdminPage() {
 
   const isOwner = owner && address && owner.toLowerCase() === address.toLowerCase();
 
-  const publicClientMain = usePublicClient();
-  const [dotHashes, setDotHashes] = useState({});
-  const ERC1967 = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
-
-  // Proxies: read impl slot then hash impl bytecode.
-  // Non-upgradeable: hash the contract bytecode directly.
-  const PROXY_KEYS    = ['TREASURY', 'TOKEN_DEPLOYER', 'NFT_DEPLOYER', 'RELAY'];
-  const DIRECT_KEYS   = ['MARKETPLACE', 'ROUTER', 'FACTORY'];
-  const HASH_KEY_MAP  = { FACTORY: 'DEX_FACTORY' };
-
-  useEffect(() => {
-    if (!publicClientMain || !isConnected) return;
-    async function load() {
-      const results = {};
-      await Promise.all([
-        ...PROXY_KEYS.map(async k => {
-          const addr = ADDRESSES[k];
-          if (!addr) return;
-          const raw = await publicClientMain.getStorageAt({ address: addr, slot: ERC1967 });
-          const impl = raw ? '0x' + raw.slice(-40) : null;
-          if (!impl || impl === '0x' + '0'.repeat(40)) return;
-          const code = await publicClientMain.getBytecode({ address: impl });
-          results[k] = codeHash(code);
-        }),
-        ...DIRECT_KEYS.map(async k => {
-          const addr = ADDRESSES[k];
-          if (!addr) return;
-          const code = await publicClientMain.getBytecode({ address: addr });
-          results[k] = codeHash(code);
-        }),
-      ]);
-      setDotHashes(results);
-    }
-    load();
-  }, [publicClientMain, isConnected]);
-
-  const CodeHashDot = ({ addrKey }) => {
-    const artifactKey = HASH_KEY_MAP[addrKey] ?? addrKey;
-    const expected = ARTIFACT_HASHES[artifactKey];
-    const actual   = dotHashes[addrKey];
-    if (!expected || !actual) return <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 bg-gray-300" title="Checking…" />;
-    const ok = actual === expected;
-    return <span className={`w-1.5 h-1.5 rounded-full shrink-0 inline-block mr-1 ${ok ? 'bg-hub-green' : 'bg-amber-400'}`} title={ok ? 'Up to date' : 'Upgrade available'} />;
-  };
+  const dotHashes = useCodeHashes(isConnected);
 
   if (!isConnected) {
     return (
@@ -1585,7 +1441,7 @@ export default function AdminPage() {
     );
   }
 
-  const tabIcons = { Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Marketplace: <Settings size={14} />, Relay: <Settings size={14} />, Upload: <Upload size={14} /> };
+  const tabIcons = { Map: <Network size={14} />, Collections: <FileCode size={14} />, Tokens: <Settings size={14} />, Treasury: <Settings size={14} />, Marketplace: <Settings size={14} />, Relay: <Settings size={14} />, Upload: <Upload size={14} /> };
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -1609,7 +1465,7 @@ export default function AdminPage() {
             ].map(([label, addr, vKey]) => (
               <React.Fragment key={label}>
                 <span className="text-xs font-black uppercase tracking-widest text-gray-400 whitespace-nowrap self-center flex items-center">
-                  <CodeHashDot addrKey={vKey} />{label}
+                  <CodeHashDot hashes={dotHashes} addrKey={vKey} />{label}
                 </span>
                 <div className="min-w-0 self-center"><CopyAddr address={addr} /></div>
               </React.Fragment>
@@ -1635,6 +1491,7 @@ export default function AdminPage() {
           </div>
 
           <div className="p-6">
+            {activeTab === 'Map'         && <MapTab />}
             {activeTab === 'Collections' && <CollectionsTab />}
             {activeTab === 'Tokens'      && <TokensTab />}
             {activeTab === 'Treasury'    && <TreasuryTab />}
