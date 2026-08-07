@@ -124,6 +124,13 @@ export const ROUTER_ABI = [
       },
     ],
   },
+  // ── wiring map reads (factory / WETH are initialize-only, no setters) ──
+  { name: 'owner',    type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'factory',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'WETH',     type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'treasury', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  // ── wiring map fixes ──
+  { name: 'setTreasury', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_treasury', type: 'address' }], outputs: [] },
 ];
 
 export const PAIR_ABI = [
@@ -148,12 +155,24 @@ export const PAIR_ABI = [
   { name: 'balanceOf',   type: 'function', stateMutability: 'view',    inputs: [{ name: 'owner', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'depositAndSync', type: 'function', stateMutability: 'payable', inputs: [], outputs: [] },
   { name: 'sync',           type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  // ── wiring map reads ──
+  { name: 'factory',         type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'weth',            type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'rewardsTreasury', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
 ];
 
 export const FACTORY_ABI = [
   { name: 'allPairsLength', type: 'function', stateMutability: 'view', inputs: [],                                  outputs: [{ type: 'uint256' }] },
   { name: 'allPairs',       type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'uint256' }],     outputs: [{ type: 'address' }] },
   { name: 'getPair',        type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }, { name: '', type: 'address' }], outputs: [{ type: 'address' }] },
+  // ── wiring map reads ──
+  { name: 'owner',         type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'beacon',        type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'tokenDeployer', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'pairTreasury',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  // ── wiring map fixes ──
+  { name: 'setTokenDeployer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_tokenDeployer', type: 'address' }], outputs: [] },
+  { name: 'setPairTreasury',  type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_treasury',      type: 'address' }], outputs: [] },
 ];
 
 export const TREASURY_ABI = [
@@ -169,7 +188,14 @@ export const TREASURY_ABI = [
   { name: 'trustedRelay',        type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { name: 'weth',                type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { name: 'isTrustedCaller',     type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'tokenDeployer',       type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'nftDeployer',         type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'dexFactory',          type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'farmToken',           type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   // ── admin setters ──
+  { name: 'setTokenDeployer',     type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_tokenDeployer', type: 'address' }], outputs: [] },
+  { name: 'setNFTDeployer',       type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_nftDeployer',   type: 'address' }], outputs: [] },
+  { name: 'setDexFactory',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_dexFactory',    type: 'address' }], outputs: [] },
   { name: 'setDexEntryFee',       type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
   { name: 'setDexExitFee',        type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
   { name: 'setMarketplaceFee',    type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_feeBps',  type: 'uint256' }], outputs: [] },
@@ -326,6 +352,9 @@ export const BEER_TOKEN_ABI = [
 export const MARKETPLACE_ABI = [
   { name: 'owner',         type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
   { name: 'nextListingId', type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'uint256' }] },
+  // ── wiring map reads (initialize-only, no setters exist on the contract) ──
+  { name: 'tokenDeployer', type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'nftDeployer',   type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
   {
     name: 'createListing', type: 'function', stateMutability: 'nonpayable',
     inputs: [
@@ -408,6 +437,10 @@ export const TOKEN_DEPLOYER_ABI = [
   { name: 'getAllTokens',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'address[]' }] },
   { name: 'isRegistered', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
   { name: 'totalTokens',  type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  // ── wiring map ──
+  { name: 'owner',           type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'templateAddress', type: 'function', stateMutability: 'view',        inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'updateTemplate',  type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: '_newTemplate', type: 'address' }], outputs: [] },
 ];
 
 export const NFT_DEPLOYER_ABI = [
@@ -420,6 +453,10 @@ export const NFT_DEPLOYER_ABI = [
     { name: '_contractCID',  type: 'string'  },
     { name: '_initialOwner', type: 'address' },
   ], outputs: [{ type: 'address' }] },
+  // ── wiring map ──
+  { name: 'owner',      type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'beacon',     type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address' }] },
+  { name: 'setBeacon',  type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_beacon', type: 'address' }], outputs: [] },
 ];
 
 export const CONTRACT_URI_ABI = [
@@ -510,6 +547,12 @@ export const RELAY_ABI = [
   { name: 'ethFeePlainText', type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
   { name: 'ethEquivalent', type: 'function', stateMutability: 'view',        inputs: [],                                                                  outputs: [{ type: 'uint256' }] },
   { name: 'quantumFreeRecipient', type: 'function', stateMutability: 'view',  inputs: [{ name: '', type: 'address' }],                                     outputs: [{ type: 'bool'    }] },
+  // ── wiring map ──
+  { name: 'owner',              type: 'function', stateMutability: 'view',        inputs: [],                                        outputs: [{ type: 'address' }] },
+  { name: 'registeredContract', type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],           outputs: [{ type: 'bool'    }] },
+  { name: 'isAttester',         type: 'function', stateMutability: 'view',        inputs: [{ name: '', type: 'address' }],           outputs: [{ type: 'bool'    }] },
+  { name: 'registerContract',   type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'contractAddr', type: 'address' }], outputs: [] },
+  { name: 'deregisterContract', type: 'function', stateMutability: 'nonpayable',  inputs: [{ name: 'contractAddr', type: 'address' }], outputs: [] },
   {
     name: 'sendMessage', type: 'function', stateMutability: 'payable',
     inputs: [
