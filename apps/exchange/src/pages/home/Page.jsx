@@ -352,7 +352,8 @@ function CardCarousel({ children }) {
 
   const arrow =
     'absolute top-1/2 -translate-y-1/2 z-10 grid place-items-center w-10 h-10 rounded-full ' +
-    'bg-white shadow-md border border-gray-100 text-gray-700 hover:text-hub-green hover:border-hub-green transition-colors';
+    'bg-white shadow-md border border-hub-green/30 text-hub-green ' +
+    'hover:bg-hub-green hover:text-white hover:border-hub-green transition-colors';
 
   return (
     <div className="relative">
