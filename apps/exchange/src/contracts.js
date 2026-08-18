@@ -13,6 +13,9 @@ export const ADDRESSES = {
   EGG_TOKEN:        import.meta.env.VITE_EGG_TOKEN,
   EGGNFT:           import.meta.env.VITE_EGG_NFT,
   EGG_WETH_PAIR:    import.meta.env.VITE_EGG_WETH_PAIR,
+  // Not deployed yet. Set VITE_HONEY_TOKEN and the UI starts reading the real
+  // symbol instead of the placeholder label on the Coming Soon card.
+  HONEY_TOKEN:      import.meta.env.VITE_HONEY_TOKEN,
   PRICE_EVIDENCE:   import.meta.env.VITE_PRICE_EVIDENCE,
   RELAY:            import.meta.env.VITE_RELAY,
   QUANTUM:          import.meta.env.VITE_QUANTUM,

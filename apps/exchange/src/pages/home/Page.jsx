@@ -401,6 +401,17 @@ function FeaturedListings() {
   });
   const eggSymbol = eggRawSymbol ? `$${eggRawSymbol}` : null;
 
+  // HONEY has no contract yet, so there is nothing to read. The literal is a
+  // stand-in for the Coming Soon card only - the moment VITE_HONEY_TOKEN is
+  // set, the real symbol takes over and this stops being used.
+  const { data: honeyRawSymbol } = useReadContract({
+    address: ADDRESSES.HONEY_TOKEN,
+    abi:     ERC20_ABI,
+    functionName: 'symbol',
+    query:   { enabled: !!ADDRESSES.HONEY_TOKEN },
+  });
+  const honeySymbol = honeyRawSymbol ? `$${honeyRawSymbol}` : '$HONEY';
+
   const listingIds = nextId != null
     ? Array.from({ length: Math.min(Number(nextId), 3) }, (_, i) => i)
     : [];
@@ -411,17 +422,16 @@ function FeaturedListings() {
         <FeaturedListingCard key={id} id={id} />
       ))}
       <FeaturedPlaceholder
+        name="One Pound of Raw Honey" tag="Raw · Unfiltered · 1 lb"
+        priceAmount={1} tokenSymbol={honeySymbol} image={<HoneyJarSvg />}
+      />
+      <FeaturedPlaceholder
         name="Single Egg" tag="Grade AA · Free-Range"
         priceAmount={1} tokenSymbol={eggSymbol}
       />
       <FeaturedPlaceholder
         name="Half Dozen Eggs" tag="Grade AA · Free-Range"
         priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />}
-      />
-      {/* No token symbol passed - HONEY is not deployed, so price renders as a dash. */}
-      <FeaturedPlaceholder
-        name="Jar of Raw Honey" tag="Raw · Unfiltered"
-        priceAmount={1} image={<HoneyJarSvg />}
       />
     </CardCarousel>
   );
