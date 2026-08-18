@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, ArrowRight, X, ShieldCheck, Fingerprint, Lock, Gift, Sprout } from 'lucide-react';
+import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, ArrowRight, ChevronLeft, ChevronRight, X, ShieldCheck, Fingerprint, Lock, Gift, Sprout } from 'lucide-react';
 import { useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
@@ -265,12 +265,41 @@ function SixEggsSvg() {
   );
 }
 
-function EggFeaturedPlaceholder({ name, priceAmount, tokenSymbol, image }) {
+function HoneyJarSvg() {
+  return (
+    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
+      <defs>
+        <linearGradient id="honeyBody" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#d99a2b" />
+          <stop offset="35%"  stopColor="#f5c451" />
+          <stop offset="70%"  stopColor="#e0a72f" />
+          <stop offset="100%" stopColor="#b8801f" />
+        </linearGradient>
+        <linearGradient id="honeyLid" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#8a5a1e" />
+          <stop offset="40%"  stopColor="#b8823a" />
+          <stop offset="100%" stopColor="#7a4d18" />
+        </linearGradient>
+      </defs>
+      <rect x="34" y="20" width="52" height="15" rx="4" fill="url(#honeyLid)" />
+      <rect x="43" y="35" width="34" height="9" fill="#e8b757" />
+      <path
+        d="M34,44 h52 a6,6 0 0 1 6,6 v56 a10,10 0 0 1 -10,10 h-44 a10,10 0 0 1 -10,-10 v-56 a6,6 0 0 1 6,-6 z"
+        fill="url(#honeyBody)" stroke="#a8721c" strokeWidth="1.5"
+      />
+      <rect x="44" y="55" width="8" height="44" rx="4" fill="white" opacity="0.22" />
+    </svg>
+  );
+}
+
+function FeaturedPlaceholder({ name, tag, priceAmount, tokenSymbol, image }) {
+  // No symbol means the token is not deployed yet. Price shows a dash rather
+  // than a hardcoded string - the symbol is always read from the contract.
   const priceLabel = tokenSymbol ? `${priceAmount} ${tokenSymbol}` : null;
   return (
     <Link
       to="/market"
-      className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all"
+      className="group h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md hover:-translate-y-0.5 transition-all"
     >
       <div className="relative aspect-square bg-gradient-to-br from-amber-50 to-yellow-100 overflow-hidden flex items-center justify-center">
         {image ?? <EggSvg />}
@@ -280,7 +309,7 @@ function EggFeaturedPlaceholder({ name, priceAmount, tokenSymbol, image }) {
       </div>
       <div className="p-5 flex flex-col gap-2 flex-1">
         <h3 className="text-gray-900 font-black text-lg leading-tight">{name}</h3>
-        <p className="text-hub-green text-xs font-black uppercase tracking-widest">Grade AA · Free-Range</p>
+        <p className="text-hub-green text-xs font-black uppercase tracking-widest">{tag}</p>
         <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold">Token Price</p>
@@ -290,6 +319,69 @@ function EggFeaturedPlaceholder({ name, priceAmount, tokenSymbol, image }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// Horizontal card rail. Uses native scroll-snap so touch and trackpad work for
+// free; the arrows only drive the same scroll for mouse users, and hide at the
+// ends so they never suggest more cards than exist.
+function CardCarousel({ children }) {
+  const track = useRef(null);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd,   setAtEnd]   = useState(true);
+
+  const items = React.Children.toArray(children);
+
+  const measure = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    setAtStart(el.scrollLeft <= 2);
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure, items.length]);
+
+  const page = (dir) => {
+    const el = track.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
+  };
+
+  const arrow =
+    'absolute top-1/2 -translate-y-1/2 z-10 grid place-items-center w-10 h-10 rounded-full ' +
+    'bg-white shadow-md border border-gray-100 text-gray-700 hover:text-hub-green hover:border-hub-green transition-colors';
+
+  return (
+    <div className="relative">
+      <div
+        ref={track}
+        onScroll={measure}
+        className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {items.map((child, i) => (
+          <div
+            key={i}
+            className="snap-start shrink-0 w-full sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
+          >
+            {child}
+          </div>
+        ))}
+      </div>
+
+      {!atStart && (
+        <button onClick={() => page(-1)} aria-label="Previous" className={`${arrow} -left-3`}>
+          <ChevronLeft size={20} strokeWidth={3} />
+        </button>
+      )}
+      {!atEnd && (
+        <button onClick={() => page(1)} aria-label="Next" className={`${arrow} -right-3`}>
+          <ChevronRight size={20} strokeWidth={3} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -314,13 +406,24 @@ function FeaturedListings() {
     : [];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <CardCarousel>
       {listingIds.map(id => (
         <FeaturedListingCard key={id} id={id} />
       ))}
-      <EggFeaturedPlaceholder name="Single Egg"      priceAmount={1} tokenSymbol={eggSymbol} />
-      <EggFeaturedPlaceholder name="Half Dozen Eggs" priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />} />
-    </div>
+      <FeaturedPlaceholder
+        name="Single Egg" tag="Grade AA · Free-Range"
+        priceAmount={1} tokenSymbol={eggSymbol}
+      />
+      <FeaturedPlaceholder
+        name="Half Dozen Eggs" tag="Grade AA · Free-Range"
+        priceAmount={6} tokenSymbol={eggSymbol} image={<SixEggsSvg />}
+      />
+      {/* No token symbol passed - HONEY is not deployed, so price renders as a dash. */}
+      <FeaturedPlaceholder
+        name="Jar of Raw Honey" tag="Raw · Unfiltered"
+        priceAmount={1} image={<HoneyJarSvg />}
+      />
+    </CardCarousel>
   );
 }
 
