@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, ArrowRight, ChevronLeft, ChevronRight, X, ShieldCheck, Fingerprint, Lock, Gift, Sprout } from 'lucide-react';
+import { Leaf, BadgeCheck, Users, ShoppingBag, Repeat, ArrowLeftRight, ExternalLink, ArrowRight, X, ShieldCheck, Fingerprint, Lock, Gift, Sprout } from 'lucide-react';
 import { useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, ERC20_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
+import CardCarousel from '../../components/CardCarousel';
+import { EggSvg, SixEggsSvg, HoneyJarSvg } from '../../components/ProductArt';
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -219,78 +221,8 @@ function FeaturedListingCard({ id }) {
   );
 }
 
-function EggSvg() {
-  return (
-    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
-      <defs>
-        <radialGradient id="eggSheenHome" cx="38%" cy="32%" r="68%">
-          <stop offset="0%" stopColor="#e8c99a" />
-          <stop offset="60%" stopColor="#c8a070" />
-          <stop offset="100%" stopColor="#a07040" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
-      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheenHome)" />
-      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
-    </svg>
-  );
-}
 
-function SixEggsSvg() {
-  const eggs = [
-    { cx: 44,  cy: 72,  rot: -6 },
-    { cx: 110, cy: 68,  rot:  2 },
-    { cx: 176, cy: 73,  rot:  7 },
-    { cx: 44,  cy: 158, rot:  5 },
-    { cx: 110, cy: 155, rot: -4 },
-    { cx: 176, cy: 160, rot:  8 },
-  ];
-  return (
-    <svg viewBox="0 0 220 230" xmlns="http://www.w3.org/2000/svg" className="w-full h-full p-3 drop-shadow-sm">
-      <defs>
-        <radialGradient id="eggSheenSix" cx="38%" cy="32%" r="68%">
-          <stop offset="0%" stopColor="#e8c99a" />
-          <stop offset="60%" stopColor="#c8a070" />
-          <stop offset="100%" stopColor="#a07040" />
-        </radialGradient>
-      </defs>
-      {eggs.map((e, i) => (
-        <g key={i} transform={`rotate(${e.rot} ${e.cx} ${e.cy})`}>
-          <ellipse cx={e.cx} cy={e.cy} rx="24" ry="30" fill="#c8a882" stroke="#b08050" strokeWidth="1" />
-          <ellipse cx={e.cx} cy={e.cy} rx="21" ry="27" fill="url(#eggSheenSix)" />
-          <ellipse cx={e.cx - 6} cy={e.cy - 10} rx="5" ry="7" fill="white" opacity="0.18" transform={`rotate(-15 ${e.cx - 6} ${e.cy - 10})`} />
-        </g>
-      ))}
-    </svg>
-  );
-}
 
-function HoneyJarSvg() {
-  return (
-    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
-      <defs>
-        <linearGradient id="honeyBody" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#d99a2b" />
-          <stop offset="35%"  stopColor="#f5c451" />
-          <stop offset="70%"  stopColor="#e0a72f" />
-          <stop offset="100%" stopColor="#b8801f" />
-        </linearGradient>
-        <linearGradient id="honeyLid" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#8a5a1e" />
-          <stop offset="40%"  stopColor="#b8823a" />
-          <stop offset="100%" stopColor="#7a4d18" />
-        </linearGradient>
-      </defs>
-      <rect x="34" y="20" width="52" height="15" rx="4" fill="url(#honeyLid)" />
-      <rect x="43" y="35" width="34" height="9" fill="#e8b757" />
-      <path
-        d="M34,44 h52 a6,6 0 0 1 6,6 v56 a10,10 0 0 1 -10,10 h-44 a10,10 0 0 1 -10,-10 v-56 a6,6 0 0 1 6,-6 z"
-        fill="url(#honeyBody)" stroke="#a8721c" strokeWidth="1.5"
-      />
-      <rect x="44" y="55" width="8" height="44" rx="4" fill="white" opacity="0.22" />
-    </svg>
-  );
-}
 
 function FeaturedPlaceholder({ name, tag, priceAmount, tokenSymbol, image }) {
   // No symbol means the token is not deployed yet. Price shows a dash rather
@@ -325,66 +257,6 @@ function FeaturedPlaceholder({ name, tag, priceAmount, tokenSymbol, image }) {
 // Horizontal card rail. Uses native scroll-snap so touch and trackpad work for
 // free; the arrows only drive the same scroll for mouse users, and hide at the
 // ends so they never suggest more cards than exist.
-function CardCarousel({ children }) {
-  const track = useRef(null);
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd,   setAtEnd]   = useState(true);
-
-  const items = React.Children.toArray(children);
-
-  const measure = useCallback(() => {
-    const el = track.current;
-    if (!el) return;
-    setAtStart(el.scrollLeft <= 2);
-    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
-  }, []);
-
-  useEffect(() => {
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [measure, items.length]);
-
-  const page = (dir) => {
-    const el = track.current;
-    if (el) el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
-  };
-
-  const arrow =
-    'absolute top-1/2 -translate-y-1/2 z-10 grid place-items-center w-10 h-10 rounded-full ' +
-    'bg-white shadow-md border border-hub-green/30 text-hub-green ' +
-    'hover:bg-hub-green hover:text-white hover:border-hub-green transition-colors';
-
-  return (
-    <div className="relative">
-      <div
-        ref={track}
-        onScroll={measure}
-        className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {items.map((child, i) => (
-          <div
-            key={i}
-            className="snap-start shrink-0 w-full sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
-          >
-            {child}
-          </div>
-        ))}
-      </div>
-
-      {!atStart && (
-        <button onClick={() => page(-1)} aria-label="Previous" className={`${arrow} -left-3`}>
-          <ChevronLeft size={20} strokeWidth={3} />
-        </button>
-      )}
-      {!atEnd && (
-        <button onClick={() => page(1)} aria-label="Next" className={`${arrow} -right-3`}>
-          <ChevronRight size={20} strokeWidth={3} />
-        </button>
-      )}
-    </div>
-  );
-}
 
 function FeaturedListings() {
   const { data: nextId } = useReadContract({

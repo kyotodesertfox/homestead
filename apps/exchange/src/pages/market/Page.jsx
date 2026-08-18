@@ -5,6 +5,8 @@ import { useAccount, useReadContract, useReadContracts, useWriteContract, useWai
 import { parseUnits, formatUnits } from 'viem';
 import { ADDRESSES, MARKETPLACE_ABI, NFT_ABI, BEER_TOKEN_ABI, TREASURY_ABI, PAIR_ABI, TOKEN_DEPLOYER_ABI } from '../../contracts';
 import RefreshCountdown from '../../components/RefreshCountdown';
+import CardCarousel from '../../components/CardCarousel';
+import { EggSvg, SixEggsSvg, HoneyJarSvg } from '../../components/ProductArt';
 
 // ─── IPFS ────────────────────────────────────────────────────────────────────
 const IPFS_GW    = 'https://ipfs.io/ipfs/';
@@ -1122,9 +1124,10 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
 }
 
 // ─── Placeholder Card (pre-launch listings) ───────────────────────────────────
-const EGG_PLACEHOLDERS = [
+const PLACEHOLDERS = [
   {
     key:         'egg-single',
+    token:       'EGG',
     name:        'Single Farm Egg',
     tag:         'Grade AA · Free-Range',
     description: 'One farm-fresh egg from Homestead. Redeemable at pickup.',
@@ -1132,59 +1135,25 @@ const EGG_PLACEHOLDERS = [
   },
   {
     key:         'egg-halfdozen',
+    token:       'EGG',
     name:        'Half Dozen Farm Eggs',
     tag:         'Grade AA · Free-Range',
     description: 'Six farm-fresh eggs from Homestead. Redeemable at pickup.',
     priceAmount: 6,
     image:       <SixEggsSvg />,
   },
+  {
+    key:         'honey-pound',
+    token:       'HONEY',
+    name:        'One Pound of Raw Honey',
+    tag:         'Raw · Unfiltered · 1 lb',
+    description: 'One pound of raw, unfiltered honey from Homestead. Redeemable at pickup.',
+    priceAmount: 1,
+    image:       <HoneyJarSvg />,
+  },
 ];
 
-function EggSvg() {
-  return (
-    <svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28 drop-shadow-sm">
-      <defs>
-        <radialGradient id="eggSheen" cx="38%" cy="32%" r="68%">
-          <stop offset="0%" stopColor="#e8c99a" />
-          <stop offset="60%" stopColor="#c8a070" />
-          <stop offset="100%" stopColor="#a07040" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="60" cy="78" rx="42" ry="52" fill="#c8a882" stroke="#b08050" strokeWidth="1.5" />
-      <ellipse cx="60" cy="78" rx="38" ry="48" fill="url(#eggSheen)" />
-      <ellipse cx="48" cy="62" rx="7" ry="11" fill="white" opacity="0.18" transform="rotate(-15 48 62)" />
-    </svg>
-  );
-}
 
-function SixEggsSvg() {
-  const eggs = [
-    { cx: 44,  cy: 72,  rot: -6 },
-    { cx: 110, cy: 68,  rot:  2 },
-    { cx: 176, cy: 73,  rot:  7 },
-    { cx: 44,  cy: 158, rot:  5 },
-    { cx: 110, cy: 155, rot: -4 },
-    { cx: 176, cy: 160, rot:  8 },
-  ];
-  return (
-    <svg viewBox="0 0 220 230" xmlns="http://www.w3.org/2000/svg" className="w-full h-full p-3 drop-shadow-sm">
-      <defs>
-        <radialGradient id="eggSheenMkt6" cx="38%" cy="32%" r="68%">
-          <stop offset="0%" stopColor="#e8c99a" />
-          <stop offset="60%" stopColor="#c8a070" />
-          <stop offset="100%" stopColor="#a07040" />
-        </radialGradient>
-      </defs>
-      {eggs.map((e, i) => (
-        <g key={i} transform={`rotate(${e.rot} ${e.cx} ${e.cy})`}>
-          <ellipse cx={e.cx} cy={e.cy} rx="24" ry="30" fill="#c8a882" stroke="#b08050" strokeWidth="1" />
-          <ellipse cx={e.cx} cy={e.cy} rx="21" ry="27" fill="url(#eggSheenMkt6)" />
-          <ellipse cx={e.cx - 6} cy={e.cy - 10} rx="5" ry="7" fill="white" opacity="0.18" transform={`rotate(-15 ${e.cx - 6} ${e.cy - 10})`} />
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 function PlaceholderListingCard({ name, tag, description, priceAmount, tokenSymbol, usdPerToken, image }) {
   const usdValue   = usdPerToken && priceAmount ? (priceAmount * usdPerToken).toFixed(2) : null;
@@ -1238,6 +1207,18 @@ export default function MarketPage() {
   });
   const eggSymbol = eggRawSymbol ? `$${eggRawSymbol}` : null;
 
+  // HONEY is not deployed. The literal is a stand-in for the Coming Soon card
+  // only - set VITE_HONEY_TOKEN and the real symbol and rate take over.
+  const honeyEthRate = useTokenEthRate(ADDRESSES.HONEY_TOKEN);
+  const honeyUsdRate = honeyEthRate && ethUsdMkt ? honeyEthRate * ethUsdMkt : null;
+  const { data: honeyRawSymbol } = useReadContract({
+    address: ADDRESSES.HONEY_TOKEN,
+    abi: BEER_TOKEN_ABI,
+    functionName: 'symbol',
+    query: { enabled: !!ADDRESSES.HONEY_TOKEN },
+  });
+  const honeySymbol = honeyRawSymbol ? `$${honeyRawSymbol}` : '$HONEY';
+
   const { data: ownerAddr } = useReadContract({
     address: ADDRESSES.MARKETPLACE,
     abi:     MARKETPLACE_ABI,
@@ -1280,13 +1261,19 @@ export default function MarketPage() {
           )}
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {listingIds.map(id => (
-            <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
-          ))}
-          {EGG_PLACEHOLDERS.map(p => (
-            <PlaceholderListingCard key={p.key} {...p} tokenSymbol={eggSymbol} usdPerToken={eggUsdRate} />
-          ))}
+        <div className="mb-12">
+          <CardCarousel>
+            {listingIds.map(id => (
+              <ListingCard key={id} id={id} onStyleResolved={addStyle} isOwner={isOwner} />
+            ))}
+            {PLACEHOLDERS.map(({ token, ...p }) => (
+              <PlaceholderListingCard
+                key={p.key} {...p}
+                tokenSymbol={token === 'HONEY' ? honeySymbol : eggSymbol}
+                usdPerToken={token === 'HONEY' ? honeyUsdRate : eggUsdRate}
+              />
+            ))}
+          </CardCarousel>
         </div>
 
         <section className="mt-8 bg-white border border-gray-100 rounded-2xl p-5 flex gap-4 items-start shadow-sm">
