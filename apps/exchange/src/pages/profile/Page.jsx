@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, Wallet, Copy, CheckCheck, ExternalLink, ArrowUpDown, Beer, Egg, Sparkles, Flame, X, Droplets, TrendingUp, Lock, ShoppingBag, MessageSquare, ChevronRight, PackageOpen, Settings } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useDisconnect, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
@@ -214,7 +214,7 @@ export default function ProfilePage() {
         {/* Quick actions */}
         <section>
           <h2 className="font-black uppercase tracking-tight text-gray-900 text-sm mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <ActionCard
               icon={<ArrowUpDown size={24} className="text-hub-green" />}
               title="Swap"
@@ -233,6 +233,12 @@ export default function ProfilePage() {
               title="Egg Portal"
               description="Your egg stash and the market"
               href="/egg/"
+            />
+            <ActionCard
+              icon={<Sparkles size={24} className="text-violet-300" />}
+              title="Spa Portal"
+              description="Services, providers and bookings"
+              href="/spa/"
             />
           </div>
         </section>

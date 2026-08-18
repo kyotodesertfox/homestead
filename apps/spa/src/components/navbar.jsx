@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Wallet, LayoutDashboard, Sparkles, House } from 'lucide-react';
+import { Menu, X, Wallet, LayoutDashboard, Sparkles, House, Repeat, ExternalLink } from 'lucide-react';
 import { useAppKit } from '@reown/appkit/react';
 import { useAccount } from 'wagmi';
 
@@ -36,6 +36,10 @@ export default function Navbar() {
             <NavLink to="/services" label="Services" />
             <NavLink to="/providers" label="Providers" />
             <NavLink to="/about" label="About" />
+            <a href="/swap" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 text-gray-300 hover:text-spa-accent transition-colors font-semibold text-sm">
+              <Repeat size={18} /> Swap <ExternalLink size={12} className="opacity-50" />
+            </a>
 
             {isConnected ? (
               <Link to="/profile"
@@ -68,6 +72,10 @@ export default function Navbar() {
             <MobileNavLink to="/services"  label="Services"  onClick={close} />
             <MobileNavLink to="/providers" label="Providers" onClick={close} />
             <MobileNavLink to="/about"     label="About"     onClick={close} />
+            <a href="/swap" target="_blank" rel="noopener noreferrer" onClick={close}
+              className="flex items-center gap-4 text-gray-300 hover:text-spa-accent p-3 rounded-lg font-bold text-lg transition-colors">
+              <Repeat size={20} className="text-spa-accent" /> Swap <ExternalLink size={14} className="ml-1 opacity-50" />
+            </a>
             <div className="pt-4 px-3">
               {isConnected ? (
                 <Link to="/profile" onClick={close}
