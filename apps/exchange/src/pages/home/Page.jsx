@@ -364,6 +364,27 @@ function DynamicPortals() {
         .map(addr => (
           <TokenPortalCard key={addr} address={addr} />
         ))}
+      {/*
+        Static, not derived from TOKEN_DEPLOYER like the cards above - $SPA has
+        no deployed token yet, so it will never appear from that loop. The
+        portal itself is live at /spa/ though, so this links out for real
+        rather than sitting greyed out like the dashed placeholder below.
+      */}
+      <a href="/spa/" target="_blank" rel="noopener noreferrer"
+        className="group border-2 border-violet-200 rounded-xl p-5 hover:shadow-md transition-all"
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-violet-400 shrink-0" />
+          <span className="font-black uppercase tracking-widest text-sm text-gray-900">Spa</span>
+          <ExternalLink size={14} className="ml-auto text-gray-400 group-hover:text-gray-600 transition-colors" />
+        </div>
+        <p className="text-gray-500 text-sm font-medium leading-relaxed">
+          Handcrafted spa goods from the homestead. Each token redeemable for the real product.
+        </p>
+        <div className="mt-3 text-xs font-black uppercase tracking-widest text-violet-400">
+          $SPA →
+        </div>
+      </a>
       <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col opacity-50">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-2.5 h-2.5 rounded-full bg-gray-300 shrink-0" />
