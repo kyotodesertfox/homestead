@@ -170,7 +170,6 @@ function FeaturedListingCard({ id }) {
 
   if (!listing) return null;
   const [,, price,, inventoryCount, active] = listing;
-  if (!active) return null;
 
   const inStock     = inventoryCount != null && inventoryCount > 0n;
   const priceStr    = price != null ? formatUnits(price, 18) : '-';
@@ -195,9 +194,9 @@ function FeaturedListingCard({ id }) {
           </div>
         )}
         <span className={`absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg backdrop-blur-sm ${
-          inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
+          !active ? 'bg-gray-500/60 text-white/70' : inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
         }`}>
-          {inStock ? `${inventoryCount?.toString()} available` : 'Sold Out'}
+          {!active ? 'Inactive' : inStock ? `${inventoryCount?.toString()} available` : 'Sold Out'}
         </span>
       </div>
       <div className="p-5 flex flex-col gap-2 flex-1">

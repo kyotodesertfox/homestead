@@ -842,8 +842,10 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">Available</p>
-                <p className={`font-black text-xl ${inStock ? 'text-hub-green' : 'text-gray-300'}`}>
+                <p className="text-gray-400 text-[10px] uppercase tracking-widest font-bold mb-0.5">
+                  {active ? 'Available' : 'Escrowed'}
+                </p>
+                <p className={`font-black text-xl ${!active ? 'text-gray-400' : inStock ? 'text-hub-green' : 'text-gray-300'}`}>
                   {inventoryCount?.toString() ?? '-'}
                 </p>
               </div>
@@ -885,10 +887,11 @@ function ListingModal({ id, meta, listing, inventory, isOwner, onClose, onStocke
                 )}
                 <button
                   onClick={isConnected ? handleBuy : () => open()}
-                  disabled={isConnected && (!inStock || isPending)}
+                  disabled={isConnected && (!inStock || !active || isPending)}
                   className="w-full py-3.5 rounded-xl bg-hub-green text-white font-black uppercase tracking-widest text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
                 >
                   {!isConnected                          ? 'Connect Wallet'
+                   : !active                             ? 'Not Listed'
                    : !inStock                            ? 'Sold Out'
                    : isPending                           ? 'Pending…'
                    : needsApprove                        ? `Step 1 -Approve ${tokenSymbol ?? 'token'}`
@@ -997,7 +1000,6 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
 
   if (!listing) return null;
   const [, , price, proceeds, inventoryCount, active] = listing;
-  if (!active) return null;
 
   const priceStr = price != null ? formatUnits(price, 18) : '-';
   const inStock  = inventoryCount != null && inventoryCount > 0n;
@@ -1026,9 +1028,9 @@ function ListingCard({ id, onStyleResolved, isOwner }) {
             </div>
           )}
           <span className={`absolute top-3 left-3 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg backdrop-blur-sm ${
-            inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
+            !active ? 'bg-gray-500/60 text-white/70' : inStock ? 'bg-hub-green text-white' : 'bg-gray-900/70 text-white/60'
           }`}>
-            {inStock ? `${inventoryCount?.toString()} in stock` : 'Sold Out'}
+            {!active ? 'Inactive' : inStock ? `${inventoryCount?.toString()} in stock` : 'Sold Out'}
           </span>
           <span className="absolute top-3 right-3 text-[10px] font-black uppercase bg-black/50 text-white px-2 py-1 rounded-lg backdrop-blur-sm">
             #{id}
@@ -1247,7 +1249,7 @@ export default function MarketPage() {
               Homestead <span className="text-hub-green">Market</span>
             </h1>
             <p className="text-gray-600 font-bold mt-2 uppercase tracking-widest text-sm italic">
-              All Active Listings
+              All Listings
             </p>
           </div>
           {isOwner && (

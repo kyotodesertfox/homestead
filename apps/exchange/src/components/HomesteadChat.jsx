@@ -310,7 +310,7 @@ export default function HomesteadChat() {
           <div className={`fixed bg-white shadow-2xl z-50 flex flex-col overflow-hidden transition-all duration-200 ${
             fullscreen
               ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 rounded-2xl border border-gray-200'
-              : 'inset-0 sm:inset-auto sm:bottom-20 sm:right-6 sm:w-96 sm:max-h-[72vh] sm:rounded-2xl sm:border sm:border-gray-200'
+              : 'inset-0 sm:inset-auto sm:bottom-20 sm:right-24 sm:w-96 sm:max-h-[72vh] sm:rounded-2xl sm:border sm:border-gray-200'
           }`}>
 
             {/* Header */}
@@ -690,7 +690,7 @@ export default function HomesteadChat() {
       {/* FAB */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-hub-green hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center z-50 transition-all active:scale-95"
+        className="fixed bottom-6 right-24 w-14 h-14 bg-hub-green hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center z-50 transition-all active:scale-95"
         aria-label="Open Homestead Chat"
       >
         {open ? <ChevronDown size={22} /> : <Lock size={22} />}
