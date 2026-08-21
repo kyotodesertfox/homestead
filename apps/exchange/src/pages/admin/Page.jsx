@@ -252,7 +252,7 @@ function DeployCollectionPanel({ onDeployed }) {
           </div>
           <Btn
             onClick={() => writeContract({
-              address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'deploy',
+              address: ADDRESSES.NFT_DEPLOYER, abi: NFT_DEPLOYER_ABI, functionName: 'deployCollection',
               args: [name.trim(), symbol.trim(), cid.trim(), owner.trim() || address],
             })}
             disabled={!canDeploy}
@@ -521,6 +521,16 @@ function CollectionsTab() {
                 })()}
               </div>
 
+              {/* Mint */}
+              <MintPanel
+                colAddress={col.address}
+                onMinted={async () => {
+                  const supply = await publicClient.readContract({ address: col.address, abi: NFT_ABI, functionName: 'totalSupply' });
+                  await loadTokens(col.address, supply);
+                  refetch();
+                }}
+              />
+
               {/* Role Status */}
               <div>
                 <Label>Role Status</Label>
@@ -546,6 +556,53 @@ function CollectionsTab() {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MINT PANEL — mints new NFTs directly into a collection (mint/mintBatch).
+// Owner-only on the NFT contract; independent of the Marketplace listing flow.
+// ─────────────────────────────────────────────────────────────────────────────
+function MintPanel({ colAddress, onMinted }) {
+  const { address } = useAccount();
+  const [to, setTo]     = useState('');
+  const [cids, setCids] = useState('');
+  const { writeContract, hash, isPending, isConfirming, isConfirmed, writeError } = useWrite();
+
+  useEffect(() => {
+    if (!isConfirmed) return;
+    onMinted?.();
+    setCids('');
+  }, [isConfirmed]);
+
+  const cidList = cids.split('\n').map(c => c.trim().replace(/^ipfs:\/\//, '')).filter(Boolean);
+  const canMint = cidList.length > 0 && !isPending && !isConfirming;
+
+  return (
+    <div>
+      <Label>Mint NFTs</Label>
+      <div className="space-y-2">
+        <Input value={to} onChange={setTo} placeholder={address ? `${address} (defaults to you)` : '0x… recipient'} />
+        <textarea
+          value={cids}
+          onChange={e => setCids(e.target.value)}
+          placeholder={'One metadata CID per line\nQm… or ipfs://Qm…'}
+          rows={3}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-hub-green transition-colors"
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-gray-400">{cidList.length} token{cidList.length !== 1 ? 's' : ''}</p>
+          <Btn
+            onClick={() => writeContract({
+              address: colAddress, abi: NFT_ABI, functionName: 'mintBatch',
+              args: [to.trim() || address, cidList],
+            })}
+            disabled={!canMint}
+          >Mint</Btn>
+        </div>
+        <TxStatus hash={hash} isConfirming={isConfirming} isConfirmed={isConfirmed} error={writeError} />
+      </div>
     </div>
   );
 }

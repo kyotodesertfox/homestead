@@ -333,7 +333,7 @@ export const ARTIFACT_HASHES = {
   TREASURY:        '0x81157ef05f8dc0ca338f9b511944de8537457292526a921921047b1f2740bf47',
   RELAY:           '0x6fbecb1d757f5628ab833d04d896fa668feb7e5e14f0fd2bfee3d9bd107ea831',
   TOKEN_DEPLOYER:  '0x87a4fd9159a96dae71b14dd60552f7587cd9a087a3a5efef4d916e297416846b',
-  NFT_DEPLOYER:    '0xc869f89abd5b85a361c0d3991308293e91cbe8e9edbd804398448ad0c0d5dd5e',
+  NFT_DEPLOYER:    '0x566b3ab3bb392673ca13f3542eaa1a47d4a378b577f4ff55a50dbd0cdab5302a',
   MARKETPLACE:     '0x8d3ff3a75a9cf490cc96ff4bc83991c90b60252fb97f6151d72532446aa64c58',
   ROUTER:          '0x45d33dcf2cc957cc984b5269e3f1a50b0294f823f98996f18023ac8c9396d1c2',
   DEX_FACTORY:     '0x8a1027875d09f1980087f72e1bdb1b83d5faf75cfb2d5ef9588711ca3d6debc7',
@@ -450,12 +450,22 @@ export const NFT_DEPLOYER_ABI = [
   { name: 'getAllContracts', type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address[]' }] },
   { name: 'isRegistered',   type: 'function', stateMutability: 'view',       inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
   { name: 'totalContracts', type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'uint256' }] },
-  { name: 'deploy',         type: 'function', stateMutability: 'nonpayable', inputs: [
+  { name: 'deployCollection', type: 'function', stateMutability: 'nonpayable', inputs: [
     { name: '_name',         type: 'string'  },
     { name: '_symbol',       type: 'string'  },
     { name: '_contractCID',  type: 'string'  },
     { name: '_initialOwner', type: 'address' },
   ], outputs: [{ type: 'address' }] },
+  { name: 'deployCustomCollection', type: 'function', stateMutability: 'nonpayable', inputs: [
+    { name: '_impl',         type: 'address' },
+    { name: '_name',         type: 'string'  },
+    { name: '_symbol',       type: 'string'  },
+    { name: '_contractCID',  type: 'string'  },
+    { name: '_initialOwner', type: 'address' },
+  ], outputs: [{ type: 'address' }] },
+  { name: 'approvedImplementations', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'bool' }] },
+  { name: 'approveImplementation',   type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_impl', type: 'address' }], outputs: [] },
+  { name: 'revokeImplementation',    type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_impl', type: 'address' }], outputs: [] },
   // ── wiring map ──
   { name: 'owner',      type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address' }] },
   { name: 'beacon',     type: 'function', stateMutability: 'view',       inputs: [], outputs: [{ type: 'address' }] },
